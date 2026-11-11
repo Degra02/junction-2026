@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.*
+!.env.example
+mise.local.toml
+.mise.local.toml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# JS
+node_modules/
+.next/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Misc
+*.log
+.DS_Store
+.idea/
