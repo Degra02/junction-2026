@@ -1,5 +1,7 @@
 # Spec
 
+> **Under review (Fri 21:00):** the team's new direction, a context-aware propaganda detection pipeline inspired by Ground News, is planned in `docs/plan.md`. This spec is rewritten from that plan after the review; until then, do not build from the sections below.
+
 Filled Fri 13.11 evening. Everything in this repo is in English: code, comments, docs, UI, submission. Research behind this spec (datasets, methods, risks, booth questions): `docs/hostinger-challenge.md`.
 
 ## Challenge

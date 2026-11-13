@@ -21,12 +21,14 @@
 ## Ownership
 Edit only the folders your owner is responsible for. Shared files need the integrator: API contracts, dependency manifests, `mise.toml`, CI, `AGENTS.md`, `SPEC.md`.
 
-| Role | Owns |
-|---|---|
-| Integrator | `main`, contracts, `mise.toml`, CI, `AGENTS.md`, `DECISIONS.md` |
-| AI core | agent loop, prompts, model clients, `evals/` |
-| Product | UI, demo path, deploy |
-| Problem / pitch | `SPEC.md`, demo data, end-to-end tests, `docs/pitch/` |
+| Role | Person | Owns |
+|---|---|---|
+| Integrator | Degra02 | `main`, `contracts/`, `api/`, `deploy/`, `mise.toml`, CI, `AGENTS.md`, `DECISIONS.md` |
+| AI core | Lyreplus | prompts, `pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/` |
+| Product | ck-lithium | `pipeline/extract/`, `pipeline/retrieve/`, `pipeline/story/`; `web/` and the demo path after the Sat 12:00 spec freeze |
+| Problem / pitch | mosearc | `SPEC.md`, `evals/` (labelled sets, fixtures, eval harness), demo data, end-to-end tests, `docs/pitch/` |
+
+Full split and timeline: `docs/plan.md` sections 10–11.
 
 ## Secrets
 - Read keys from the environment (`.env`, loaded by mise). Never print, log, hard-code, or commit them.

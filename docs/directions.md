@@ -1,5 +1,7 @@
 # Directions for "Decode the Noise" — comparison and open decisions
 
+> **Superseded (Fri 21:00):** the team chose a new direction, a context-aware pipeline for single-actor and coordinated propaganda. Plan and open decisions: `docs/plan.md`. This file remains as background (judges' feedback, confidence-score proposal, dataset facts).
+
 Written Fri 13.11 evening from three branches pushed within 15 minutes of each other (commit times, Helsinki):
 
 | | Branch | Commit | Where it lives now |
