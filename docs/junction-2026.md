@@ -56,7 +56,8 @@ Hardware (Arduino), Healthcare, AI Infrastructure (Verda), FinTech, Agentic AI, 
 | Arduino / Ignite Next × Intel | Hardware Lab: UNO Q, LeRobot arms, 3D printers | Arduino App Lab + Bricks; OpenVINO on NPU |
 | Google DeepMind | Featured partner, "something special" for winners; MLH "Best Use of Gemini API" | Gemini 3.8 Flash / Live, Gemma 4, ADK (Python/TS), Robotics ER 2 |
 | AfterQuery | No brief; RL lead on grand jury | Reproducible environments / evals |
-| City of Espoo, Hostinger, Bahn Express, Stoa, Rokoko, AstraZeneca, Tieto | Teaser or nothing yet | — |
+| Hostinger | "Detect propaganda, bots and bad actors online": must run live on Hostinger with a public URL; judged on honest detection logic, false-positive handling, precision/FPR. Directions: swarm, technique, traffic, provenance. Details: `hostinger-challenge.md` | VPS KVM 2 (2 vCPU, 8 GB, Docker, free domain), AI Router `https://router.hostinger.com/v1`, MCP `https://mcp.hostinger.com` |
+| City of Espoo, Bahn Express, Stoa, Rokoko, AstraZeneca, Tieto | Teaser or nothing yet | — |
 
 ## Tech partners
 Best-use prizes confirmed: **NVIDIA Nemotron, Modal, Cloudinary**. Others give credits/tools.
