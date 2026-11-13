@@ -44,7 +44,7 @@
 
 ## Submission checklist
 - [ ] Name, punchline (≤300), description (≤3000) with GIFs and the failure-mode/eval story
-- [ ] Track + up to 5 challenges (partner + stacked tech prizes: Verda, Modal, NVIDIA, Cloudinary, Gemini)
+- [ ] Track + Hostinger + every stacked tech challenge listed in `SPEC.md` (uncapped), each with its per-sponsor note
 - [ ] Public repo, README with run instructions, no secrets (`mise run secrets`)
 - [ ] Demo URL live; video uploaded; ≤5 images
 - [ ] Verda "best use": process documented

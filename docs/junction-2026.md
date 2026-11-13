@@ -6,7 +6,7 @@ Researched 10–11 Nov 2026. Full challenge briefs were not public yet: re-check
 - Hype Areena, Kivenlahti, Espoo. 13–15 Nov 2026. Teams of 1–4. ~2,000 participants, €100k prize pool.
 - Sources: <https://2026.hackjunction.com/>, <https://hackjunction.app/hackathons/junction-2026>
 - Submissions are open-sourced under MIT; the team keeps ownership.
-- Submission fields (platform schema): name ≤100 chars, punchline ≤300, description ≤3000, source URL, demo URL, video URL, ≤5 images, track, **≤5 challenges**, table location. Video length limit not published. <https://github.com/hackjunction/JunctionApp/blob/STAG/shared/constants/project-schema.js>
+- Submission fields (platform schema): name ≤100 chars, punchline ≤300, description ≤3000, source URL, demo URL, video URL, ≤5 images, track, challenges (the schema caps at 5, but the team confirmed on site that tech challenges are uncapped), table location. Video length limit not published. <https://github.com/hackjunction/JunctionApp/blob/STAG/shared/constants/project-schema.js>
 
 ### Schedule (UTC+2)
 | When | What |

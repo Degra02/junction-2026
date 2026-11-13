@@ -1,26 +1,25 @@
 #!/bin/sh
-# Hook pre-push: annulla il push se ruff trova errori.
+# pre-push hook: abort the push if ruff reports errors.
 #
-# Attivazione, una volta per clone (il contenuto di .git/hooks non si versiona,
-# quindi ogni sviluppatore deve dare questo comando sulla propria copia):
+# Enable once per clone (.git/hooks is not versioned, so every developer
+# runs this on their own copy; `mise run setup` does it for you):
 #
 #     git config core.hooksPath .githooks
 #
-# Per saltarlo in un caso singolo: git push --no-verify
+# Skip it once: git push --no-verify
 
 if ! command -v uv >/dev/null 2>&1; then
-	echo "pre-push: uv non trovato, controllo ruff saltato." >&2
+	echo "pre-push: uv not found, skipping ruff check." >&2
 	exit 0
 fi
 
 echo "pre-push: ruff check…"
-if uv run ruff check .; then
+if uvx ruff check .; then
 	exit 0
 fi
 
 echo "" >&2
-echo "pre-push: push annullato, ruff ha trovato degli errori." >&2
-echo "          Molti si sistemano da soli con: uv run ruff check --fix ." >&2
-echo "          Per pushare comunque:            git push --no-verify" >&2
+echo "pre-push: push aborted, ruff found errors." >&2
+echo "          Many fix themselves with: uvx ruff check --fix ." >&2
+echo "          To push anyway:           git push --no-verify" >&2
 exit 1
-
