@@ -16,10 +16,11 @@ mise run check                 # what CI runs
 | `DECISIONS.md` | Append-only decision log |
 | `AGENTS.md` / `CLAUDE.md` | Rules for coding agents |
 | `docs/junction-2026.md` | Event schedule, judging, sponsors, challenges |
-| `docs/hostinger-challenge.md` | Hostinger challenge: brief, design, evaluation plan, booth questions |
+| `docs/hostinger-challenge.md` | Hostinger challenge research: datasets, methods, risks, booth questions |
 | `docs/playbook.md` | Roles, 48h timeline, agent workflow, submission checklist |
 | `docs/setup.md` | Machine setup, sandboxed agents, accounts to create |
 | `mise.toml` | Pinned toolchain, env loading, tasks |
+| `.devcontainer/` | Dev container: mise + pinned toolchain, runs setup on create |
 | `.githooks/` | Pre-commit: block commits to `main`, scan for secrets |
 | `.github/workflows/ci.yml` | `mise run check` on PRs and `main` |
 
