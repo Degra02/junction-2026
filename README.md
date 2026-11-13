@@ -17,6 +17,7 @@ mise run check                 # what CI runs
 | `AGENTS.md` / `CLAUDE.md` | Rules for coding agents |
 | `docs/junction-2026.md` | Event schedule, judging, sponsors, challenges |
 | `docs/hostinger-challenge.md` | Hostinger challenge research: datasets, methods, risks, booth questions |
+| `docs/directions.md` | The three candidate directions compared, and the decisions still open |
 | `docs/playbook.md` | Roles, 48h timeline, agent workflow, submission checklist |
 | `docs/setup.md` | Machine setup, sandboxed agents, accounts to create |
 | `mise.toml` | Pinned toolchain, env loading, tasks |

@@ -14,6 +14,11 @@ Filled Fri 13.11 evening. Everything in this repo is in English: code, comments,
   - strong, honest detection logic, including false-positive handling, over a polished front end;
   - transparent and measurable: precision and false-positive rate, not only the happy path;
   - judging: detection quality 40%, execution + live Hostinger deploy 25%, originality + impact 20%, demo clarity 15%.
+- What the judges told us (Fri evening); consequences and open decisions in `docs/directions.md`:
+  - show the confidence score **and how it is calculated** (signals, cross-references);
+  - scale and impact matter: network traffic analysis could be a good fit;
+  - focus on one type of detection (or a few) and do it well, rather than going broad;
+  - the frontend matters too, but comes after the specs of the whole project are final.
 
 ## Problem
 Readers, journalists, fact-checkers and hosting providers see an article or post and cannot tell whether it is a manipulative piece, who is really behind it, or whether it is one node of a copy-paste network. Answering that today is manual OSINT that takes hours per case: read for techniques, look up the domain, search for copies, compare tracking IDs. Hostinger hosts millions of sites, so cloned propaganda networks also run on its own infrastructure.
