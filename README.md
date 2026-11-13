@@ -19,6 +19,7 @@ mise run check                 # what CI runs
 | `docs/playbook.md` | Roles, 48h timeline, agent workflow, submission checklist |
 | `docs/setup.md` | Machine setup, sandboxed agents, accounts to create |
 | `mise.toml` | Pinned toolchain, env loading, tasks |
+| `.devcontainer/` | Dev container: mise + pinned toolchain, runs setup on create |
 | `.githooks/` | Pre-commit: block commits to `main`, scan for secrets |
 | `.github/workflows/ci.yml` | `mise run check` on PRs and `main` |
 

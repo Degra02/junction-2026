@@ -1,0 +1,38 @@
+{
+  "name": "junction-2026",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "vscode",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Named volumes: pinned tools and package caches survive container rebuilds.
+  "mounts": [
+    "source=junction-2026-mise,target=/home/vscode/.local/share/mise,type=volume",
+    "source=junction-2026-cache,target=/home/vscode/.cache,type=volume",
+    "source=junction-2026-bun,target=/home/vscode/.bun/install/cache,type=volume"
+  ],
+
+  // Same steps as docs/setup.md: trust, install pinned tools, enable git hooks.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "forwardPorts": [3000, 5173, 8000],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hverlin.mise-vscode",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "oven.bun-vscode",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
+      }
+    }
+  }
+}
