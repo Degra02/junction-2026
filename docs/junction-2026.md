@@ -6,7 +6,7 @@ Researched 10–11 Nov 2026. Full challenge briefs were not public yet: re-check
 - Hype Areena, Kivenlahti, Espoo. 13–15 Nov 2026. Teams of 1–4. ~2,000 participants, €100k prize pool.
 - Sources: <https://2026.hackjunction.com/>, <https://hackjunction.app/hackathons/junction-2026>
 - Submissions are open-sourced under MIT; the team keeps ownership.
-- Submission fields (platform schema): name ≤100 chars, punchline ≤300, description ≤3000, source URL, demo URL, video URL, ≤5 images, track, **≤5 challenges**, table location. Video length limit not published. <https://github.com/hackjunction/JunctionApp/blob/STAG/shared/constants/project-schema.js>
+- Submission fields (platform schema): name ≤100 chars, punchline ≤300, description ≤3000, source URL, demo URL, video URL, ≤5 images, track, challenges (the schema caps at 5, but the team confirmed on site that tech challenges are uncapped), table location. Video length limit not published. <https://github.com/hackjunction/JunctionApp/blob/STAG/shared/constants/project-schema.js>
 
 ### Schedule (UTC+2)
 | When | What |
@@ -56,7 +56,8 @@ Hardware (Arduino), Healthcare, AI Infrastructure (Verda), FinTech, Agentic AI, 
 | Arduino / Ignite Next × Intel | Hardware Lab: UNO Q, LeRobot arms, 3D printers | Arduino App Lab + Bricks; OpenVINO on NPU |
 | Google DeepMind | Featured partner, "something special" for winners; MLH "Best Use of Gemini API" | Gemini 3.8 Flash / Live, Gemma 4, ADK (Python/TS), Robotics ER 2 |
 | AfterQuery | No brief; RL lead on grand jury | Reproducible environments / evals |
-| City of Espoo, Hostinger, Bahn Express, Stoa, Rokoko, AstraZeneca, Tieto | Teaser or nothing yet | — |
+| Hostinger | "Decode the Noise": detect propaganda, bots and bad actors online; must run live on Hostinger with a public URL; judged on honest detection logic, false-positive handling, precision/FPR. Directions: swarm, technique, traffic, provenance. Details: `hostinger-challenge.md` | VPS KVM 2 (2 vCPU, 8 GB, Docker, free domain), AI Router `https://router.hostinger.com/v1`, MCP `https://mcp.hostinger.com` |
+| City of Espoo, Bahn Express, Stoa, Rokoko, AstraZeneca, Tieto | Teaser or nothing yet | — |
 
 ## Tech partners
 Best-use prizes confirmed: **NVIDIA Nemotron, Modal, Cloudinary**. Others give credits/tools.

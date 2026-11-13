@@ -6,6 +6,12 @@
 3. `cp .env.example .env` and fill it from the team password manager. mise loads `.env` automatically.
 4. `mise run check` must pass.
 
+## Dev container (alternative to installing mise locally)
+- VS Code: "Dev Containers: Reopen in Container". CLI: `devcontainer up --workspace-folder .`.
+- The image only ships mise; `post-create.sh` creates `.env` from `.env.example` if missing, then runs `mise trust`, `mise run setup`, `mise run check`.
+- Pinned tools and caches live in named volumes (`junction-2026-mise`, `-cache`, `-bun`), so rebuilds do not re-download them.
+- Podman (rootless): set `"dev.containers.dockerPath": "podman"` in VS Code and add `"runArgs": ["--userns=keep-id"]` locally if files end up owned by the wrong user.
+
 ## Sandboxed agents (`jomp` = omp under nono)
 - `jomp` picks `~/.config/nono/profiles/omp-<repo-dirname>.json` when it exists; for this repo that is `omp-junction-2026.json`.
 - It extends `omp` (read/write the repo + `~/.omp`) with the `mise_manager`, `node_runtime`, `bun_runtime`, `python_runtime`, `user_caches_linux` groups and write access to `~/.npm`, `~/.bun`, `~/.local/share/uv`.
