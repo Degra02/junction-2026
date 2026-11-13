@@ -1,9 +1,9 @@
 # Project plan — context-aware propaganda detection pipeline
 
-Status: **proposal for the team review** (Fri 13.11, 21:00). Nothing here is decided until it is ticked in "Decisions for the review" at the end and copied into `DECISIONS.md`. Supersedes the direction comparison in `docs/directions.md`; the Hostinger brief and research stay in `docs/hostinger-challenge.md`.
+Status: **decided at the team review** (Sat 14.11, 00:58). Decisions are in section 13 and `DECISIONS.md`; the text below reflects them. Supersedes the direction comparison in `docs/directions.md`; the Hostinger brief and research stay in `docs/hostinger-challenge.md`.
 
 ## 1. Project description
-A pipeline that takes one piece of online content and tells a non-technical reader whether it shows signs of **propaganda by its author** (single-actor manipulation) and/or **coordinated propaganda** (the same message pushed by many outlets or accounts acting together). The verdict rests on **quantified evidence gathered live from the web about the same topic**, not on a model's opinion of the text alone.
+A pipeline that takes one piece of online content and shows a non-technical reader how strongly it shows signs of **propaganda by its author** (single-actor manipulation) and of **coordinated propaganda** (the same message pushed by many outlets or accounts acting together). It never returns a "propaganda / not propaganda" label, which would pose as ground truth: the output is a **confidence score per dimension plus the list of evidence behind it** (D4). The score rests on **quantified evidence gathered live from the web about the same topic**, not on a model's opinion of the text alone.
 
 Two examples of the intended behaviour:
 - A newspaper (in any language) publishes a story about event *x*. The system finds how other outlets, in the same language and internationally, covered *x*, compares the claims, the tone and the wording, checks fact-checkers, and shows where this article stands relative to everyone else.
@@ -13,16 +13,16 @@ Two examples of the intended behaviour:
 
 **Why this fits the challenge and the judges' feedback**
 - Hostinger brief: strong, honest detection logic with precision and false-positive rate. Each signal is measured on labelled data and reported separately.
-- Judges: show **how the confidence score is calculated** (section 5), **focus on a few detection types** (MVP in section 3 has two: single-actor and coordinated, on one input type first), **scale and impact** (section 8), **frontend later** (section 9).
+- Judges: show **how the confidence score is calculated** (section 5), **focus on a few detection types** (MVP in section 3 has two: single-actor and coordinated, on pasted text first), **scale and impact** (section 8), **frontend later** (section 9).
 
 ## 2. Functional requirements
 | ID | Requirement | Priority | How we meet it |
 |---|---|---|---|
-| FR1 | Usable by a non-technical person | Must | One input box (paste a link or text, or upload an image); plain-language traffic-light verdict with three reasons; details hidden behind "show evidence"; no jargon (technique names translated into everyday words); progress shown step by step while the pipeline runs |
-| FR2 | Hosted on Hostinger | Must | API, workers, database, models and UI on the VPS; LLM calls through Hostinger AI Router; optional n8n for scheduled ingestion; optional Hostinger GPU for fine-tuning or batch evaluation (section 7) |
-| FR3 | Quantifiable detection | Must | Every verdict is a calibrated score built from named signals, each with a measured weight and its source links; metrics page with precision, recall, FPR per hard-negative set and calibration |
-| FR4 | Context from live online sources | Must | Retrieval of related coverage, fact-checks and repeated phrasing for every analysis (section 4, stage 3) |
-| FR5 | Pretrained vs trained models | Must decide | Proposal: pretrained Hugging Face models for the text signals; we train only the small score combiner (section 6, D5) |
+| FR1 | Usable by a non-technical person | Must | One input box (pasted text first; link and image upload in later phases, D1); a confidence score per dimension with three plain-language reasons and the evidence list; full breakdown hidden behind "show evidence"; no jargon (technique names translated into everyday words); progress shown step by step while the pipeline runs |
+| FR2 | Hosted on Hostinger | Must | API, workers, database (SQLite), models and UI on the VPS; LLM calls through Hostinger AI Router; n8n for scheduled ingestion in phase 2; no GPU (D13) |
+| FR3 | Quantifiable detection | Must | Every score is calibrated and built from named signals, each with a measured weight and its source links; metrics page with precision, recall, FPR per hard-negative set and calibration |
+| FR4 | Context from live online sources | Must | Retrieval of related coverage (Google News, GDELT, Gemini with Google Search grounding), fact-checks and repeated phrasing (Oxylabs) for every analysis (section 4, stage 3) |
+| FR5 | Pretrained vs trained models | Must | Decided: pretrained Hugging Face models for the text signals; we train only the small score combiner; no fine-tuning for now (D5, D13) |
 | NH1 | Explainable verdict | Nice | Score breakdown per signal family plus an LLM-written explanation constrained to the evidence |
 | NH2 | Dashboard | Nice | Metrics page first; history of analyses and coverage trends later |
 
@@ -30,14 +30,15 @@ Non-functional targets (to confirm): one analysis in ≤ 60 s end to end, async 
 
 ## 3. Scope
 **MVP (must work Sunday morning)**
-- Input: a **news article URL or pasted text**, in any language the models support; quality is reported per language (section 4, "Language support").
+- Input: **pasted text** (D1), in any language the models support; quality is reported per language (section 4, "Language support").
 - Single-actor signals: persuasion techniques, tone compared with peers, claim support across coverage, fact-check matches, source profile.
 - Coordinated signals: copied passages across unrelated outlets, timing of the copies, shared infrastructure, membership of documented propaganda networks.
-- Verdict per dimension (single / coordinated) with confidence and breakdown; evidence list with links.
+- Confidence score per dimension (single / coordinated) with breakdown and abstention; evidence list with links. No "propaganda / not" label (D4).
 
-**Phase 2 (only if the MVP is green by Sat 18:00)**
-- Social post URL and meme/screenshot input (OCR via a vision model on AI Router).
-- Social-media search for repeated phrasing. Unauthenticated Bluesky and Reddit search returned 403 from our network on Fri evening; this needs API credentials or a scraping provider (D7).
+**Phase 2, in this order (D1)**
+- Article URL input: fetch and extract the page with the extractor already used for retrieved items. Starts as soon as the text path runs end to end.
+- Image input (memes, screenshots): OCR via a vision model on AI Router. Only if the MVP is green by Sat 18:00, like everything below.
+- Social-media search for repeated phrasing. Unauthenticated Bluesky and Reddit search returned 403 from our network on Fri evening; this goes through Oxylabs (D7) or API credentials.
 - Scheduled ingestion with n8n to build our own coverage index.
 - Dashboard with history and trends.
 
@@ -60,7 +61,7 @@ flowchart TD
 ```
 
 ### Stage by stage
-1. **Input.** URL, pasted text, or image. Detect language; reject unsupported languages with a clear message instead of guessing.
+1. **Input.** Pasted text in the MVP, then URL, then image (D1). Detect language; reject unsupported languages with a clear message instead of guessing.
 2. **Extract.** Fetch and clean the page (e.g. trafilatura); keep title, body paragraphs, publication date, author, outlet domain, outbound links, and raw HTML for infrastructure checks (tracking IDs). Images: OCR through a vision model on AI Router.
 3. **Understand and retrieve.**
    - An LLM returns structured JSON: event summary, entities, date/place, up to five key claims, and search queries **in the item's language plus English** (to reach international coverage). Each claim must be traceable to a sentence of the text (verbatim check), otherwise it is dropped.
@@ -69,9 +70,10 @@ flowchart TD
      |---|---|---|
      | Google News RSS search, edition chosen from the detected language and country (`hl`, `gl`, `ceid`) | Related articles with outlet and date | Works without a key; tested with an Italian query |
      | GDELT DOC 2.0 API | Multilingual coverage, outlet domain, source country, first-seen time | No key; **1 request per 5 s**, our test was throttled — needs queueing and caching |
+     | Gemini API with Grounding with Google Search | Related coverage found by a model that searches Google, returned as cited source URLs; reaches outlets missing from the RSS editions (D15) | Needs a Gemini API key. Retrieval adapter only: the URLs are fetched and checked like any other item; the pipeline's LLM stays AI Router (D12) |
      | Google Fact Check Tools API (`claims:search`, `languageCode`) | ClaimReview fact-checks with rating and publisher ([docs](https://developers.google.com/fact-check/tools/api/reference/rest/v1alpha1/claims/search)) | Needs a Google API key |
      | Fact-checkers publishing ClaimReview (most IFCN signatories, in many languages) | Debunks in the item's language | Reached through the Fact Check API above; site-restricted search for checkers missing from it |
-     | Exact-phrase search for distinctive sentences | Copies of the same text elsewhere | Google News RSS with quotes; Oxylabs or Context.dev if we keep them (D7) |
+     | Exact-phrase search for distinctive sentences | Copies of the same text elsewhere | Google News RSS with quotes; Oxylabs search (D7) |
      | RDAP and Certificate Transparency | Domain age, first certificate | Free, no key |
      | VIGINUM Portal Kombat domain list | 371 documented pro-Russian "Pravda network" domains and subdomains, one per target country/language (e.g. `pravda-de[.]com`, `pravda-fr[.]com`, `pravda-pl[.]com`) ([CSV](https://github.com/VIGINUM-FR/Rapports-Techniques/tree/main/202402%20-%20Portal%20Kombat)) | Public CSV; repo has no licence file |
    - Fetch the top N related items (N ≈ 15–30) with the same extractor.
@@ -116,7 +118,7 @@ Analysis
   context[]    { id, url, outlet, published_at, title, text, retrieved_by, similarity, in_story }
   evidence[]   { id, family, signal, value, detail, source_refs[] }
   scores       { single: Score, coordinated: Score }
-  Score        { label, probability, tier, breakdown[] { family, contribution, evidence_ids[] }, abstained, reason }
+  Score        { confidence, tier, breakdown[] { family, contribution, evidence_ids[] }, abstained, reason }
   explanation  { summary, reasons[] { text, evidence_ids[] } }
 ```
 
@@ -127,7 +129,7 @@ Analysis
 - Each family produces one number from its signals. Inside a family only the strongest signal counts, so correlated evidence is not double-counted.
 - **Combiner**: logistic regression on the family values, trained on our labelled evaluation set. Its coefficients are the weights shown to the user ("copied passages from 6 unrelated outlets: +1.8"). This is the only model we train in the MVP: small, fast, fully explainable.
 - **Calibration**: cross-validated, because the set is small. The metrics page shows a reliability table ("of results scored ≥ 0.8, x% were really propaganda").
-- **Abstain**: when too little context is found (e.g. fewer than 3 related items) or families disagree, the verdict is "Not enough evidence", with the reason. Abstain rate is reported.
+- **Abstain**: when too little context is found (e.g. fewer than 3 related items) or families disagree, the result shows "Not enough evidence" instead of a score, with the reason. Abstain rate is reported.
 - **Uncertainty**: with ~150 labelled items, precision and FPR get Wilson 95% intervals; we show the intervals, not only point values.
 
 ## 6. Models: pretrained or trained
@@ -137,19 +139,20 @@ Analysis
 | B. Fine-tune the technique classifier | Possible gains on news in specific languages | Multilingual labelled data needs SemEval-2023 registration (manual approval) or our own labelling; GPU hours; research-only data licences; little time to evaluate properly |
 | C. LLM zero-shot for techniques | No training; good explanations | Not reproducible, costs credits per call, prompt-injectable; over-flags |
 
-Proposal: **A** for the MVP; B only if a teammate has time on Saturday and labelled data has arrived. Model licences: the candidates above are MIT, but they were trained on research-only datasets; ask the organisers whether that matters for a public MIT repo.
+Decided: **A** (D5); no fine-tuning for now (D13). Model licences: the candidates above are MIT, but they were trained on research-only datasets; ask the organisers whether that matters for a public MIT repo.
 
-CPU check before relying on it: XLM-R large on 2 vCPU across ~20 paragraphs may take tens of seconds [inference, not measured]. Measure on the VPS Friday night; fallback is a smaller model or running models on a Hostinger GPU instance (section 7).
+CPU check before relying on it: XLM-R large on 2 vCPU across ~20 paragraphs may take tens of seconds [inference, not measured]. Measure on the VPS; fallback is a smaller model (no GPU, D13).
 
 ## 7. Hosting on Hostinger
 | Component | Where | Notes |
 |---|---|---|
 | API (FastAPI) + pipeline workers + job queue | VPS KVM 2 (2 vCPU, 8 GB) | Docker Compose; Caddy for TLS on the free domain |
-| Database | VPS (SQLite or Postgres container) or Aiven Postgres + pgvector | D11 |
+| Database | VPS, SQLite (D11) | Postgres only if a need appears |
 | Text models (embeddings, NLI, techniques) | VPS CPU first | Measure latency; cache per URL |
 | LLM steps (claims, queries, explanation, OCR) | Hostinger AI Router via `LLM_BASE_URL` | Per-key spend limit; exact model IDs from hPanel |
+| Grounded search (retrieval adapter) | Gemini API (Google) | Key in `.env`; rate-limited and cached like the other adapters (D15) |
 | Scheduled ingestion (phase 2) | n8n from Hostinger's one-click VPS template | Pull RSS from a configurable list of outlets and fact-checkers in several languages into our DB every N minutes: our own coverage index and first-seen timeline. Not for the core pipeline: logic in n8n is hard to test and version |
-| Fine-tuning / batch evaluation (optional) | Hostinger GPU, hourly (from about $0.42/h for an RTX 4090, per a third-party price tracker reading Hostinger's page) | Billed in Hostinger credits, likely the same balance as AI Router; confirm what the team allocation covers |
+| GPU | Not used (D13) | Revisit only if the team decides to fine-tune |
 | Frontend | Served by the VPS | After the spec freeze (section 9) |
 
 ## 8. Evaluation and scale
@@ -172,26 +175,26 @@ CPU check before relying on it: XLM-R large on 2 vCPU across ~20 paragraphs may 
 
 ## 9. User experience
 **Principles**
-- One screen to start: a single input, example buttons (articles in two different languages, a meme).
+- One screen to start: a single input, example buttons (texts in two different languages; an article link and a meme once those inputs land).
 - While running: the pipeline steps with ticks ("Reading the article… Finding other coverage (14 sources)… Checking fact-checkers…").
 - Result, top to bottom:
-  1. A traffic light per dimension plus a confidence bar ("Likely one-sided propaganda — 82% confident").
+  1. A confidence score per dimension with a bar and the number of evidence items behind it ("Signs of single-actor propaganda: 82% confidence, 9 pieces of evidence"); no "propaganda / not" label (D4).
   2. Three reasons in plain words, each with a link.
   3. The **coverage view**, inspired by Ground News: how other outlets covered the same event, ordered by time, with this item's position on tone and claim support.
   4. Evidence and score breakdown, behind "Show how we calculated this".
 - Words, not labels: "Emotionally charged words", "Same text published by 6 unrelated sites within 2 hours", "Claim contradicted by 5 of 7 sources".
 
-**Timing.** Per the judges, frontend work starts only after the spec freeze (target Sat 12:00). Until then the API returns everything the UI needs; the product owner collects design references and wireframes.
+**Timing.** Per the judges, frontend work starts only after the spec freeze (target Sat 12:00). Until then the API returns everything the UI needs; ck-lithium sketches wireframes alongside the retrieval work.
 
 ## 10. Team roles (4 people, each driving agents)
-Split by folder, one owner per folder, contracts first (`docs/playbook.md`). Names to fill in at the review.
+Split by folder, one owner per folder, contracts first (`docs/playbook.md`). Names assigned at the review (D16).
 
 | Role | Person | Owns (folders) | Delivers |
 |---|---|---|---|
-| **P1 Integrator + platform** | ? | `contracts/`, `api/`, `deploy/`, CI, `DECISIONS.md` | Data contract and OpenAPI in hour one; walking skeleton live on the VPS Friday night; job queue, cache, DB; AI Router client; n8n setup (phase 2); merges every round; keeps `main` deployable |
-| **P2 AI core: retrieval and context** | ? | `pipeline/extract/`, `pipeline/retrieve/`, `pipeline/story/` | Extraction, claim and query generation, source adapters (Google News, GDELT, Fact Check API, fact-checkers, RDAP/CT, VIGINUM list), rate limiting and caching, story clustering |
-| **P3 AI core: signals and scoring** | ? | `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/` | Technique model, tone vs peers, NLI claim support, text reuse, timing, infrastructure; combiner, calibration, abstain; constrained explanation |
-| **P4 Evaluation, product and pitch** | ? | `evals/`, `web/` (after spec freeze), `docs/pitch/` | Labelled sets and labelling guide; eval harness and metrics page; wireframes now, frontend after the freeze; demo script, video, submission text |
+| **P1 Integrator + platform** | Degra02 | `contracts/`, `api/`, `deploy/`, CI, `DECISIONS.md` | Data contract and OpenAPI in hour one; walking skeleton live on the VPS; job queue, cache, DB; AI Router client; URL and image input wiring; n8n setup (phase 2); merges every round; keeps `main` deployable |
+| **P2 Product: retrieval, then UI** | ck-lithium | `pipeline/extract/`, `pipeline/retrieve/`, `pipeline/story/`; `web/` after the spec freeze | Extraction, source adapters (Google News, GDELT, Gemini grounded search, Fact Check API, fact-checkers, Oxylabs, RDAP/CT, VIGINUM list), rate limiting and caching, story clustering, all by the Sat 12:00 freeze; wireframes before it; frontend, metrics page and demo path after it |
+| **P3 AI core: understanding, signals, scoring** | Lyreplus | `pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/` | Claim and query generation (stage 3a); technique model, tone vs peers, NLI claim support, text reuse, timing, infrastructure; combiner, calibration, abstain; constrained explanation |
+| **P4 Problem: evaluation and pitch** | mosearc | `evals/`, `SPEC.md`, `docs/pitch/` | `SPEC.md` rewrite from this plan; labelled sets and labelling guide; eval harness and the metrics behind the metrics page; demo script, video, submission text |
 
 Working agreements:
 - Every stage is testable alone with fixture `Analysis` records committed in `evals/fixtures/`. Agents build against fixtures, not against each other's branches.
@@ -199,15 +202,15 @@ Working agreements:
 - Only P1 changes `contracts/`. A contract change is announced in the team chat before merging.
 
 ## 11. Timeline
-| When | P1 platform | P2 retrieval | P3 signals | P4 eval/product |
+| When | P1 Degra02: platform | P2 ck-lithium: retrieval, then UI | P3 Lyreplus: signals | P4 mosearc: eval and pitch |
 |---|---|---|---|---|
 | Fri 21:30–23:59 | Contract + skeleton API; VPS, domain, Caddy | Extract + Google News RSS adapter | Measure model latency on CPU; technique + NLI wrappers | Start labelled sets; preliminary submission text |
 | **Fri 23:59** | Preliminary submission | | | |
-| Sat 00:00–12:00 (sleep in shifts) | Deploy pipeline end to end; queue, cache | GDELT, Fact Check API, fact-checker sites, RDAP/CT, VIGINUM | Tone vs peers, reuse, timing, infrastructure | Sets ≥ 100 items; eval harness running on fixtures |
-| **Sat 12:00** | **Spec freeze**: final decisions; frontend starts | | | |
-| Sat 12:00–18:00 | Integrate, harden, n8n if MVP green | Story clustering, claim extraction quality | Combiner + calibration on labelled set; explanation | Frontend v1 (with P1); first metrics |
-| **Sat 16:00** | **Real data through the full demo path** | | | |
-| Sat 18:00–Sun 03:00 | Performance, monitoring | Phase 2 input (social/meme) only if green | Ablation, false-positive review | Metrics page, demo script, rehearsal |
+| Sat 00:00–12:00 (sleep in shifts) | Deploy pipeline end to end; queue, cache | GDELT, Gemini grounded search, Fact Check API, fact-checker sites, Oxylabs, RDAP/CT, VIGINUM; story clustering; wireframes | Claim and query generation; tone vs peers, reuse, timing, infrastructure | `SPEC.md` rewrite; sets ≥ 100 items; eval harness running on fixtures |
+| **Sat 12:00** | **Spec freeze**: final decisions; frontend starts (P2) | | | |
+| Sat 12:00–18:00 | Integrate, harden; URL input once text runs end to end; n8n if MVP green | Frontend v1 (with P1); retrieval fixes | Combiner + calibration on labelled set; explanation | First metrics; hard-negative review |
+| **Sat 16:00** | **Real data through the full demo path (text input)** | | | |
+| Sat 18:00–Sun 03:00 | Performance, monitoring; image input only if MVP green | Metrics page, demo path polish | Ablation, false-positive review | Demo script, rehearsal |
 | **Sun 03:00** | **Feature freeze** | | | |
 | Sun 03:00–09:00 | Fresh-clone rehearsal, backup recording | Bug fixes | Bug fixes | Video, description, submission |
 
@@ -218,30 +221,31 @@ Working agreements:
 | GDELT rate limit (1 request / 5 s) | Queue and cache; Google News RSS as the first adapter |
 | Wire copy flagged as coordination | Wire-service and press-release recognition; dedicated hard-negative set with its own FPR |
 | Fact-checks and satire flagged as propaganda | Hard-negative sets; quote-aware claim handling |
-| Model latency on 2 vCPU | Measure Friday night; smaller models, caching, or GPU |
+| Model latency on 2 vCPU | Measure on the VPS; smaller models, caching (no GPU, D13) |
 | Small labelled set → unstable scores | Wilson intervals, cross-validated calibration, say so on the metrics page |
 | Licences (research-only training data, scraped content) | Never commit scraped text or datasets; ask organisers about model weights |
-| Breadth (judges: focus) | MVP is one input type; phase 2 only after Sat 18:00 if green |
+| Breadth (judges: focus) | MVP is one input type (pasted text); URL next, image only after Sat 18:00 if green |
+| Oxylabs needs the $500 Flexible plan (code `JUNCTION2026`) and renews monthly | Cancel right after the event |
 
 ## 13. Decisions for the review
-Fill in the "Decision" column during the review, then copy each line into `DECISIONS.md`.
+Filled at the review (Sat 00:58) and copied into `DECISIONS.md`.
 
 | ID | Question | Options | Proposal | Decision |
 |---|---|---|---|---|
-| D1 | MVP input type | Article URL/text only · + social post · + meme | Article URL/text only; social and meme in phase 2 | |
-| D2 | Language policy | Any language with support tiers · fixed list of languages | Any language; tiers "evaluated / supported, not evaluated / unsupported" shown to the user; evaluated = languages in our labelled sets | |
-| D3 | Detection dimensions in the MVP | Single only · Coordinated only · Both | Both, with separate verdicts | |
-| D4 | Verdict labels shown to users | Propaganda / not · traffic light + confidence · score only | Traffic light + calibrated confidence + "not enough evidence" | |
-| D5 | Models | Pretrained + trained combiner · fine-tune techniques · LLM zero-shot | Pretrained + trained combiner | |
-| D6 | Technique model | `Mishtar4/persuasion-detector-xlm-roberta` (multilingual) · `IDA-SERICS/PropagandaDetection` (English only) · other | Mishtar4 after a latency check and a spot check in languages outside its training set | |
-| D7 | Scraping providers | Free sources only · + Oxylabs · + Context.dev | Free sources first; one paid provider only if a source blocks us (Oxylabs needs the $500 plan, cancel after the event) | |
-| D8 | Fact-check source | Google Fact Check API · site search on checkers missing from it · both | Both | |
-| D9 | Outlet ratings (Ground News style) | Third-party bias ratings · our own outlet types · none | Our own measurable outlet types; no political-bias ratings | |
-| D10 | n8n | Not used · scheduled ingestion · core orchestration | Scheduled ingestion, phase 2 | |
-| D11 | Database | SQLite on VPS · Postgres on VPS · Aiven Postgres + pgvector | SQLite until a need appears; Aiven if we keep that tech challenge | |
-| D12 | LLM endpoint | Hostinger AI Router · Nemotron · both via `LLM_BASE_URL` | AI Router default, Nemotron as fallback if we keep that tech challenge | |
-| D13 | GPU | None · Hostinger GPU · Verda | None for the MVP; Verda credits for any fine-tune (free), Hostinger GPU only if credits allow | |
-| D14 | UI language | English (current team rule) · localised UI | English UI for the hackathon; content analysis in any language; LLM explanation in the user's language as an option | |
-| D15 | Tech challenges kept | Previous tier list in `SPEC.md` | Re-pick after D7, D11, D12, D13 | |
-| D16 | Role assignment | Section 10 table | Fill in names | |
-| D17 | Project name and punchline (needed for 23:59) | — | Proposed punchline: "Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown." | |
+| D1 | MVP input type | Article URL/text only · + social post · + meme | Article URL/text only; social and meme in phase 2 | Pasted text first; then article URL; then image |
+| D2 | Language policy | Any language with support tiers · fixed list of languages | Any language; tiers "evaluated / supported, not evaluated / unsupported" shown to the user; evaluated = languages in our labelled sets | As proposed |
+| D3 | Detection dimensions in the MVP | Single only · Coordinated only · Both | Both, with separate verdicts | Both, scored separately |
+| D4 | Verdict labels shown to users | Propaganda / not · traffic light + confidence · score only | Traffic light + calibrated confidence + "not enough evidence" | No "propaganda / not" label (it is not ground truth): confidence score per dimension plus the evidence list |
+| D5 | Models | Pretrained + trained combiner · fine-tune techniques · LLM zero-shot | Pretrained + trained combiner | As proposed |
+| D6 | Technique model | `Mishtar4/persuasion-detector-xlm-roberta` (multilingual) · `IDA-SERICS/PropagandaDetection` (English only) · other | Mishtar4 after a latency check and a spot check in languages outside its training set | As proposed |
+| D7 | Scraping providers | Free sources only · + Oxylabs · + Context.dev | Free sources first; one paid provider only if a source blocks us (Oxylabs needs the $500 plan, cancel after the event) | Free sources first, plus Oxylabs; no Context.dev |
+| D8 | Fact-check source | Google Fact Check API · site search on checkers missing from it · both | Both | As proposed |
+| D9 | Outlet ratings (Ground News style) | Third-party bias ratings · our own outlet types · none | Our own measurable outlet types; no political-bias ratings | As proposed |
+| D10 | n8n | Not used · scheduled ingestion · core orchestration | Scheduled ingestion, phase 2 | As proposed |
+| D11 | Database | SQLite on VPS · Postgres on VPS · Aiven Postgres + pgvector | SQLite until a need appears; Aiven if we keep that tech challenge | SQLite on the VPS |
+| D12 | LLM endpoint | Hostinger AI Router · Nemotron · both via `LLM_BASE_URL` | AI Router default, Nemotron as fallback if we keep that tech challenge | Hostinger AI Router |
+| D13 | GPU | None · Hostinger GPU · Verda | None for the MVP; Verda credits for any fine-tune (free), Hostinger GPU only if credits allow | None; no fine-tuning for now |
+| D14 | UI language | English (current team rule) · localised UI | English UI for the hackathon; content analysis in any language; LLM explanation in the user's language as an option | As proposed |
+| D15 | Tech challenges kept | Previous tier list in `SPEC.md` | Re-pick after D7, D11, D12, D13 | Oxylabs; Google MLH "Best Use of Gemini API" (Gemini with Google Search grounding as a retrieval adapter, other uses possible); the rest of the old tier list dropped |
+| D16 | Role assignment | Section 10 table | Fill in names | Integrator Degra02; AI core Lyreplus; Product ck-lithium; Problem mosearc (section 10) |
+| D17 | Project name and punchline (needed for 23:59) | — | Proposed punchline: "Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown." | Already done |
