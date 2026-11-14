@@ -68,11 +68,25 @@ def first_certificate(body: bytes) -> datetime | None:
 
 
 class Profiler:
-    def __init__(self, web: Web, cache: Cache | NoCache, registry: Registry, listing: Listing):
+    def __init__(
+        self,
+        web: Web,
+        cache: Cache | NoCache,
+        registry: Registry,
+        listing: Listing,
+        *,
+        redirected_from: dict[str, str] | None = None,
+    ):
+        """`redirected_from` maps a domain to the host it was reached from (the submitted URL's
+        host when the page redirected elsewhere). Network sites move: since Nov 2026 the Pravda
+        domains (`pravda-de.com`...) redirect to `*.news-pravda.com`. VIGINUM lists
+        `news-pravda.com` too, but a listed site that moves to a domain not on the list yet is
+        still caught through the address it was reached from."""
         self._web = web
         self._cache = cache
         self._registry = registry
         self._listing = listing
+        self._redirected_from = redirected_from or {}
 
     async def _lookup(self, ns, url, domain, parse, timeout_s, max_bytes) -> datetime | None:
         cached = self._cache.get(ns, domain, DOMAIN_MAX_AGE)
@@ -143,10 +157,13 @@ class Profiler:
         """What is known without the network: registry type and country, VIGINUM listing."""
         outlet = self._registry.lookup(domain)
         listed = self._listing.match(domain)
+        # Only the network membership carries over from the original address; its creation
+        # date belongs to that other domain, not to this one.
+        via = self._listing.match(self._redirected_from.get(domain))
         return SourceProfile(
             domain=domain,
             registered_at=self._listing.created.get(listed) if listed else None,
             outlet_type=outlet.outlet_type if outlet else None,
             country=outlet.country if outlet else None,
-            known_network=NETWORK if listed else None,
+            known_network=NETWORK if listed or via else None,
         )

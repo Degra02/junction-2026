@@ -10,6 +10,12 @@ so it is never committed. Where it comes from, first match wins:
 Domains are written defanged
 (`pravda-de[.]com`). Rows of type `domain` cover their subdomains; `subdomain` rows only
 themselves and what lies below them.
+
+Since Nov 2026 the Pravda domains redirect to `*.news-pravda.com` subdomains (`pravda-de.com` ->
+`deutsch.news-pravda.com`). Extract and retrieve keep the final URL, so outlets appear under the
+new hosts; the list has `news-pravda.com` as a `domain` row, so every such subdomain matches.
+For sites that move to a domain not listed yet, `sources.Profiler` also checks the submitted
+URL's host.
 """
 
 import csv

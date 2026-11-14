@@ -342,3 +342,33 @@ def test_viginum_download_failure_or_timeout_leaves_networks_empty(stage, monkey
     stage.delays[viginum.SOURCE_URL] = 5
     patch = run()
     assert len(patch.context) == 2 and all(s.known_network is None for s in patch.sources)
+
+
+def test_a_listed_site_that_moved_is_caught_through_the_submitted_url(stage, monkeypatch):
+    from pipeline.common.contracts import Input, InputKind
+
+    monkeypatch.setattr(
+        retrieve, "_LISTING", parse_viginum(HEADER + "pravda-xx[.]com,22/02/2023,,domain\n")
+    )
+    a = analysis()
+    a.queries = []
+    a.input = Input(kind=InputKind.url, value="https://pravda-xx.com/2026/11/post")
+    a.document.url = "https://brand-new-mirror.example/2026/11/post"  # where it redirected
+    a.document.outlet = "brand-new-mirror.example"
+    [profile] = run(a).sources
+    assert profile.domain == "brand-new-mirror.example"
+    assert profile.known_network == "portal_kombat"
+    assert profile.registered_at is None  # the listed domain's date is not this domain's
+
+
+def test_no_redirect_no_borrowed_listing(stage, monkeypatch):
+    from pipeline.common.contracts import Input, InputKind
+
+    monkeypatch.setattr(
+        retrieve, "_LISTING", parse_viginum(HEADER + "pravda-xx[.]com,22/02/2023,,domain\n")
+    )
+    a = analysis()
+    a.queries = []
+    a.input = Input(kind=InputKind.text, value="Pasted text")
+    [profile] = run(a).sources
+    assert profile.known_network is None

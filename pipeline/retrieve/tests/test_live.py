@@ -92,3 +92,4 @@ def test_the_viginum_list_downloads():
     listing = asyncio.run(go())
     assert len(listing) > 300
     assert listing.match("pravda-de.com") == "pravda-de.com"
+    assert listing.match("deutsch.news-pravda.com")  # the Pravda redirect target

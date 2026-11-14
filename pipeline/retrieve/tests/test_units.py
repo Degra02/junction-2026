@@ -244,6 +244,8 @@ def test_the_real_viginum_list_parses_when_present():
     listing = parse_viginum(DEFAULT_PATH.read_text(encoding="utf-8"))
     assert len(listing) > 300
     assert listing.match("pravda-de.com") == "pravda-de.com"
+    for host in ("deutsch.news-pravda.com", "francais.news-pravda.com", "news-pravda.com"):
+        assert listing.match(host), host  # where the Pravda domains redirect now
 
 
 def _fetch(server, cache):
@@ -297,3 +299,18 @@ def test_unreachable_viginum_source_gives_an_empty_list(server, monkeypatch):
             return await fetch_listing(Web(client), NoCache())
 
     assert len(asyncio.run(go())) == 0
+
+
+def test_news_pravda_subdomains_match_the_listed_domain():
+    # Since Nov 2026 pravda-de.com redirects to deutsch.news-pravda.com: the list's
+    # `news-pravda.com` domain row covers every language subdomain, listed or not.
+    listing = parse_viginum(
+        "domain,create date,first seen,type\n"
+        "pravda-de[.]com,22/02/2023,,domain\n"
+        "news-pravda[.]com,01/06/2024,,domain\n"
+        "deutsch.news-pravda[.]com,01/06/2024,,subdomain\n"
+    )
+    assert listing.match("deutsch.news-pravda.com") == "deutsch.news-pravda.com"
+    assert listing.match("italiano.news-pravda.com") == "news-pravda.com"
+    assert listing.match("news-pravda.com") == "news-pravda.com"
+    assert listing.match("pravda-news.com") is None

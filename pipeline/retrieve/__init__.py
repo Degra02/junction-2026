@@ -17,9 +17,9 @@ from collections import Counter
 from collections.abc import Awaitable, Callable
 
 from pipeline.common import progress
-from pipeline.common.contracts import Analysis, ContextItem, OutletType, RetrievePatch
+from pipeline.common.contracts import Analysis, ContextItem, InputKind, OutletType, RetrievePatch
 from pipeline.extract.fetch import new_client
-from pipeline.extract.urls import canonical_url
+from pipeline.extract.urls import canonical_url, outlet_host
 from pipeline.retrieve import feeds
 from pipeline.retrieve.articles import Reader, Record, context_item
 from pipeline.retrieve.cache import default_cache
@@ -135,6 +135,15 @@ def _context(hits: list[Hit], records: list[Record | None]) -> list[ContextItem]
     return context
 
 
+def _redirects(analysis: Analysis) -> dict[str, str]:
+    """{document outlet: submitted host} when the submitted URL redirected to another host."""
+    document = analysis.document
+    if analysis.input.kind != InputKind.url or not document or not document.outlet:
+        return {}
+    submitted = outlet_host(analysis.input.value)
+    return {document.outlet: submitted} if submitted and submitted != document.outlet else {}
+
+
 async def _listing(web: Web, cache) -> Listing:
     """The configured VIGINUM file when there is one, else the downloaded list (cached)."""
     if len(_LISTING):
@@ -171,7 +180,9 @@ async def run(analysis: Analysis) -> RetrievePatch:
             context = _context(hits, records)
         progress.report(f"{len(context)} related reports; checking the outlets")
         domains = [document_outlet or ""] + [item.outlet or "" for item in context]
-        profiler = Profiler(web, cache, _REGISTRY, await listing)
+        profiler = Profiler(
+            web, cache, _REGISTRY, await listing, redirected_from=_redirects(analysis)
+        )
         sources = await profiler.profiles(domains, document_outlet, SOURCES_TIMEOUT_S)
     outlets = len({item.outlet for item in context})
     detail = (
