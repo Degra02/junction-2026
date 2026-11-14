@@ -26,7 +26,7 @@ mise run dev                   # worker :8001 + API :8080, docs at http://127.0.
 | `docs/hostinger-challenge.md` | Hostinger challenge research: datasets, methods, risks, booth questions |
 | `docs/plan.md` | Project description, pipeline, scoring, evaluation, hosting, roles, timeline, decisions for review |
 | `docs/directions.md` | Earlier direction comparison, judges' feedback (background) |
-| `docs/playbook.md` | Roles, 48h timeline, agent workflow, submission checklist |
+| `docs/[DEPRECATED]playbook.md` | Deprecated: roles are in `AGENTS.md`, timeline in `docs/plan.md` |
 | `docs/setup.md` | Machine setup, sandboxed agents, accounts to create |
 | `mise.toml` | Pinned toolchain, env loading, tasks |
 | `.devcontainer/` | Dev container: mise + pinned toolchain, runs setup on create |

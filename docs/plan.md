@@ -195,7 +195,7 @@ CPU check before relying on it: XLM-R large on 2 vCPU across ~20 paragraphs may 
 **Timing.** Per the judges, frontend work starts only after the spec freeze (target Sat 12:00). Until then the API returns everything the UI needs; ck-lithium sketches wireframes alongside the retrieval work.
 
 ## 10. Team roles (4 people, each driving agents)
-Split by folder, one owner per folder, contracts first (`docs/playbook.md`). Names assigned at the review (D16).
+Split by folder, one owner per folder, contracts first; ownership is defined in `AGENTS.md`. Names assigned at the review (D16).
 
 | Role | Person | Owns (folders) | Delivers |
 |---|---|---|---|
