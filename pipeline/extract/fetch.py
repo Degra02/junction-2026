@@ -35,11 +35,12 @@ _BOT_CHECK = {403, 429, 503}
 class FetchFailed(Exception):
     """The page could not be read; `reason` is plain language and safe to show publicly."""
 
-    def __init__(self, reason: str, *, browser_may_help: bool = False):
+    def __init__(self, reason: str, *, fallback_may_help: bool = False):
         super().__init__(reason)
         self.reason = reason
-        # The site turned away a plain HTTP client (bot check); a real browser may be served.
-        self.browser_may_help = browser_may_help
+        # The site turned away a plain HTTP client (bot check); the scraping service
+        # (`scraper`) may still be served.
+        self.fallback_may_help = fallback_may_help
 
 
 @dataclass
@@ -125,14 +126,14 @@ def ensure_html(page: Page) -> None:
     if page.status in _REFUSED:
         raise FetchFailed(
             f"The site refused to let us read the page (HTTP {page.status})",
-            browser_may_help=page.status in _BOT_CHECK,
+            fallback_may_help=page.status in _BOT_CHECK,
         )
     if page.status in _GONE:
         raise FetchFailed(f"The page was not found (HTTP {page.status})")
     if not 200 <= page.status < 300:
         raise FetchFailed(
             f"The site answered with an error (HTTP {page.status})",
-            browser_may_help=page.status in _BOT_CHECK,
+            fallback_may_help=page.status in _BOT_CHECK,
         )
     media_type = page.content_type.split(";")[0].strip().lower()
     if media_type and media_type not in _HTML_TYPES:

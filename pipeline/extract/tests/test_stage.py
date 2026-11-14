@@ -12,7 +12,7 @@ from pipeline.common import net
 from pipeline.common.contracts import ExtractPatch, Input, InputKind, LanguageSupport
 from pipeline.common.errors import StageError
 from pipeline.common.fixtures import example_analysis
-from pipeline.extract import browser
+from pipeline.extract import scraper
 from pipeline.extract.fetch import new_client
 
 BODY = [
@@ -51,7 +51,8 @@ def web(monkeypatch):
         return httpx.Response(status, headers=headers, text=body)
 
     monkeypatch.setattr(net, "assert_public_url", lambda url: None)
-    monkeypatch.setattr(browser, "enabled", lambda: False)  # browser tests: test_browser.py
+    monkeypatch.setattr(scraper, "enabled", lambda: False)  # scraper tests: test_scraper.py
+    monkeypatch.delenv(scraper.TOKEN_ENV, raising=False)
     monkeypatch.setattr(extract, "new_client", lambda: new_client(httpx.MockTransport(handler)))
     return pages
 

@@ -1,7 +1,6 @@
 """Exact-phrase search: phrase choice, GDELT and Oxylabs adapters, and the stage."""
 
 import asyncio
-import base64
 import itertools
 import json
 import time
@@ -11,14 +10,15 @@ import pytest
 
 import pipeline.retrieve as retrieve
 from pipeline.common.contracts import Document
+from pipeline.extract import scraper
 from pipeline.retrieve import gdelt, oxylabs
 from pipeline.retrieve.cache import NoCache
-from pipeline.retrieve.phrases import WORDS, distinctive_phrases
+from pipeline.retrieve.phrases import WORDS, contains, distinctive_phrases
 from pipeline.retrieve.tests.conftest import AGENCY_ITEM, article_page
 from pipeline.retrieve.tests.test_stage import analysis, run
 
 GDELT_ROUTE = "api.gdeltproject.org/api/v2/doc/doc"
-OXY_ROUTE = "realtime.oxylabs.io/v1/queries"
+OXY_ROUTE = "api-aistudio.oxylabs.io/search/instant"
 OWN = (
     "Il ministero ha confermato che dal primo gennaio 2027 i pozzi privati dovranno essere "
     "registrati presso gli uffici regionali competenti entro novanta giorni."
@@ -129,40 +129,52 @@ def test_gdelt_rate_limit_gives_nothing(server, monkeypatch):
 
 
 def oxy_answer(*urls: str) -> bytes:
-    organic = [
-        {"url": u, "title": f"T {u}", "desc": "snippet", "pos": i} for i, u in enumerate(urls)
+    data = [
+        {"url": u, "title": f"T {u}", "description": "snippet", "content": None, "source": "x"}
+        for u in urls
     ]
-    return json.dumps({"results": [{"content": {"results": {"organic": organic}}}]}).encode()
+    return json.dumps({"run_id": "r1", "status": "completed", "data": data}).encode()
 
 
-def test_oxylabs_parse_drops_google_links():
+def test_oxylabs_parse_drops_search_engine_links():
     items = oxylabs.parse(
-        oxy_answer(COPY, "https://www.google.com/search?q=x", "https://youtube.com/w")
+        oxy_answer(COPY, "https://www.google.com/search?q=x", "https://youtube.com/w"), "it"
     )
-    assert [i.url for i in items] == [COPY]
+    assert [(i.url, i.language, i.summary) for i in items] == [(COPY, "it", "snippet")]
     assert oxylabs.parse(b"{}") == [] and oxylabs.parse(b"[]") == [] and oxylabs.parse(b"x") == []
 
 
-def test_oxylabs_sends_basic_auth_and_a_quoted_query(server):
+def test_oxylabs_sends_the_key_in_a_header_and_a_quoted_query(server, monkeypatch):
+    monkeypatch.setenv(scraper.TOKEN_ENV, "test-key-not-real")
     server.routes[OXY_ROUTE] = lambda request: httpx.Response(200, content=oxy_answer(COPY))
 
     async def go():
         async with server.client() as client:
-            return await oxylabs.search(client, NoCache(), "una frase esatta", ("user", "secret"))
+            return await oxylabs.search(client, NoCache(), "una frase esatta")
 
     [item] = asyncio.run(go())
     assert item.url == COPY
     [request] = server.requests
-    assert request.headers["authorization"] == "Basic " + base64.b64encode(b"user:secret").decode()
-    assert "secret" not in str(request.url)
-    assert json.loads(request.content)["query"] == '"una frase esatta"'
-    assert json.loads(request.content)["source"] == "google_search"
+    assert request.headers["x-api-key"] == "test-key-not-real"
+    assert "test-key-not-real" not in str(request.url)
+    assert json.loads(request.content) == {"query": '"una frase esatta"', "limit": 10}
 
 
-def test_oxylabs_is_off_without_credentials(monkeypatch):
-    monkeypatch.delenv(oxylabs.USER_ENV, raising=False)
-    monkeypatch.setenv(oxylabs.PASSWORD_ENV, "x")
-    assert oxylabs.credentials() is None
+@pytest.mark.parametrize("status", [401, 402, 429, 500])
+def test_oxylabs_errors_give_no_results(server, monkeypatch, status):
+    monkeypatch.setenv(scraper.TOKEN_ENV, "test-key-not-real")
+    server.routes[OXY_ROUTE] = lambda request: httpx.Response(status, content=b"{}")
+
+    async def go():
+        async with server.client() as client:
+            return await oxylabs.news_search(client, NoCache(), "una query", "it")
+
+    assert asyncio.run(go()) == []
+
+
+def test_oxylabs_is_off_without_a_key(monkeypatch):
+    monkeypatch.delenv(scraper.TOKEN_ENV, raising=False)
+    assert not scraper.enabled()
 
 
 @pytest.fixture
@@ -187,10 +199,10 @@ def test_a_copy_found_by_exact_phrase_enters_the_context(phrase_stage):
     assert "(1 by exact phrase)" in patch.detail
 
 
-def test_oxylabs_hits_join_when_credentials_are_set(phrase_stage, monkeypatch):
+def test_oxylabs_hits_join_when_the_key_is_set(phrase_stage, monkeypatch):
     stage, a = phrase_stage
-    monkeypatch.setenv(oxylabs.USER_ENV, "user")
-    monkeypatch.setenv(oxylabs.PASSWORD_ENV, "secret")
+    monkeypatch.setenv(scraper.TOKEN_ENV, "test-key-not-real")
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
     old = "https://old-mirror.example/2025/03/pozzi"
     stage.routes[OXY_ROUTE] = lambda request: httpx.Response(200, content=oxy_answer(old))
     stage.pages[old] = (200, article_page("Pozzi", OWN))
@@ -207,6 +219,10 @@ def test_the_same_article_from_a_phrase_search_and_a_feed_counts_once(phrase_sta
     )
     patch = run(a)
     assert [c.url for c in patch.context].count(AGENCY_ITEM) == 1
+    # The agency page does not repeat the phrase, so it counts as the feed hit it also was.
+    assert next(c for c in patch.context if c.url == AGENCY_ITEM).retrieved_by == "feeds"
+    stage.pages[AGENCY_ITEM] = (200, article_page("Pozzi", OWN))
+    patch = run(a)
     assert next(c for c in patch.context if c.url == AGENCY_ITEM).retrieved_by == "gdelt"
 
 
@@ -222,3 +238,53 @@ def test_a_slow_phrase_search_is_dropped_at_its_budget(phrase_stage, monkeypatch
     monkeypatch.setattr(gdelt, "search", slow)
     patch = run(a)
     assert all(c.retrieved_by == "feeds" for c in patch.context)
+
+
+def test_topic_search_finds_coverage_outside_the_feeds(phrase_stage, monkeypatch):
+    stage, a = phrase_stage
+    monkeypatch.setenv(scraper.TOKEN_ENV, "test-key-not-real")
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
+    other = "https://regional-paper.example/2026/11/meta-garante"
+
+    def route(request):
+        query = json.loads(request.content)["query"]
+        if query.startswith('"'):  # exact-phrase searches: nothing
+            return httpx.Response(200, content=oxy_answer())
+        body = json.loads(oxy_answer(other, "https://unrelated.example/sport"))
+        body["data"][0]["title"] = "Il Garante privacy multa Meta"
+        body["data"][1]["title"] = "Calcio, vince la Roma"
+        return httpx.Response(200, content=json.dumps(body).encode())
+
+    stage.routes[OXY_ROUTE] = route
+    stage.pages[other] = (200, article_page("Multa a Meta", "Il Garante privacy ha multato Meta."))
+    patch = run(a)
+    by = {c.url: c.retrieved_by for c in patch.context}
+    assert by[other] == "oxylabs_news"  # matched on its words, like a feed item
+    assert "https://unrelated.example/sport" not in by
+    assert "(1 from news search)" in patch.detail
+
+
+def test_contains_ignores_case_spacing_and_punctuation():
+    assert contains(
+        "Il ministero: «pozzi privati, registrati» entro gennaio.", "pozzi privati registrati"
+    )
+    assert not contains("I pozzi privati non saranno registrati", "pozzi privati registrati")
+    assert not contains("pozzi privatissimi registrati", "pozzi privati registrati")
+
+
+def test_a_phrase_hit_that_does_not_repeat_the_phrase_is_dropped(phrase_stage):
+    stage, a = phrase_stage
+    stage.pages[COPY] = (
+        200,
+        article_page("Altro", "Un articolo su un altro argomento del giorno."),
+    )
+    patch = run(a)
+    assert all(c.url != COPY for c in patch.context)
+
+
+def test_reference_and_social_sites_are_not_coverage():
+    links = [
+        "https://en.wikipedia.org/wiki/X", "https://www.facebook.com/p", "https://x.com/u/1",
+        "https://mobile.twitter.com/u", "https://www.google.it/search", "https://box.com/news",
+    ]  # fmt: skip
+    assert [i.url for i in oxylabs.parse(oxy_answer(*links))] == ["https://box.com/news"]
