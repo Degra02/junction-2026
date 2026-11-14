@@ -44,7 +44,7 @@ pub struct Config {
     /// `BACKUP_INTERVAL_MINS`, default 0 (off): how often a copy of the database is written to
     /// `backups/` next to it.
     pub backup_interval: Duration,
-    /// `METRICS_PATH`, default `evals/results/metrics.json` (written by the eval harness).
+    /// `METRICS_PATH`, default `evals/metrics.json` (committed, written by the eval harness).
     pub metrics_path: PathBuf,
     /// `PIPELINE_VERSION`, default `dev`. Part of the cache key.
     pub pipeline_version: String,
@@ -67,7 +67,7 @@ impl Config {
             trust_proxy: var("TRUST_PROXY", "false")?,
             stages_disabled: stages(&var::<String>("STAGES_DISABLED", "")?)?,
             backup_interval: Duration::from_secs(60 * var::<u64>("BACKUP_INTERVAL_MINS", "0")?),
-            metrics_path: var("METRICS_PATH", "evals/results/metrics.json")?,
+            metrics_path: var("METRICS_PATH", "evals/metrics.json")?,
             pipeline_version: var("PIPELINE_VERSION", "dev")?,
         })
     }
