@@ -41,7 +41,7 @@ Living task list per person, kept by the integrator. Agents: read your section, 
 4. Re-run the demo items with `rerun?from=signals_single` after each signal or weight change and compare with mosearc.
 
 ## mosearc — evaluation, metrics, pitch
-1. **EUvsDisinfo items**: `3eba623` (25 cases) was pushed to `mosearc/labelled-set` after #11 merged, so it is not on `main`. Open a new PR from that branch (it merges cleanly; the diff is that one commit).
+1. **EUvsDisinfo items**: PR #13 (the 25 cases that missed the #11 merge) is open; the integrator merges it. Nothing else to do here.
 2. **Metrics**: after the integrator's VPS run, `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). The API image serves it at `/api/metrics` on the next deploy.
 3. **Demo inputs** (`docs/pitch/demo-script.md`): once retrieve and story are live, submit each item on the VPS (`?force=true`), keep the clean runs and fill in the analysis IDs; swap in backups that score without evidence.
 4. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
