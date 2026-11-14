@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./index.css";
 import { AppShell } from "./components/AppShell";
 import { AnalysisPage } from "./pages/AnalysisPage";
+import { ExtensionPage } from "./pages/ExtensionPage";
 import { HomePage } from "./pages/HomePage";
 import { MetricsPage } from "./pages/MetricsPage";
 
@@ -19,6 +20,7 @@ createRoot(rootElement).render(
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/analyses/:id" element={<AnalysisPage />} />
+          <Route path="/extension" element={<ExtensionPage />} />
           <Route path="/metrics" element={<MetricsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

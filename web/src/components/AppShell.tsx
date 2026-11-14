@@ -124,6 +124,19 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                 Analyze
               </NavLink>
               <NavLink
+                to="/extension"
+                className={({ isActive }) =>
+                  cn(
+                    NAV_LINK,
+                    isActive
+                      ? "text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
+                  )
+                }
+              >
+                Extension
+              </NavLink>
+              <NavLink
                 to="/metrics"
                 className={({ isActive }) =>
                   cn(
