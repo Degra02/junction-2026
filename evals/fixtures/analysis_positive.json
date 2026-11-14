@@ -1,5 +1,5 @@
 {
-  "id": "eval-pos-001",
+  "id": "019a8000-0000-7000-8000-000000000001",
   "schema_version": 1,
   "pipeline_version": "fixture",
   "created_at": "2026-11-14T00:00:00Z",
@@ -47,7 +47,7 @@
   "context": [],
   "sources": [],
   "evidence": [
-    {"id": "s1", "family": "techniques", "signal": "loaded_language", "value": 0.87, "detail": "Emotionally charged language.", "source_refs": [{"kind": "document", "span": {"paragraph": 1, "start": 0, "end": 46}}]},
+    {"id": "s1", "family": "techniques", "signal": "manipulative_wording", "value": 0.87, "detail": "Emotionally charged language.", "source_refs": [{"kind": "document", "span": {"paragraph": 1, "start": 0, "end": 46}}]},
     {"id": "s2", "family": "fact_checks", "signal": "rated_false", "value": 1.0, "detail": "Central claim rated False.", "source_refs": [{"kind": "document", "span": {"paragraph": 0, "start": 0, "end": 48}}]}
   ],
   "scores": {

@@ -55,6 +55,11 @@ run = "uv run --frozen pytest"
 description = "Run the stage worker locally"
 run = "uv run --frozen python -m worker"
 
+[tasks.eval]
+description = "Eval harness: `mise run eval -- validate|stats|eval <predictions.jsonl>` (evals/README.md)"
+env = { PYTHONPATH = "evals/src" }
+run = "uv run --frozen python -m propaganda_eval.cli"
+
 [tasks.dev]
 description = "Run worker and API together (Ctrl-C stops both)"
 depends = ["worker:dev", "api:dev"]

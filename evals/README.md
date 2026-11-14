@@ -5,16 +5,17 @@ Evaluation harness for the propaganda detection pipeline.
 ## Quick start
 
 ```bash
-cd evals
-uv sync
-uv run propaganda-eval validate          # check labelled.jsonl format
-uv run propaganda-eval stats             # labelled set statistics
-uv run propaganda-eval eval preds.jsonl  # evaluate predictions
+# From the repo root: the harness is part of the root uv project (dev dependencies).
+mise run eval -- validate                 # check labelled.jsonl format
+mise run eval -- stats                    # labelled set statistics
+mise run eval -- eval preds.jsonl         # evaluate predictions
 ```
+
+Tests live in `evals/tests/` and run with `mise run check` (every fixture must be a valid `Analysis` whose signals the combiner maps).
 
 ## labelled.jsonl
 
-Ground-truth set used by **the combiner fit** (logistic regression, plan §5) and the eval harness. One JSON object per line:
+Ground-truth set for the eval harness and, once a runner turns each item into a finished `Analysis`, for the combiner fit (`python -m pipeline.score.fit`, which reads `{"analysis": <Analysis>, "single": 1|0|null, "coordinated": 1|0|null}` per line). One JSON object per line:
 
 ```jsonc
 {
@@ -76,7 +77,7 @@ bash download_data.sh
 
 Downloads into `data/` (gitignored):
 - SemEval-2020 Task 11 PTC v2 from Zenodo (technique eval)
-- VIGINUM Portal Kombat domain CSV from GitHub
+- VIGINUM Portal Kombat domain CSV from GitHub (domains are defanged: `pravda-de[.]com`)
 
 ## File layout
 
@@ -84,7 +85,7 @@ Downloads into `data/` (gitignored):
 evals/
 ├── labelled.jsonl                     # seed ground-truth (committed)
 ├── download_data.sh                   # external dataset download
-├── pyproject.toml                     # Python deps (uv sync)
+├── tests/                             # run by `mise run check`
 ├── README.md                          # this file
 ├── fixtures/
 │   ├── analysis_positive.json         # positive fixture for stage testing

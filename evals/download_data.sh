@@ -16,7 +16,7 @@ if [ -d "$SEMEVAL_DIR/datasets/train-articles" ]; then
 else
     echo "[semeval2020] downloading from Zenodo..."
     mkdir -p "$SEMEVAL_DIR"
-    curl -L -o "$SEMEVAL_DIR/datasets-v2.tgz" \
+    curl -fL -o "$SEMEVAL_DIR/datasets-v2.tgz" \
         "https://zenodo.org/records/3952415/files/datasets-v2.tgz?download=1"
     tar xzf "$SEMEVAL_DIR/datasets-v2.tgz" -C "$SEMEVAL_DIR"
     train=$(ls "$SEMEVAL_DIR/datasets/train-articles/" | wc -l)
@@ -32,8 +32,9 @@ if [ -f "$VIGINUM_CSV" ]; then
 else
     echo "[viginum] downloading Portal Kombat domain list from GitHub..."
     mkdir -p "$VIGINUM_DIR"
-    curl -L -o "$VIGINUM_CSV" \
-        "https://raw.githubusercontent.com/VIGINUM-FR/Rapports-Techniques/main/202402%20-%20Portal%20Kombat/portal-kombat-domains.csv"
+    # -f: an HTTP error fails the script instead of saving the error page as the CSV.
+    curl -fL -o "$VIGINUM_CSV" \
+        "https://raw.githubusercontent.com/VIGINUM-FR/Rapports-Techniques/main/202402%20-%20Portal%20Kombat/20241227_SGDSN_VIGINUM_NP_TLP-CLEAR_Portal-Kombat-domains.csv"
     if [ -f "$VIGINUM_CSV" ]; then
         echo "[viginum] OK: $(wc -l < "$VIGINUM_CSV") domains"
     else
