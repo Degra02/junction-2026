@@ -3,7 +3,9 @@
 One LLM call (`pipeline.common.llm`) reads the document and returns the event summary, the
 entities, up to five key claims copied word for word, and search queries in the document's
 language and in English. Claims are located in the document with `spans.claim`; a claim the
-document does not contain is dropped here rather than sent to the API.
+document does not contain is dropped here rather than sent to the API. A second, short call
+(`triage`) labels each located claim, and only checkable facts the document asserts itself go
+on to claim support.
 """
 
 from pydantic import BaseModel, Field
@@ -18,6 +20,7 @@ from pipeline.common.contracts import (
     UnderstandPatch,
 )
 from pipeline.common.errors import StageError
+from pipeline.understand import triage
 
 MAX_CLAIMS = 5
 MAX_QUERIES_PER_LANGUAGE = 3
@@ -81,7 +84,17 @@ async def run(analysis: Analysis) -> UnderstandPatch:
     except llm.LLMOutputError as e:
         raise StageError("The language model gave an answer we could not read") from e
     language = analysis.language.code if analysis.language else understanding.language
-    return build_patch(document, understanding, language)
+    patch = build_patch(document, understanding, language)
+    if patch.claims:
+        found = await triage.kinds(_content(document), [c.text for c in patch.claims])
+        patch.claims = keep_facts(patch.claims, found)
+    return patch
+
+
+def keep_facts(claims: list[Claim], kinds: list[triage.Kind | None]) -> list[Claim]:
+    """The claims labelled `fact` or left unlabelled, renumbered `cl1`, `cl2`, ..."""
+    kept = [c for c, kind in zip(claims, kinds, strict=True) if kind in ("fact", None)]
+    return [c.model_copy(update={"id": f"cl{n}"}) for n, c in enumerate(kept, 1)]
 
 
 def build_patch(document: Document, understanding: Understanding, language: str) -> UnderstandPatch:
@@ -112,7 +125,11 @@ def _claims(document: Document, passages: list[str]) -> list[Claim]:
         if found is None:
             continue
         key = (found.span.paragraph, found.span.start, found.span.end)
-        if key in seen or found.span.end - found.span.start < 10:
+        if (
+            key in seen
+            or found.span.end - found.span.start < 10
+            or found.text.rstrip().endswith(("?", "？"))
+        ):
             continue
         seen.add(key)
         claims.append(found)

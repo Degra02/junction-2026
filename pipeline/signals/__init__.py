@@ -3,7 +3,8 @@
 `run_single` (`pipeline.signals.single`) computes techniques, tone vs peers, claim support,
 fact-check matches and the source profile; `run_coordinated` (`pipeline.signals.coordinated`)
 computes text reuse, timing, infrastructure and known networks. Both work from the record only
-(no network I/O).
+and fetch nothing from the web; the one call out is claim support's question to the language
+model (`pipeline.signals.judge`), through the pipeline's LLM client.
 
 The stage functions are resolved lazily (PEP 562): the worker's start-up `getattr` imports the
 module that loads the models, while tests of the model-free modules import without loading them.

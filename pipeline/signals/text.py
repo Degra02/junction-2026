@@ -110,32 +110,59 @@ def contains(haystack: str, needle: str) -> bool:
     return _fold(needle) in _fold(haystack)
 
 
+def normalize_domain(value: str | None) -> str | None:
+    """`https://www.Example.com/x` and `www.example.com` both become `example.com`."""
+    if not value:
+        return None
+    host = value.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0].lower()
+    return host.removeprefix("www.") or None
+
+
 def story_peers(analysis: Analysis, limit: int) -> list[ContextItem]:
-    """Independent coverage of the same event, most similar first: kept by `story` (or not
-    judged yet), not fact-checks, not satire sites, not from the document's outlet, and not
-    copies of the document (half or more of its sentences verbatim). Copies are the coordinated
-    dimension's evidence; counted here they would confirm the document with its own words."""
+    """Independent coverage of the same event, most similar first, at most one item per outlet
+    domain: kept by `story` (or not judged yet), not fact-checks, not satire sites, not from the
+    document's outlet, and not copies of the document (half or more of its sentences verbatim).
+    Copies are the coordinated dimension's evidence; counted here they would confirm the
+    document with its own words."""
     document = analysis.document
-    outlet = document.outlet if document else None
-    satire = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
+    own_domain = normalize_domain(document.outlet) if document else None
+    satire = {
+        normalize_domain(s.domain) or s.domain
+        for s in analysis.sources
+        if s.outlet_type == OutletType.satire
+    }
     own = [
         _fold(paragraph[s:e])
         for paragraph in (document.paragraphs if document else [])
         for s, e in sentence_spans(paragraph)
         if e - s >= _COPY_MIN_CHARS
     ]
-    peers = []
+    candidates = []
     for item in analysis.context:
         if item.in_story is False or item.fact_check is not None or not item.text.strip():
             continue
-        if item.outlet in satire or (outlet is not None and item.outlet == outlet):
+        peer_domain = normalize_domain(item.outlet) or normalize_domain(item.url)
+        if peer_domain in satire or (own_domain is not None and peer_domain == own_domain):
             continue
         text = _fold(item.text)
         if own and 2 * sum(sentence in text for sentence in own) >= len(own):
             continue
+        candidates.append((peer_domain, item))
+    candidates.sort(
+        key=lambda pair: pair[1].similarity if pair[1].similarity is not None else 0.0,
+        reverse=True,
+    )
+    peers: list[ContextItem] = []
+    seen_domains: set[str] = set()
+    for peer_domain, item in candidates:
+        if peer_domain is not None:
+            if peer_domain in seen_domains:
+                continue
+            seen_domains.add(peer_domain)
         peers.append(item)
-    peers.sort(key=lambda c: c.similarity if c.similarity is not None else 0.0, reverse=True)
-    return peers[:limit]
+        if len(peers) == limit:
+            break
+    return peers
 
 
 def paragraph_ref(paragraphs: list[str], index: int) -> DocumentRef:

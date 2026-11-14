@@ -1,4 +1,5 @@
-"""Single-actor families on the example analysis, with stand-ins for the models."""
+"""Single-actor families on the example analysis, with stand-ins for the models and the claim
+check."""
 
 from itertools import count
 
@@ -20,6 +21,7 @@ from pipeline.signals.claims import (
     rating_signal,
 )
 from pipeline.signals.source_profile import source_profile_evidence
+from pipeline.signals.systemone import calibrate_binary, calibrate_choice, cascade_enabled
 from pipeline.signals.techniques import CATEGORIES, technique_evidence, tone_evidence
 from pipeline.signals.text import (
     chunks,
@@ -52,8 +54,7 @@ def fake_nli(pairs: list[tuple[str, str]]) -> np.ndarray:
 
 
 def one_way_nli(pairs: list[tuple[str, str]]) -> np.ndarray:
-    """What the model does with two moments of one story: a confident contradiction in the
-    passage-to-claim direction only."""
+    """What NLI does on two moments of one story: high contradiction in one direction only."""
     return np.array(
         [
             [0.01, 0.01, 0.98] if "ban" in h and "does not ban" in p else [0.1, 0.8, 0.1]
@@ -92,6 +93,12 @@ def test_peers_exclude_copies_fact_checks_unrelated_items_and_own_outlet() -> No
         s for s in analysis.sources if s.domain == "patriot-voice.example"
     ).outlet_type = OutletType.satire
     assert [p.id for p in story_peers(analysis, 10)] == ["ctx1"]
+    # Two dispatches from the same outlet domain count as one independent peer, most similar first.
+    dup = analysis.context[0].model_copy(
+        update={"id": "ctx1b", "outlet": f"www.{analysis.context[0].outlet}", "similarity": 0.99}
+    )
+    analysis.context.append(dup)
+    assert [p.id for p in story_peers(analysis, 10)] == ["ctx1b"]
 
 
 def test_passages_are_exact_substrings() -> None:
@@ -106,12 +113,19 @@ def test_passages_are_exact_substrings() -> None:
 
 def test_claim_contradicted_by_independent_report() -> None:
     analysis = example_analysis()
-    evidence = claim_support_evidence(analysis.claims, story_peers(analysis, 10), fake_nli, ids())
-    # Claim 2 is in ctx1 word for word, so only claim 1 is judged.
+    peers = story_peers(analysis, 10)
+    seen_pairs: list[tuple[str, str]] = []
+
+    def confirm(pairs):
+        seen_pairs.extend(pairs)
+        return ["contradicts"] * len(pairs)
+
+    evidence = claim_support_evidence(analysis.claims, peers, fake_nli, ids(), cascade=confirm)
+    # Claim 2 is in ctx1 word for word, so only claim 1 is judged; only its suspect pair escalates.
+    assert len(seen_pairs) == 1
     [contradicted] = evidence
     assert contradicted.source_refs[0].root.span == analysis.claims[0].span
     assert (contradicted.family, contradicted.signal) == (Family.claim_support, "contradicted")
-    # One source: the smoothed share stays well below 1.
     assert contradicted.value == pytest.approx(2 / 3, abs=1e-3)
     assert "1 of the 1 sources" in contradicted.detail
     [quote] = [r.root for r in contradicted.source_refs if isinstance(r.root, ContextRef)]
@@ -120,12 +134,26 @@ def test_claim_contradicted_by_independent_report() -> None:
     assert_refs_valid(analysis, evidence)
 
 
-def test_one_way_contradiction_is_not_a_contradiction() -> None:
+def test_cascade_vetoes_false_nli_contradiction_and_offline_falls_back_to_system1() -> None:
     analysis = example_analysis()
-    evidence = claim_support_evidence(
-        analysis.claims, story_peers(analysis, 10), one_way_nli, ids()
+    peers = story_peers(analysis, 10)
+    # Cascade vetoes a two-moment false contradiction ("not_addressed").
+    veto = lambda pairs: ["not_addressed"] * len(pairs)  # noqa: E731
+    assert claim_support_evidence(analysis.claims, peers, fake_nli, ids(), cascade=veto) == []
+    # Offline / unavailable cascade (`None`) falls back to strict two-way System-1 NLI (>= 0.90).
+    offline = claim_support_evidence(
+        analysis.claims, peers, fake_nli, ids(), cascade=lambda pairs: [None] * len(pairs)
     )
-    assert [e.signal for e in evidence] == []
+    assert [e.signal for e in offline] == ["contradicted"]
+    # One-way NLI contradiction is rejected locally by System 1 without calling cascade.
+    called = []
+    assert (
+        claim_support_evidence(
+            analysis.claims, peers, one_way_nli, ids(), cascade=lambda p: called.append(p) or []
+        )
+        == []
+    )
+    assert called == []
 
 
 def test_claim_nobody_addresses_is_unaddressed() -> None:
@@ -134,6 +162,28 @@ def test_claim_nobody_addresses_is_unaddressed() -> None:
     [item] = claim_support_evidence(analysis.claims[:1], peers, fake_nli, ids())
     assert (item.signal, item.value) == ("unaddressed", 1.0)
     assert "None of the 3" in item.detail
+
+
+def test_systemone_calibration_and_tos_oauth_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    confident = calibrate_choice({"supports": 0.85, "contradicts": 0.05, "not_addressed": 0.10})
+    assert (confident.choice, confident.abstain) == ("supports", False)
+    assert sum(confident.probabilities.values()) == pytest.approx(1.0, abs=1e-3)
+
+    uncertain = calibrate_choice({"supports": 0.44, "contradicts": 0.36, "not_addressed": 0.20})
+    assert uncertain.abstain is True
+
+    grey = calibrate_binary(0.88, threshold=0.90, grey_zone=(0.85, 0.93))
+    assert grey.abstain is True and grey.yes is False
+    clear = calibrate_binary(0.96, threshold=0.90, grey_zone=(0.85, 0.93))
+    assert clear.abstain is False and clear.yes is True
+
+    monkeypatch.setenv("LLM_API_KEY", "sk-ant-oat01-personal-token")
+    assert cascade_enabled() is False
+    monkeypatch.setenv("LLM_API_KEY", "sk-hstgr-router-key")
+    monkeypatch.setenv("DECISION_CASCADE", "0")
+    assert cascade_enabled() is False
+    monkeypatch.setenv("DECISION_CASCADE", "1")
+    assert cascade_enabled() is True
 
 
 def test_fact_check_matches_claim_and_maps_rating() -> None:
