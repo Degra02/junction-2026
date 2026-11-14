@@ -239,12 +239,18 @@ pub struct ContextItem {
     pub outlet: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
     pub title: Option<String>,
+    /// Account that published the item when it is a social media post, as the platform shows it
+    /// (e.g. `@name.bsky.social`); null for articles. Copies are counted per account on a
+    /// platform, so many accounts posting the same text count as many copies, not one site.
+    #[serde(default)]
+    pub author: Option<String>,
     /// Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the
     /// reviewed claim followed by the verdict text.
     pub text: String,
     /// ISO 639-1 code.
     pub language: Option<String>,
-    /// Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`.
+    /// Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`, or the
+    /// social platform (`x`, `reddit`, `bluesky`, `mastodon`, `telegram`).
     pub retrieved_by: String,
     /// Analytics and ad IDs found in the page (GA, GTM, `AdSense`); compared across outlets by
     /// the infrastructure signal. Empty when the page was not fetched.

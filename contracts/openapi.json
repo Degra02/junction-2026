@@ -643,6 +643,13 @@
               "null"
             ]
           },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Account that published the item when it is a social media post, as the platform shows it\n(e.g. `@name.bsky.social`); null for articles. Copies are counted per account on a\nplatform, so many accounts posting the same text count as many copies, not one site."
+          },
           "text": {
             "type": "string",
             "description": "Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the\nreviewed claim followed by the verdict text."
@@ -656,7 +663,7 @@
           },
           "retrieved_by": {
             "type": "string",
-            "description": "Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`."
+            "description": "Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`, or the\nsocial platform (`x`, `reddit`, `bluesky`, `mastodon`, `telegram`)."
           },
           "tracking_ids": {
             "type": "array",

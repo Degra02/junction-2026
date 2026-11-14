@@ -243,6 +243,7 @@ pub fn valid_patch(stage: StageName) -> Value {
                 outlet: Some("news.example".into()),
                 published_at: Some(Utc::now()),
                 title: Some("Budget row".into()),
+                author: None,
                 text: "Critics say the minister lied about the budget.".into(),
                 language: Some("en".into()),
                 retrieved_by: "google_news".into(),
