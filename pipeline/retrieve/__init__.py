@@ -1,8 +1,9 @@
 """Stage 4, retrieve: other coverage of the same story, and what is known about every outlet.
 
 `run` reads the curated outlets' feeds (`feeds`), keeps the items that share enough words with
-the analysis's queries and claims (`match`), reads each hit in full (`articles`) and profiles every
-outlet domain (`sources`). Signals compute from this output only, so:
+the analysis's queries and claims (`match`), looks up published fact-checks of the claims
+(`factcheck_api`, when a key is configured), reads each hit in full (`articles`) and profiles
+every outlet domain (`sources`). Signals compute from this output only, so:
 - `context[].text` is always a full article body, never a feed summary;
 - `sources[]` covers the document's outlet and every context outlet, typed from the registry.
 
@@ -17,10 +18,18 @@ from collections import Counter
 from collections.abc import Awaitable, Callable
 
 from pipeline.common import progress
-from pipeline.common.contracts import Analysis, ContextItem, InputKind, OutletType, RetrievePatch
+from pipeline.common.contracts import (
+    Analysis,
+    ContextItem,
+    FactCheck,
+    InputKind,
+    OutletType,
+    RetrievePatch,
+)
+from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import new_client
 from pipeline.extract.urls import canonical_url, outlet_host
-from pipeline.retrieve import feeds
+from pipeline.retrieve import factcheck_api, feeds
 from pipeline.retrieve.articles import Reader, Record, context_item
 from pipeline.retrieve.cache import default_cache
 from pipeline.retrieve.match import Hit, Query, rank
@@ -35,6 +44,7 @@ FEEDS_TIMEOUT_S = 20.0
 ARTICLES_TIMEOUT_S = 50.0
 SOURCES_TIMEOUT_S = 25.0
 VIGINUM_TIMEOUT_S = 10.0  # runs alongside the feeds, so it adds no time
+FACTCHECK_TIMEOUT_S = 15.0  # likewise
 MAX_HITS = 30  # pages fetched per analysis
 PER_OUTLET = 3  # hits per outlet, so one prolific site does not fill the context
 WIRE_BONUS = 0.1  # agency originals let the signals tell syndication from copying
@@ -135,6 +145,68 @@ def _context(hits: list[Hit], records: list[Record | None]) -> list[ContextItem]
     return context
 
 
+def fact_check_item(
+    item_id: str, review: factcheck_api.Review, record: Record | None
+) -> ContextItem:
+    """A published review as a context item: the reviewed claim, the rating, then the review
+    article when it could be read (the contract's "claim followed by the verdict text")."""
+    url = record.url if record else review.url
+    body = record.text if record else ""
+    text = "\n\n".join(part for part in (review.claim, f"Rating: {review.rating}", body) if part)
+    language = (review.language or (record.language if record else None) or "").split("-")[0]
+    return ContextItem(
+        id=item_id,
+        url=url,
+        outlet=outlet_host(url) or None,
+        published_at=published_utc(review.published_at)
+        or (published_utc(record.published_at) if record else None),
+        title=review.title or (record.title if record else None),
+        text=text,
+        language=language.lower() or None,
+        retrieved_by=factcheck_api.NAME,
+        tracking_ids=record.tracking_ids if record else [],
+        fact_check=FactCheck(claim=review.claim, rating=review.rating, publisher=review.publisher),
+    )
+
+
+def _with_fact_checks(
+    context: list[ContextItem],
+    reviews: list[factcheck_api.Review],
+    records: list[Record | None],
+) -> list[ContextItem]:
+    """`context` plus one item per review whose article is not in it already."""
+    seen = {canonical_url(item.url) for item in context}
+    out = list(context)
+    for review, record in zip(reviews, records, strict=True):
+        url = record.url if record else review.url
+        if canonical_url(url) in seen:
+            continue
+        seen.add(canonical_url(url))
+        out.append(fact_check_item(f"ctx{len(out) + 1}", review, record))
+    return out
+
+
+def _fact_check_queries(analysis: Analysis) -> list[tuple[str, str | None]]:
+    """The claims first (most specific), then understand's queries."""
+    own = analysis.language.code if analysis.language else None
+    queries = [(c.text.strip(), own) for c in analysis.claims]
+    queries += [(q.text.strip(), q.language or None) for q in analysis.queries]
+    return [q for q in dict.fromkeys(queries) if q[0]]
+
+
+async def _reviews(client, cache, analysis: Analysis) -> list[factcheck_api.Review]:
+    key = factcheck_api.api_key()
+    queries = _fact_check_queries(analysis)
+    if not key or not queries:
+        return []
+    try:
+        async with asyncio.timeout(FACTCHECK_TIMEOUT_S):
+            return await factcheck_api.find_reviews(client, cache, queries, key)
+    except TimeoutError:
+        log.warning("fact check API search timed out")
+        return []
+
+
 def _redirects(analysis: Analysis) -> dict[str, str]:
     """{document outlet: submitted host} when the submitted URL redirected to another host."""
     document = analysis.document
@@ -162,31 +234,56 @@ async def run(analysis: Analysis) -> RetrievePatch:
     cache = default_cache()
     async with new_client() as client:
         web = Web(client)
-        # Downloaded while the feeds are read, when no file was configured (see `viginum`).
+        # Both run while the feeds are read (see `viginum`, `factcheck_api`).
         listing = asyncio.create_task(_listing(web, cache))
+        reviews_task = asyncio.create_task(_reviews(client, cache, analysis))
         context: list[ContextItem] = []
         feeds_read = 0
         if queries:
             progress.report("Reading news feeds")
             items, feeds_read = await feeds.read_feeds(web, cache, _REGISTRY, FEEDS_TIMEOUT_S)
             hits = select(rank(items, queries), analysis, _REGISTRY)
-            progress.report(f"{len(hits)} possibly related reports in {feeds_read} feeds")
-            reader = Reader(web, cache)
-            records = await _until(
-                [reader.read(h.item.url, h.item.published_at) for h in hits],
-                ARTICLES_TIMEOUT_S,
-                lambda n: progress.report(f"Reading related reports: {n} of {len(hits)}"),
+            reviews = await reviews_task
+            progress.report(
+                f"{len(hits)} possibly related reports in {feeds_read} feeds"
+                + (f", {len(reviews)} fact-checks" if reviews else "")
             )
-            context = _context(hits, records)
+            reader = Reader(web, cache)
+            jobs = [reader.read(h.item.url, h.item.published_at) for h in hits]
+            jobs += [reader.read(r.url, r.published_at) for r in reviews]
+            records = await _until(
+                jobs,
+                ARTICLES_TIMEOUT_S,
+                lambda n: progress.report(f"Reading related reports: {n} of {len(jobs)}"),
+            )
+            context = _context(hits, records[: len(hits)])
+            context = _with_fact_checks(context, reviews, records[len(hits) :])
+        else:
+            reviews_task.cancel()
         progress.report(f"{len(context)} related reports; checking the outlets")
         domains = [document_outlet or ""] + [item.outlet or "" for item in context]
+        # Publishing in Google's fact-check index is what makes an outlet a fact-checker.
+        checkers = {
+            item.outlet: OutletType.fact_checker
+            for item in context
+            if item.retrieved_by == factcheck_api.NAME and item.outlet
+        }
         profiler = Profiler(
-            web, cache, _REGISTRY, await listing, redirected_from=_redirects(analysis)
+            web,
+            cache,
+            _REGISTRY,
+            await listing,
+            redirected_from=_redirects(analysis),
+            fallback_types=checkers,
         )
         sources = await profiler.profiles(domains, document_outlet, SOURCES_TIMEOUT_S)
-    outlets = len({item.outlet for item in context})
+    reports = [item for item in context if item.retrieved_by != factcheck_api.NAME]
+    checks = len(context) - len(reports)
+    outlets = len({item.outlet for item in reports})
     detail = (
-        f"{len(context)} related reports from {outlets} outlets ({feeds_read} feeds read)"
+        f"{len(reports)} related reports from {outlets} outlets"
+        + (f", {checks} fact-checks" if checks else "")
+        + f" ({feeds_read} feeds read)"
         if queries
         else "No search queries, so no related coverage was looked up"
     )

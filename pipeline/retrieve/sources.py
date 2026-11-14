@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from tld import get_fld
 
-from pipeline.common.contracts import SourceProfile
+from pipeline.common.contracts import OutletType, SourceProfile
 from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import FetchFailed
 from pipeline.retrieve.cache import Cache, NoCache
@@ -76,6 +76,7 @@ class Profiler:
         listing: Listing,
         *,
         redirected_from: dict[str, str] | None = None,
+        fallback_types: dict[str, OutletType] | None = None,
     ):
         """`redirected_from` maps a domain to the host it was reached from (the submitted URL's
         host when the page redirected elsewhere). Network sites move: since Nov 2026 the Pravda
@@ -87,6 +88,9 @@ class Profiler:
         self._registry = registry
         self._listing = listing
         self._redirected_from = redirected_from or {}
+        # Types known from how an outlet was found (a fact-check index), used when the curated
+        # registry does not list it.
+        self._fallback_types = fallback_types or {}
 
     async def _lookup(self, ns, url, domain, parse, timeout_s, max_bytes) -> datetime | None:
         cached = self._cache.get(ns, domain, DOMAIN_MAX_AGE)
@@ -163,7 +167,7 @@ class Profiler:
         return SourceProfile(
             domain=domain,
             registered_at=self._listing.created.get(listed) if listed else None,
-            outlet_type=outlet.outlet_type if outlet else None,
+            outlet_type=outlet.outlet_type if outlet else self._fallback_types.get(domain),
             country=outlet.country if outlet else None,
             known_network=NETWORK if listed or via else None,
         )
