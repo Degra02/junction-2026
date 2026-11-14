@@ -22,6 +22,8 @@ import { Favicon } from "./ui/Favicon";
 export interface PrefillValue {
   readonly value: string;
   readonly kind?: InputKind;
+  readonly lang?: string;
+  readonly autoSubmit?: boolean;
   readonly nonce: number;
 }
 
@@ -44,6 +46,7 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
   const customLangId = useId();
   const errorId = useId();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const autoSubmittedNonceRef = useRef<number | null>(null);
 
   const [value, setValue] = useState("");
   const [kindOverride, setKindOverride] = useState<"auto" | InputKind>("auto");
@@ -56,11 +59,53 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
 
   useEffect(() => {
     if (!prefill) return;
-    setValue(prefill.value);
-    setKindOverride("auto");
+    const nextValue = prefill.value;
+    const nextKind: "auto" | InputKind = prefill.kind ?? "auto";
+    const nextLang = (prefill.lang ?? "").trim().toLowerCase();
+    const knownCodes = new Set(EXPLANATION_LANGUAGE_OPTIONS.map((o) => o.code));
+
+    setValue(nextValue);
+    setKindOverride(nextKind);
+    if (nextLang) {
+      if (knownCodes.has(nextLang)) {
+        setLangChoice(nextLang);
+        setCustomLang("");
+      } else {
+        setLangChoice("__custom__");
+        setCustomLang(nextLang);
+      }
+    }
     setError(null);
+
+    if (prefill.autoSubmit && autoSubmittedNonceRef.current !== prefill.nonce) {
+      autoSubmittedNonceRef.current = prefill.nonce;
+      const clean = nextValue.trim();
+      const resolvedKind: InputKind = nextKind === "auto" ? detectInputKind(clean) : nextKind;
+      if (!clean) return;
+      if (resolvedKind === "url" && !/^https?:\/\/\S+$/i.test(clean)) {
+        setError("That is not a full http(s) link. Switch to Text to analyse it as text.");
+        return;
+      }
+      setSubmitting(true);
+      createAnalysis({
+        kind: resolvedKind,
+        value: clean,
+        explanation_language: nextLang || null,
+      })
+        .then((created) => {
+          navigate(`/analyses/${created.id}`, { replace: true });
+        })
+        .catch((err: unknown) => {
+          setError(
+            err instanceof ApiClientError ? err.message : "Could not reach the analysis service.",
+          );
+          setSubmitting(false);
+        });
+      return;
+    }
+
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [prefill]);
+  }, [prefill, navigate]);
 
   // Grow with the content between ~3 and ~9 lines.
   useEffect(() => {
