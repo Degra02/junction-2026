@@ -1,11 +1,11 @@
-"""Reading one hit: fetch, extract, cache, browser fallback, and the contract item."""
+"""Reading one hit: fetch, extract, cache, scraping fallback, and the contract item."""
 
 import asyncio
 from datetime import timedelta
 
 import pytest
 
-from pipeline.extract import browser
+from pipeline.extract import scraper
 from pipeline.extract.fetch import FetchFailed, Page
 from pipeline.extract.urls import canonical_url
 from pipeline.retrieve.articles import Reader, Record, context_item
@@ -75,19 +75,19 @@ def test_a_network_failure_is_not_cached(server, tmp_path):
     assert cache.get("article", canonical_url(URL), timedelta(days=1)) is None
 
 
-def _rendered(url: str, html: str) -> Page:
+def _scraped(url: str, html: str) -> Page:
     return Page(url=url, status=200, content_type="text/html", body=html.encode(), truncated=False)
 
 
-def test_a_bot_check_falls_back_to_the_browser_at_most_max_renders_times(server, monkeypatch):
-    renders: list[str] = []
+def test_a_bot_check_falls_back_to_the_scraper_at_most_max_scrapes_times(server, monkeypatch):
+    scraped: list[str] = []
 
-    async def render(url):
-        renders.append(url)
-        return _rendered(url, article_page("Reso", "Pagina letta dal browser headless."))
+    async def scrape(url, *, render=False, client=None):
+        scraped.append(url)
+        return _scraped(url, article_page("Letto", "Pagina letta dal servizio di scraping."))
 
-    monkeypatch.setattr(browser, "enabled", lambda: True)
-    monkeypatch.setattr(browser, "render_page", render)
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
+    monkeypatch.setattr(scraper, "scrape_page", scrape)
     urls = [f"https://guarded.example/{i}" for i in range(3)]
     for url in urls:
         server.pages[url] = (403, "Just a moment...")
@@ -96,30 +96,37 @@ def test_a_bot_check_falls_back_to_the_browser_at_most_max_renders_times(server,
         async with server.client() as client:
             from pipeline.retrieve.web import Web
 
-            reader = Reader(Web(client, guard=lambda u: None), NoCache(), max_renders=2)
+            reader = Reader(Web(client, guard=lambda u: None), NoCache(), max_scrapes=2)
             return [await reader.read(u) for u in urls]
 
     records = asyncio.run(go())
     assert [r is not None for r in records] == [True, True, False]
-    assert renders == urls[:2]
-    assert "Pagina letta dal browser headless." in records[0].text
+    assert scraped == urls[:2]
+    assert "Pagina letta dal servizio di scraping." in records[0].text
 
 
-def test_a_page_the_browser_cannot_open_either_gives_nothing(server, monkeypatch):
-    async def render(url):
+def test_a_page_the_scraper_cannot_read_either_gives_nothing(server, monkeypatch):
+    async def scrape(url, *, render=False, client=None):
         raise FetchFailed("The site took too long to answer")
 
-    monkeypatch.setattr(browser, "enabled", lambda: True)
-    monkeypatch.setattr(browser, "render_page", render)
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
+    monkeypatch.setattr(scraper, "scrape_page", scrape)
     server.pages[URL] = (429, "")
     assert read(server) is None
 
 
-def test_no_browser_when_it_is_switched_off(server, monkeypatch):
+def test_no_scraping_without_credentials_or_for_plain_failures(server, monkeypatch):
     called = []
-    monkeypatch.setattr(browser, "render_page", lambda url: called.append(url))
+
+    async def scrape(url, *, render=False, client=None):
+        called.append(url)
+
+    monkeypatch.setattr(scraper, "scrape_page", scrape)
     server.pages[URL] = (403, "")
-    assert read(server) is None  # conftest switched the browser off
+    assert read(server) is None  # conftest switched the scraper off
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
+    server.pages[URL] = (404, "")
+    assert read(server) is None  # a missing page is not a bot check: no credit spent
     assert called == []
 
 

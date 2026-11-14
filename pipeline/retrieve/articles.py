@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 
 from pipeline.common.contracts import ContextItem, FactCheck
-from pipeline.extract import browser
+from pipeline.extract import scraper
 from pipeline.extract.article import Article, extract_article
 from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import FetchFailed, Page, ensure_html, html_text
@@ -71,12 +71,14 @@ async def _extract(page: Page) -> Article | None:
 
 
 class Reader:
-    """Fetches and extracts hits; renders at most `max_renders` pages in the headless browser."""
+    """Fetches and extracts hits. A site that turns away a plain client is fetched through
+    Oxylabs (`pipeline.extract.scraper`), at most `max_scrapes` pages per analysis: each costs
+    plan credit."""
 
-    def __init__(self, web: Web, cache: Cache | NoCache, *, max_renders: int = 2):
+    def __init__(self, web: Web, cache: Cache | NoCache, *, max_scrapes: int = 5):
         self._web = web
         self._cache = cache
-        self._renders_left = max_renders if browser.enabled() else 0
+        self._scrapes_left = max_scrapes if scraper.enabled() else 0
 
     async def read(self, url: str, fallback_published: str | None = None) -> Record | None:
         key = canonical_url(url)
@@ -88,11 +90,11 @@ class Reader:
             ensure_html(page)
         except FetchFailed as e:
             # Not cached: a refusal or an outage may be over by the next analysis.
-            rendered = await self._render(url) if e.browser_may_help else None
-            if rendered is None:
+            scraped = await self._scrape(url) if e.fallback_may_help else None
+            if scraped is None:
                 log.info("hit not readable (%s)", e.reason)
                 return None
-            page = rendered
+            page = scraped
         article = await _extract(page)
         record = record_from(article, page.url, fallback_published) if article else None
         # A page that loaded without a full body is remembered too, so it is not fetched again
@@ -100,15 +102,15 @@ class Reader:
         self._cache.put(_NS, key, asdict(record) if record else {})
         return record
 
-    async def _render(self, url: str) -> Page | None:
-        if self._renders_left <= 0:
+    async def _scrape(self, url: str) -> Page | None:
+        if self._scrapes_left <= 0:
             return None
-        self._renders_left -= 1
+        self._scrapes_left -= 1
         try:
-            page = await browser.render_page(url)
+            page = await scraper.scrape_page(url, client=self._web.client)
             ensure_html(page)
         except FetchFailed as e:
-            log.info("hit not readable in the browser either (%s)", e.reason)
+            log.info("hit not readable through the scraper either (%s)", e.reason)
             return None
         return page
 
