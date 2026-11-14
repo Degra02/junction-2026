@@ -114,7 +114,7 @@ def test_ablation_shows_which_family_carries_the_signal() -> None:
     report = ablation(x, y, (Family.techniques, Family.tone, Family.claim_support), folds=5)
     assert set(report) == {"techniques", "tone"}
     informative, noise = report["techniques"], report["tone"]
-    assert informative["items_with_evidence"] == 300
+    assert informative["items_nonzero"] == 300
     assert informative["auc_alone"] > 0.8 and informative["auc_without"] < 0.6
     assert noise["auc_alone"] < 0.6 and noise["auc_without"] > 0.8
 
@@ -144,6 +144,8 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
     assert "single: 3 positive and 3 negative scored items; 1 abstained and left out" in out
     assert '"n": 6' in out and '"auc": 1.0' in out
     assert '"folds": 3' in out and '"ablation"' in out
+    # Positives carry all the fixture's evidence and negatives none: every family separates.
+    assert "single: WARNING fact_checks alone separates the classes (AUC 1.0)" in out
     assert "coordinated: not enough labels" in out
     assert WEIGHTS.model_dump() == before
 
@@ -151,9 +153,9 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
 @pytest.mark.parametrize(
     ("signal", "value", "expected"),
     [
-        ("contradicted", 1.0, 1.0),  # every addressing source contradicts the claim
+        ("contradicted", 5 / 6, 2 / 3),  # 4 of 4 addressing sources contradict the claim
         ("contradicted", 0.5, 0.0),  # split
-        ("contradicted", 0.0, -0.6),  # corroborated: points away, never below -0.6
+        ("contradicted", 0.2, -0.6),  # 0 of 3: corroborated, points away, never below -0.6
         ("tone_vs_peers", 3.0, 1.0),
         ("tone_vs_peers", -6.0, -0.5),  # calmer than the peers: weaker evidence
     ],

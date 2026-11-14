@@ -202,13 +202,24 @@ def test_techniques_aggregate_to_categories_with_paragraph_refs() -> None:
     by_signal = {e.signal: e for e in evidence}
     assert set(by_signal) == {"attack_on_reputation", "manipulative_wording"}
     wording = by_signal["manipulative_wording"]
-    # Share of the paragraphs with the technique, not the highest probability.
-    assert wording.value == pytest.approx(2 / 3, abs=1e-3)
-    assert by_signal["attack_on_reputation"].value == pytest.approx(1 / 3, abs=1e-3)
+    # Share of the paragraphs with the technique, not the highest probability; three paragraphs
+    # count as MIN_PARAGRAPHS = 4.
+    assert wording.value == pytest.approx(2 / 4)
+    assert by_signal["attack_on_reputation"].value == pytest.approx(1 / 4)
     assert [r.root.span.paragraph for r in wording.source_refs] == [1, 0]
     assert "in 2 of 3 paragraphs" in wording.detail
     assert by_signal["attack_on_reputation"].source_refs[0].root.span.end == len(paragraphs[1])
     assert [e.id for e in evidence] == ["s1", "s2"]
+
+
+def test_technique_share_of_a_long_and_of_a_capped_text() -> None:
+    paragraphs = [f"Paragraph number {i} of the report." for i in range(12)]
+    probs = np.full((10, len(LABELS)), 0.1, dtype=np.float32)
+    probs[3, LABELS.index("Doubt")] = 0.93  # one chance hit in a long report
+    thresholds = np.full(len(LABELS), 0.5, dtype=np.float32)
+    [item] = technique_evidence(paragraphs, list(range(10)), probs, LABELS, thresholds, ids())
+    assert item.value == pytest.approx(0.1)
+    assert "in 1 of the first 10 paragraphs" in item.detail
 
 
 def test_tone_compares_with_peers_and_needs_three() -> None:

@@ -21,11 +21,11 @@ unsupported language, evidence both ways) no confidence reaches the reader, so t
 say nothing about calibration, and their empty comparison families would teach the combiner
 "no coverage found" instead of the signal. The report counts them per dimension.
 
-`cv.ablation` says what each family adds (plan §8): for every family with evidence in the
-set, the out-of-fold AUC and log loss of the combiner refitted without it, and of that family
-alone. Read it before trusting a headline number: a family whose evidence is the label's own
-source (the VIGINUM list for `known_networks`, the fact-check that defines a debunked claim
-for `fact_checks`) separates the classes by construction.
+`cv.ablation` says what each family adds (plan §8): for every family with a non-zero value
+in the set, the out-of-fold AUC and log loss of the combiner refitted without it, and the AUC
+of that family alone. Read it before trusting a headline number: a family whose evidence is
+the label's own source (the VIGINUM list for `known_networks`, the fact-check that defines a
+debunked claim for `fact_checks`) separates the classes by construction.
 """
 
 import argparse
@@ -45,6 +45,8 @@ from pipeline.score.families import COORDINATED, SINGLE, family_values
 L2 = 1.0
 FOLDS = 5
 BINS = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+# A family that reaches this out-of-fold AUC by itself is flagged in the report.
+SEPARATES_ALONE = 0.98
 
 
 def features(analysis: Analysis, families: tuple[Family, ...]) -> list[float]:
@@ -92,8 +94,8 @@ def cross_validate(x: np.ndarray, y: np.ndarray, folds: int = FOLDS) -> dict[str
 def ablation(
     x: np.ndarray, y: np.ndarray, families: tuple[Family, ...], folds: int
 ) -> dict[str, dict[str, object]]:
-    """Per family with evidence: how often it fired, and the out-of-fold AUC and log loss
-    of the combiner refitted without it and with it alone."""
+    """Per family with a non-zero value somewhere: on how many items, the out-of-fold AUC and
+    log loss of the combiner refitted without it, and the AUC with it alone."""
     out: dict[str, dict[str, object]] = {}
     for column, family in enumerate(families):
         fired = int(np.count_nonzero(x[:, column]))
@@ -102,7 +104,7 @@ def ablation(
         without = cross_validate(np.delete(x, column, axis=1), y, folds)
         alone = cross_validate(x[:, [column]], y, folds)
         out[family.value] = {
-            "items_with_evidence": fired,
+            "items_nonzero": fired,
             "auc_without": without["auc"],
             "log_loss_without": without["log_loss"],
             "auc_alone": alone["auc"],
@@ -205,6 +207,13 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{dimension}: not enough labels of both classes, prior weights kept")
         else:
             print(f"{dimension}: {json.dumps(weights.model_dump(mode='json'), indent=2)}")
+            for family, report in (weights.cv or {}).get("ablation", {}).items():
+                if (report["auc_alone"] or 0.0) >= SEPARATES_ALONE:
+                    print(
+                        f"{dimension}: WARNING {family} alone separates the classes (AUC "
+                        f"{report['auc_alone']}); if its evidence is the label's own source, "
+                        f"quote the AUC without it ({report['auc_without']}), not the headline"
+                    )
     if args.dry_run:
         return
     result = Weights(

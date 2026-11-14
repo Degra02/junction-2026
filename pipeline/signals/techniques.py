@@ -73,6 +73,9 @@ EMOTIVE = [
     "Exaggeration-Minimisation",
 ]
 MIN_PEERS_FOR_TONE = 3
+# Shorter texts count as this many paragraphs: one detection in a one-paragraph post is one noisy
+# model decision, not "every paragraph".
+MIN_PARAGRAPHS = 4
 _MAX_REFS = 3
 
 
@@ -85,7 +88,8 @@ def technique_evidence(
     next_id: Callable[[], str],
 ) -> list[Evidence]:
     """One item per category with a detected technique; `probabilities[k]` belongs to
-    `paragraphs[indices[k]]`."""
+    `paragraphs[indices[k]]`. `indices` may be the first paragraphs only (the stage's cap)."""
+    capped = len(indices) < sum(1 for p in paragraphs if p.strip())
     detected = probabilities >= thresholds
     evidence = []
     for signal, (description, techniques) in CATEGORIES.items():
@@ -99,13 +103,14 @@ def technique_evidence(
         found = [labels[columns[c]] for c in np.argsort(-best) if best[c] > 0]
         names = ", ".join(t.replace("_", " ").replace("-", " / ").lower() for t in found)
         count, total = len(rows), len(indices)
+        scope = f"the first {total}" if capped else str(total)
         evidence.append(
             Evidence(
                 id=next_id(),
                 family=Family.techniques,
                 signal=signal,
-                value=round(count / total, 3),
-                detail=f"{description} ({names}) in {count} of {total} "
+                value=round(count / max(total, MIN_PARAGRAPHS), 3),
+                detail=f"{description} ({names}) in {count} of {scope} "
                 f"paragraph{'s' if total > 1 else ''}.",
                 source_refs=[paragraph_ref(paragraphs, indices[k]) for k in rows[:_MAX_REFS]],
             )
