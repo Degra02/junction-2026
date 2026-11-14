@@ -62,6 +62,11 @@ def words(text: str) -> set[str]:
     return set(_WORD.findall(_fold(text)))
 
 
+def tokens(text: str) -> list[str]:
+    """Case-, accent- and punctuation-insensitive words, in order."""
+    return _WORD.findall(_fold(text))
+
+
 def overlap(a: str, b: str) -> float:
     """Share of the words of `a` that also appear in `b`."""
     wa = words(a)
