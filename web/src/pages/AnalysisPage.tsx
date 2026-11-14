@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
 import { motion } from "motion/react";
@@ -11,17 +11,19 @@ import { RerunControl, RunLedger, RunProgress } from "../components/RunProgress"
 import { ScoreBreakdown } from "../components/ScoreBreakdown";
 import { Favicon } from "../components/ui/Favicon";
 import { useAnalysisStream } from "../hooks/useAnalysisStream";
-import { createAnalysis } from "../lib/api";
+import { createAnalysis, describeError } from "../lib/api";
 import type { DimensionKey, Family } from "../lib/contracts";
 import { cleanDomain } from "../lib/evidence";
-import { formatDomainAge, formatDurationMs, formatShortDate } from "../lib/format";
+import { formatDateTime, formatDomainAge, formatDurationMs, formatRelativeTime, formatShortDate } from "../lib/format";
 import { LANGUAGE_SUPPORT_LABELS, OUTLET_TYPE_LABELS, languageName, networkLabel } from "../lib/labels";
 import { GENTLE_SPRING } from "../lib/motion";
+import { rememberAnalysis } from "../lib/recent";
 import { buttonClass, tagClass } from "../lib/ui";
 
 export type AnalysisPageProps = Record<string, never>;
 
 type TabId = "coverage" | "text" | "score" | "run";
+const TAB_IDS: readonly string[] = ["coverage", "text", "score", "run"];
 
 const SINGLE_FAMILIES: Partial<Record<Family, true>> = {
   techniques: true,
@@ -46,11 +48,36 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   const replay = searchParams.get("replay") === "true" || searchParams.get("replay") === "1";
   const { analysis, activity, loading, isStreaming, error, notFound, reconnect } = useAnalysisStream(id, replay);
 
-  const [tab, setTab] = useState<TabId>("coverage");
+  // The open tab lives in the URL (?tab=), so reload, Back and shared links keep it.
+  const tabParam = searchParams.get("tab") ?? "";
+  const tab: TabId = TAB_IDS.includes(tabParam) ? (tabParam as TabId) : "coverage";
   const [mathDimension, setMathDimension] = useState<DimensionKey>("single");
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [forcingRun, setForcingRun] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Finished analyses this browser opened show up under "Recent" on the home page.
+  useEffect(() => {
+    if (!analysis || replay || (analysis.status !== "done" && analysis.status !== "failed")) return;
+    const domain = cleanDomain(analysis.document?.outlet ?? analysis.document?.url) || null;
+    const title =
+      analysis.document?.title ||
+      (analysis.input.kind === "url" ? analysis.input.value : Array.from(analysis.input.value).slice(0, 90).join(""));
+    rememberAnalysis({ id: analysis.id, title, domain, at: analysis.created_at });
+  }, [analysis, replay]);
+
+  function setTab(next: TabId) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "coverage") params.delete("tab");
+        else params.set("tab", next);
+        return params;
+      },
+      { replace: true },
+    );
+  }
 
   function openTab(next: TabId, scrollTarget?: string) {
     setTab(next);
@@ -92,19 +119,26 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   }
 
   function setReplay(on: boolean) {
-    const next = new URLSearchParams(searchParams);
-    if (on) next.set("replay", "true");
-    else next.delete("replay");
-    setSearchParams(next, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (on) params.set("replay", "true");
+        else params.delete("replay");
+        return params;
+      },
+      { replace: true },
+    );
   }
 
   async function handleRunFresh() {
     if (!analysis) return;
+    setActionError(null);
     setForcingRun(true);
     try {
       const created = await createAnalysis(analysis.input, { force: true });
       navigate(`/analyses/${created.id}`);
-    } catch {
+    } catch (err: unknown) {
+      setActionError(describeError(err));
       setForcingRun(false);
     }
   }
@@ -175,6 +209,13 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
 
   const isPreliminaryEstimate = PRELIMINARY_RE.test(analysis.explanation?.summary ?? "");
   const totalMs = analysis.steps.reduce((acc, s) => acc + (s.duration_ms ?? 0), 0);
+  // A link whose page could not be read: the text itself can still be analysed.
+  const extractStep = analysis.steps.find((s) => s.name === "extract");
+  const couldNotRead = analysis.input.kind === "url" && extractStep?.state === "failed";
+  // The failed step's own message is plainer than the analysis summary ("… (extract): …").
+  const failureMessage = (couldNotRead ? extractStep?.error : null) ?? analysis.error ?? error ?? "";
+  const inputDomain = analysis.input.kind === "url" ? cleanDomain(analysis.input.value) : "";
+  const shownOutlet = docOutlet || inputDomain;
 
   return (
     <div className="max-w-[960px] mx-auto space-y-8">
@@ -185,6 +226,14 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         </Link>
 
         <div className="flex items-center gap-1">
+          {!isLive && (
+            <span
+              title={`Analyzed ${formatDateTime(analysis.created_at) ?? ""}`}
+              className="hidden sm:inline mr-1.5 text-xs text-[var(--fg-muted)]"
+            >
+              Analyzed {formatRelativeTime(analysis.created_at)}
+            </span>
+          )}
           {isLive && replay && (
             <button type="button" onClick={() => setReplay(false)} className={buttonClass("secondary", "sm")}>
               Skip to result
@@ -200,19 +249,26 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                 <Play className="h-3 w-3 fill-current" aria-hidden="true" />
                 Replay
               </button>
-              <button
-                type="button"
-                disabled={forcingRun}
-                onClick={() => void handleRunFresh()}
-                title="Run again without the cache"
-                className={buttonClass("ghost", "sm")}
-              >
-                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                {forcingRun ? "Starting…" : "Run again"}
-              </button>
+              {analysis.status === "done" && (
+                <button
+                  type="button"
+                  disabled={forcingRun}
+                  onClick={() => void handleRunFresh()}
+                  title="Analyze this input again, without reusing the stored result"
+                  className={buttonClass("ghost", "sm")}
+                >
+                  <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  {forcingRun ? "Starting…" : "Run again"}
+                </button>
+              )}
             </>
           )}
-          <button type="button" onClick={() => void handleCopyLink()} className={buttonClass("ghost", "sm")}>
+          <button
+            type="button"
+            onClick={() => void handleCopyLink()}
+            title={isLive ? "The analysis keeps running if you leave; the link shows the result." : "Copy a link to this result"}
+            className={buttonClass("ghost", "sm")}
+          >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-[var(--teal)]" aria-hidden="true" />
             ) : (
@@ -223,22 +279,52 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         </div>
       </div>
 
+      {actionError && (
+        <p role="alert" className="-mt-4 text-[13px] text-[var(--danger)]">
+          {actionError}
+        </p>
+      )}
+
       {(analysis.status === "failed" || error) && (
         <div
           role="alert"
-          className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-soft)] px-4 py-3 flex items-start justify-between gap-3"
+          className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-soft)] px-4 py-3 flex flex-wrap items-start justify-between gap-3"
         >
-          <div className="text-[13px] text-[var(--danger)] space-y-0.5">
+          <div className="text-[13px] text-[var(--danger)] space-y-0.5 min-w-0">
             <p className="font-medium">
-              {analysis.status === "failed" ? "The analysis stopped early" : "Live updates interrupted"}
+              {analysis.status !== "failed"
+                ? "Live updates interrupted"
+                : couldNotRead
+                  ? "The page could not be read"
+                  : "The analysis stopped early"}
             </p>
-            <p>{analysis.error ?? error}</p>
+            {failureMessage && <p>{failureMessage.charAt(0).toUpperCase() + failureMessage.slice(1)}</p>}
+            {couldNotRead && (
+              <p className="text-[var(--fg-secondary)]">If the site blocks automated reading, paste the article text instead.</p>
+            )}
           </div>
-          {error && analysis.status !== "failed" && (
-            <button type="button" onClick={reconnect} className={buttonClass("secondary", "sm")}>
-              Reconnect
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {error && analysis.status !== "failed" && (
+              <button type="button" onClick={reconnect} className={buttonClass("secondary", "sm")}>
+                Reconnect
+              </button>
+            )}
+            {analysis.status === "failed" && couldNotRead && (
+              <Link to="/?mode=text" className={buttonClass("primary", "sm")}>
+                Paste the text instead
+              </Link>
+            )}
+            {analysis.status === "failed" && (
+              <button
+                type="button"
+                disabled={forcingRun}
+                onClick={() => void handleRunFresh()}
+                className={buttonClass("secondary", "sm")}
+              >
+                {forcingRun ? "Starting…" : "Try again"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -253,15 +339,15 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         >
           <header className="space-y-3">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--fg-secondary)]">
-              {docOutlet ? (
+              {shownOutlet ? (
                 <a
-                  href={analysis.document?.url ?? undefined}
+                  href={analysis.document?.url ?? analysis.input.value}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-1.5 font-mono-num text-[var(--fg-primary)] hover:underline underline-offset-2"
                 >
-                  <Favicon domain={docOutlet} size={16} />
-                  {docOutlet}
+                  <Favicon domain={shownOutlet} size={16} />
+                  {shownOutlet}
                   <ExternalLink className="h-3 w-3 text-[var(--fg-muted)]" aria-hidden="true" />
                 </a>
               ) : (
@@ -286,117 +372,132 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                 </span>
               )}
             </div>
-            <h1 className="display text-[28px] sm:text-[36px] leading-[1.12] break-words">{headlineTitle}</h1>
+            <h1
+              className={
+                analysis.document?.title || analysis.input.kind === "text"
+                  ? "display text-[28px] sm:text-[36px] leading-[1.12] break-words"
+                  : "font-mono-num text-base sm:text-lg text-[var(--fg-secondary)] break-all"
+              }
+            >
+              {headlineTitle}
+            </h1>
           </header>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DimensionScoreCard
-              dimension="single"
-              score={analysis.scores?.single}
-              evidence={analysis.evidence}
-              isPreliminaryEstimate={isPreliminaryEstimate}
-              cappedAt85={cappedAt85}
-              onInspectCalculation={handleInspectCalculation}
-            />
-            <DimensionScoreCard
-              dimension="coordinated"
-              score={analysis.scores?.coordinated}
-              evidence={analysis.evidence}
-              isPreliminaryEstimate={isPreliminaryEstimate}
-              cappedAt85={cappedAt85}
-              onInspectCalculation={handleInspectCalculation}
-            />
-          </div>
+          {!analysis.document ? (
+            // Nothing was read, so there is nothing to score: show where the run stopped.
+            <div className="editorial-card rounded-xl p-5">
+              <RunLedger analysis={analysis} activity={activity} mode="log" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DimensionScoreCard
+                  dimension="single"
+                  score={analysis.scores?.single}
+                  evidence={analysis.evidence}
+                  isPreliminaryEstimate={isPreliminaryEstimate}
+                  cappedAt85={cappedAt85}
+                  onInspectCalculation={handleInspectCalculation}
+                />
+                <DimensionScoreCard
+                  dimension="coordinated"
+                  score={analysis.scores?.coordinated}
+                  evidence={analysis.evidence}
+                  isPreliminaryEstimate={isPreliminaryEstimate}
+                  cappedAt85={cappedAt85}
+                  onInspectCalculation={handleInspectCalculation}
+                />
+              </div>
 
-          <ExplanationPanel
-            explanation={analysis.explanation}
-            evidence={analysis.evidence}
-            document={analysis.document}
-            context={analysis.context}
-            sources={analysis.sources}
-            input={analysis.input}
-            detectedLanguage={analysis.language}
-            activeEvidenceId={activeAnnotationId}
-            onInspectEvidence={handleInspectEvidenceOrClaim}
-          />
-
-          <Tabs.Root
-            id="details"
-            value={tab}
-            onValueChange={(v) => setTab(v as TabId)}
-            className="scroll-mt-20 space-y-5"
-          >
-            <Tabs.List
-              aria-label="Details"
-              className="flex items-center gap-6 overflow-x-auto shadow-[inset_0_-1px_0_var(--border-subtle)]"
-            >
-              <Tabs.Trigger value="coverage" className={TAB_TRIGGER}>
-                Coverage <span className="font-mono-num text-xs text-[var(--fg-muted)]">{analysis.context.length}</span>
-              </Tabs.Trigger>
-              <Tabs.Trigger value="text" className={TAB_TRIGGER}>
-                Text{" "}
-                <span className="font-mono-num text-xs text-[var(--fg-muted)]">
-                  {analysis.document?.paragraphs.length ?? 0}¶
-                </span>
-              </Tabs.Trigger>
-              <Tabs.Trigger value="score" className={TAB_TRIGGER}>
-                Score
-              </Tabs.Trigger>
-              <Tabs.Trigger value="run" className={TAB_TRIGGER}>
-                Run log{" "}
-                <span className="font-mono-num text-xs text-[var(--fg-muted)]">{formatDurationMs(totalMs)}</span>
-              </Tabs.Trigger>
-            </Tabs.List>
-
-            <Tabs.Content value="coverage" className="outline-none">
-              <CoverageView
-                context={analysis.context}
-                sources={analysis.sources}
-                evidence={analysis.evidence}
-                claims={analysis.claims}
-                documentLanguage={analysis.language}
-                documentOutlet={analysis.document?.outlet}
-                documentPublishedAt={analysis.document?.published_at}
-                activeEvidenceId={activeAnnotationId}
-                onSelectAnnotation={handleInspectEvidenceOrClaim}
-              />
-            </Tabs.Content>
-            <Tabs.Content value="text" className="outline-none">
-              <DocumentReader
-                document={analysis.document}
-                topic={analysis.topic}
-                claims={analysis.claims}
-                evidence={analysis.evidence}
-                context={analysis.context}
-                sources={analysis.sources}
-                activeAnnotationId={activeAnnotationId}
-                onSelectAnnotation={setActiveAnnotationId}
-              />
-            </Tabs.Content>
-            <Tabs.Content value="score" className="outline-none">
-              <ScoreBreakdown
-                scores={analysis.scores}
+              <ExplanationPanel
+                explanation={analysis.explanation}
                 evidence={analysis.evidence}
                 document={analysis.document}
                 context={analysis.context}
                 sources={analysis.sources}
-                cappedAt85={cappedAt85}
-                activeDimension={mathDimension}
-                onChangeDimension={setMathDimension}
+                input={analysis.input}
+                detectedLanguage={analysis.language}
                 activeEvidenceId={activeAnnotationId}
                 onInspectEvidence={handleInspectEvidenceOrClaim}
               />
-            </Tabs.Content>
-            <Tabs.Content value="run" className="outline-none">
-              <div className="editorial-card rounded-xl p-5 space-y-6">
-                <RunLedger analysis={analysis} activity={activity} mode="log" />
-                <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-3">
-                  <RerunControl analysisId={analysis.id} />
-                  <span className="font-mono-num text-xs text-[var(--fg-muted)]">{analysis.pipeline_version}</span>
-                </div>
-              </div>
-            </Tabs.Content>
-          </Tabs.Root>
+
+              <Tabs.Root
+                id="details"
+                value={tab}
+                onValueChange={(v) => setTab(v as TabId)}
+                className="scroll-mt-20 space-y-5"
+              >
+                <Tabs.List
+                  aria-label="Details"
+                  className="flex items-center gap-6 overflow-x-auto shadow-[inset_0_-1px_0_var(--border-subtle)]"
+                >
+                  <Tabs.Trigger value="coverage" className={TAB_TRIGGER}>
+                    Coverage{" "}
+                    <span className="font-mono-num text-xs text-[var(--fg-muted)]">{analysis.context.length}</span>
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="text" className={TAB_TRIGGER}>
+                    Article
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="score" className={TAB_TRIGGER}>
+                    Scoring
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="run" className={TAB_TRIGGER}>
+                    Run log{" "}
+                    <span className="font-mono-num text-xs text-[var(--fg-muted)]">{formatDurationMs(totalMs)}</span>
+                  </Tabs.Trigger>
+                </Tabs.List>
+
+                <Tabs.Content value="coverage" className="outline-none">
+                  <CoverageView
+                    context={analysis.context}
+                    sources={analysis.sources}
+                    evidence={analysis.evidence}
+                    claims={analysis.claims}
+                    documentLanguage={analysis.language}
+                    documentOutlet={analysis.document.outlet}
+                    documentPublishedAt={analysis.document.published_at}
+                    activeEvidenceId={activeAnnotationId}
+                    onSelectAnnotation={handleInspectEvidenceOrClaim}
+                  />
+                </Tabs.Content>
+                <Tabs.Content value="text" className="outline-none">
+                  <DocumentReader
+                    document={analysis.document}
+                    topic={analysis.topic}
+                    claims={analysis.claims}
+                    evidence={analysis.evidence}
+                    context={analysis.context}
+                    sources={analysis.sources}
+                    activeAnnotationId={activeAnnotationId}
+                    onSelectAnnotation={setActiveAnnotationId}
+                  />
+                </Tabs.Content>
+                <Tabs.Content value="score" className="outline-none">
+                  <ScoreBreakdown
+                    scores={analysis.scores}
+                    evidence={analysis.evidence}
+                    document={analysis.document}
+                    context={analysis.context}
+                    sources={analysis.sources}
+                    cappedAt85={cappedAt85}
+                    activeDimension={mathDimension}
+                    onChangeDimension={setMathDimension}
+                    activeEvidenceId={activeAnnotationId}
+                    onInspectEvidence={handleInspectEvidenceOrClaim}
+                  />
+                </Tabs.Content>
+                <Tabs.Content value="run" className="outline-none">
+                  <div className="editorial-card rounded-xl p-5 space-y-6">
+                    <RunLedger analysis={analysis} activity={activity} mode="log" />
+                    <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-3">
+                      <RerunControl analysisId={analysis.id} />
+                      <span className="font-mono-num text-xs text-[var(--fg-muted)]">{analysis.pipeline_version}</span>
+                    </div>
+                  </div>
+                </Tabs.Content>
+              </Tabs.Root>
+            </>
+          )}
         </motion.div>
       )}
     </div>

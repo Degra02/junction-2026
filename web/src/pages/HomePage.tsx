@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { AnalysisInputForm, type PrefillValue } from "../components/AnalysisInputForm";
 import { DemoPresets } from "../components/DemoPresets";
+import { RecentAnalyses } from "../components/RecentAnalyses";
 import type { DemoPreset } from "../data/presets";
 import { GENTLE_SPRING } from "../lib/motion";
 
@@ -50,6 +51,7 @@ export function HomePage(_props: Readonly<HomePageProps>) {
       >
         <AnalysisInputForm prefill={prefill} />
         <DemoPresets onSelectPreset={handleSelectPreset} />
+        <RecentAnalyses />
       </motion.div>
     </div>
   );

@@ -1,10 +1,10 @@
 import { motion } from "motion/react";
 import type { DimensionKey, Evidence, Family, Score } from "../lib/contracts";
-import { formatSignedContribution } from "../lib/format";
 import { DIMENSION_META, FAMILY_LABELS } from "../lib/labels";
 import { SPATIAL_SPRING } from "../lib/motion";
 import { buttonClass, tagClass } from "../lib/ui";
 import { AnimatedNumber } from "./ui/AnimatedNumber";
+import { Hint, InfoHint } from "./ui/Hint";
 
 export interface DimensionScoreCardProps {
   readonly dimension: DimensionKey;
@@ -56,13 +56,25 @@ export function DimensionScoreCard({
       className="editorial-card rounded-xl p-5 flex flex-col gap-4"
     >
       <div className="flex items-start justify-between gap-2">
-        <h2 id={headingId} className="text-sm font-medium text-[var(--fg-primary)] leading-snug">
-          {meta.title}
-        </h2>
+        <div className="flex items-center gap-1.5">
+          <h2 id={headingId} className="text-sm font-medium text-[var(--fg-primary)] leading-snug">
+            {meta.title}
+          </h2>
+          <InfoHint
+            label={`What "${meta.title}" measures`}
+            content={
+              <>
+                {meta.subtitle} A confidence from documented signals, not a verdict.
+              </>
+            }
+          />
+        </div>
         {isPreliminaryEstimate && !isAbstained && (
-          <span title="Weights are hand-set priors, not yet calibrated" className={tagClass("caution")}>
-            Prior estimate
-          </span>
+          <Hint content="The weights behind this number are not yet fitted on labelled data.">
+            <span tabIndex={0} className={tagClass("caution", undefined, "cursor-help")}>
+              Preliminary
+            </span>
+          </Hint>
         )}
       </div>
 
@@ -106,11 +118,9 @@ export function DimensionScoreCard({
           </div>
 
           {strongest ? (
-            <p className="flex items-baseline justify-between gap-2 text-[13px] text-[var(--fg-secondary)]">
-              <span className="truncate">{FAMILY_LABELS[strongest.family].name}</span>
-              <span className="font-mono-num text-xs text-[var(--fg-primary)] shrink-0">
-                {formatSignedContribution(strongest.contribution)}
-              </span>
+            <p className="truncate text-[13px] text-[var(--fg-secondary)]">
+              {strongest.contribution > 0 ? "Raised most by " : "Lowered most by "}
+              <span className="text-[var(--fg-primary)]">{FAMILY_LABELS[strongest.family].name.toLowerCase()}</span>
             </p>
           ) : (
             <p className="text-[13px] text-[var(--fg-muted)]">No signals found</p>

@@ -17,18 +17,50 @@ export const ALL_STAGES: readonly StageName[] = [
   "explain",
 ];
 
-/** `label`: a finished or waiting step; `active`: the same step while it runs. */
+/** `label`: a finished or waiting step; `active`: the same step while it runs; `help`: what it does. */
 export const STAGE_LABELS: Readonly<
-  Record<StageName, { readonly label: string; readonly active: string }>
+  Record<StageName, { readonly label: string; readonly active: string; readonly help: string }>
 > = {
-  extract: { label: "Read the article", active: "Reading the article" },
-  understand: { label: "Found the claims and search terms", active: "Finding the claims and search terms" },
-  retrieve: { label: "Searched other coverage", active: "Searching other coverage" },
-  story: { label: "Matched reports on the same event", active: "Matching reports on the same event" },
-  signals_single: { label: "Checked the content", active: "Checking the content" },
-  signals_coordinated: { label: "Checked for coordination", active: "Checking for coordination" },
-  score: { label: "Scored both dimensions", active: "Scoring both dimensions" },
-  explain: { label: "Wrote the explanation", active: "Writing the explanation" },
+  extract: {
+    label: "Read the article",
+    active: "Reading the article",
+    help: "Fetches the page and keeps only the article text, its outlet and its language.",
+  },
+  understand: {
+    label: "Found the claims and search terms",
+    active: "Finding the claims and search terms",
+    help: "Picks the checkable claims and writes search terms in the article's language and in English.",
+  },
+  retrieve: {
+    label: "Searched other coverage",
+    active: "Searching other coverage",
+    help: "Searches news feeds, news search and fact-checkers, then reads every report it finds.",
+  },
+  story: {
+    label: "Matched reports on the same event",
+    active: "Matching reports on the same event",
+    help: "Keeps only the reports about the same event; the rest are not compared.",
+  },
+  signals_single: {
+    label: "Checked the content",
+    active: "Checking the content",
+    help: "Looks for persuasion techniques, compares the tone with other reports, and checks the claims against them and against fact-checks.",
+  },
+  signals_coordinated: {
+    label: "Checked for coordination",
+    active: "Checking for coordination",
+    help: "Looks for passages copied by unrelated sites, publication timing, shared trackers and documented networks.",
+  },
+  score: {
+    label: "Scored both dimensions",
+    active: "Scoring both dimensions",
+    help: "Combines the signals into one confidence per dimension, or says there is not enough evidence.",
+  },
+  explain: {
+    label: "Wrote the explanation",
+    active: "Writing the explanation",
+    help: "Writes the summary and reasons; every quotation is checked against the sources.",
+  },
 };
 
 export const DIMENSION_META: Readonly<
