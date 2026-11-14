@@ -6,6 +6,10 @@ Pure logic: the embedding function and the same-event check are passed in (`mode
 no call.
 
 Each item gets `similarity` (cosine of headline + lead embeddings, in [-1, 1]) and `in_story`:
+- out when it is a social media post (`pipeline.extract.social.is_post`): a post is not a news
+  report, so it is never a peer for claim support or tone, nor one of the reports the score
+  needs before it speaks. It stays in the context, where the coordinated signals look for the
+  document's wording in it;
 - out when it was published more than `WINDOW_DAYS` from the document (when both dates are
   known); fact-checks are exempt, since a debunk may predate the article that repeats the claim;
 - otherwise, when `similarity` falls in the pair's grey zone (`grey_zone`) and the item is not
@@ -44,6 +48,7 @@ from datetime import datetime
 import numpy as np
 
 from pipeline.common.contracts import Analysis, ContextItem, StoryAssignment, StoryPatch
+from pipeline.extract.social import is_post
 from pipeline.signals.systemone import BinaryDecision, calibrate_binary
 
 SAME_LANGUAGE_THRESHOLD = 0.90
@@ -116,6 +121,14 @@ def _assignment(
     same_event: bool | None,
 ) -> StoryAssignment:
     similarity = round(similarity, 4)
+    if is_post(item.url, item.retrieved_by):
+        return StoryAssignment(
+            context_id=item.id,
+            similarity=similarity,
+            in_story=False,
+            reason="A social media post, not a news report: checked for repeated wording, "
+            "not counted as coverage",
+        )
     apart = _outside_window(item, document_date)
     if apart is not None:
         return StoryAssignment(
@@ -166,7 +179,9 @@ def assign(analysis: Analysis, embed: Embed, judge: Judge) -> StoryPatch:
     grey = [
         i
         for i, (item, decision) in enumerate(zip(context, decisions, strict=True))
-        if _outside_window(item, document.published_at) is None and decision.abstain
+        if decision.abstain
+        and _outside_window(item, document.published_at) is None
+        and not is_post(item.url, item.retrieved_by)
     ]
     grey = sorted(grey, key=lambda i: -similarities[i])[:MAX_JUDGED]
     answers: list[bool | None] = [None] * len(context)

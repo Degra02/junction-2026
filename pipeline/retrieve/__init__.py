@@ -2,8 +2,11 @@
 
 `run` reads the curated outlets' feeds (`feeds`), keeps the items that share enough words with
 the analysis's queries and claims (`match`), looks up published fact-checks of the claims
-(`factcheck_api`, when a key is configured), reads each hit in full (`articles`) and profiles
-every outlet domain (`sources`). Signals compute from this output only, so:
+(`factcheck_api`, when a key is configured), reads each hit in full (`articles`), collects the
+public social media posts that repeat the document's wording (`social`) and profiles every outlet
+domain (`sources`). Signals compute from this output only, so:
+- a social media post is in `context[]` only when it repeats the document's words; it is marked by
+  `retrieved_by` (the platform) and `story` never counts it as coverage;
 - `context[].text` is always a full article body, never a feed summary;
 - `sources[]` covers the document's outlet and every context outlet, typed from the registry.
 
@@ -31,7 +34,7 @@ from pipeline.extract import scraper
 from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import new_client
 from pipeline.extract.urls import canonical_url, outlet_host
-from pipeline.retrieve import factcheck_api, feeds, gdelt, oxylabs
+from pipeline.retrieve import factcheck_api, feeds, gdelt, oxylabs, social
 from pipeline.retrieve.articles import Reader, Record, context_item
 from pipeline.retrieve.cache import default_cache
 from pipeline.retrieve.feeds import FeedItem
@@ -313,6 +316,9 @@ async def run(analysis: Analysis) -> RetrievePatch:
         reviews_task = asyncio.create_task(_reviews(client, cache, analysis))
         phrases = distinctive_phrases(analysis.document)
         search_task = asyncio.create_task(_search_hits(client, cache, phrases, user_queries))
+        # Runs beside the feeds and the article reads, under its own budget (see `social`).
+        own_url = analysis.document.url if analysis.document else None
+        posts_task = asyncio.create_task(social.find_posts(web, cache, phrases, own_url))
         context: list[ContextItem] = []
         feeds_read = 0
         if queries or phrases:
@@ -349,9 +355,16 @@ async def run(analysis: Analysis) -> RetrievePatch:
             )
             context = _context(hits, records[: len(hits)], phrases)
             context = _with_fact_checks(context, reviews, records[len(hits) :])
+            posts = await posts_task
+            if posts:
+                progress.report(f"{len(posts)} social media posts repeat its wording")
+            context += [
+                social.post_item(f"ctx{len(context) + n}", post) for n, post in enumerate(posts, 1)
+            ]
         else:
             reviews_task.cancel()
             search_task.cancel()
+            posts_task.cancel()
         progress.report(f"{len(context)} related reports; checking the outlets")
         domains = [document_outlet or ""] + [item.outlet or "" for item in context]
         # Publishing in Google's fact-check index is what makes an outlet a fact-checker.
@@ -369,8 +382,13 @@ async def run(analysis: Analysis) -> RetrievePatch:
             fallback_types=checkers,
         )
         sources = await profiler.profiles(domains, document_outlet, SOURCES_TIMEOUT_S)
-    reports = [item for item in context if item.retrieved_by != factcheck_api.NAME]
-    checks = len(context) - len(reports)
+    posts_found = sum(item.retrieved_by in social.ADAPTERS for item in context)
+    checks = sum(item.retrieved_by == factcheck_api.NAME for item in context)
+    reports = [
+        item
+        for item in context
+        if item.retrieved_by != factcheck_api.NAME and item.retrieved_by not in social.ADAPTERS
+    ]
     outlets = len({item.outlet for item in reports})
     by_phrase = sum(item.retrieved_by in PHRASE_ADAPTERS for item in reports)
     by_news = sum(item.retrieved_by == oxylabs.NEWS_NAME for item in reports)
@@ -379,6 +397,7 @@ async def run(analysis: Analysis) -> RetrievePatch:
         + (f" ({by_phrase} by exact phrase)" if by_phrase else "")
         + (f" ({by_news} from news search)" if by_news else "")
         + (f", {checks} fact-checks" if checks else "")
+        + (f", {posts_found} social media posts repeating its wording" if posts_found else "")
         + f" ({feeds_read} feeds read)"
         if queries or phrases
         else "No search queries, so no related coverage was looked up"

@@ -1,8 +1,10 @@
-"""Stage 2, extract: turn the input (pasted text or an article URL) into the `Document`.
+"""Stage 2, extract: turn the input (pasted text, an article URL or the URL of a social media
+post) into the `Document`.
 
 `run` is the stage function the worker calls. The helper modules (`urls`, `text`, `meta`,
 `article`) are pure; `fetch` (plain HTTP) and `scraper` (the Oxylabs fallback for sites that turn
-away a plain client) do the network I/O and are shared with `retrieve`.
+away a plain client) do the network I/O and are shared with `retrieve`. `social` reads one post
+on X, Reddit, Bluesky, Mastodon or Telegram from the platform's public endpoint.
 """
 
 import asyncio
@@ -10,7 +12,7 @@ import asyncio
 from pipeline.common import progress
 from pipeline.common.contracts import Analysis, Document, ExtractPatch, InputKind
 from pipeline.common.errors import StageError
-from pipeline.extract import scraper
+from pipeline.extract import scraper, social
 from pipeline.extract.article import Article, extract_article
 from pipeline.extract.document import document_from_article, document_from_text
 from pipeline.extract.fetch import (
@@ -51,8 +53,13 @@ async def document_from_url(url: str) -> Document:
     Plain HTTP first. When the site turns that away (bot check), the page is fetched through
     Oxylabs (`scraper`), rendered if the plain copy holds no article; when the site answers but
     builds the article with JavaScript, it is fetched rendered. Without the Oxylabs key the
-    plain-HTTP reason is shown.
+    plain-HTTP reason is shown. The address of a social media post is read as a post instead.
     """
+    ref = social.post_ref(url)
+    if ref is not None:
+        document = await _post_document(ref)
+        if document is not None:
+            return document
     try:
         async with new_client() as client:
             page = await fetch_page(url, client)
@@ -70,6 +77,21 @@ async def document_from_url(url: str) -> Document:
     if article.meta.paywalled:
         raise StageError(PAYWALLED)
     return document_from_article(article, page.url)
+
+
+async def _post_document(ref: social.PostRef) -> Document | None:
+    """The post as a document; None when the address only looked like a post (`ref.certain`)."""
+    progress.report(f"Reading the post on {social.PLATFORMS[ref.platform]}")
+    try:
+        async with new_client() as client:
+            post = await social.read_post(ref, lambda u: fetch_page(u, client), client=client)
+    except FetchFailed as e:
+        if not ref.certain:
+            return None
+        if "public website" in e.reason:
+            raise StageError(e.reason) from e
+        raise StageError(f"{e.reason}. Paste its text instead") from e
+    return social.document_from_post(post)
 
 
 async def _extract(page: Page) -> Article | None:
