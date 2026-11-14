@@ -4,6 +4,10 @@ Pure logic: the embedding function is passed in (`model.embed` in the stage, a s
 tests), so this module loads no model.
 
 Each item gets `similarity` (cosine of headline + lead embeddings, in [-1, 1]) and `in_story`:
+- out when it is a social media post (`pipeline.extract.social.is_post`): a post is not a news
+  report, so it is never a peer for claim support or tone, nor one of the reports the score
+  needs before it speaks. It stays in the context, where the coordinated signals look for the
+  document's wording in it;
 - out when it was published more than `WINDOW_DAYS` from the document (when both dates are
   known); fact-checks are exempt, since a debunk may predate the article that repeats the claim;
 - otherwise in when `similarity` reaches the threshold for the pair: `SAME_LANGUAGE_THRESHOLD`
@@ -33,6 +37,7 @@ from datetime import datetime
 import numpy as np
 
 from pipeline.common.contracts import Analysis, ContextItem, StoryAssignment, StoryPatch
+from pipeline.extract.social import is_post
 
 SAME_LANGUAGE_THRESHOLD = 0.90
 CROSS_LANGUAGE_THRESHOLD = 0.845
@@ -68,6 +73,14 @@ def _assignment(
     document_language: str | None,
 ) -> StoryAssignment:
     similarity = round(similarity, 4)
+    if is_post(item.url, item.retrieved_by):
+        return StoryAssignment(
+            context_id=item.id,
+            similarity=similarity,
+            in_story=False,
+            reason="A social media post, not a news report: checked for repeated wording, "
+            "not counted as coverage",
+        )
     apart = _days_apart(item.published_at, document_date)
     if item.fact_check is None and apart is not None and apart > WINDOW_DAYS:
         return StoryAssignment(

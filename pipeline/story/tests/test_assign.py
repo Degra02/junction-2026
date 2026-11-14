@@ -163,3 +163,30 @@ def test_no_document_language_means_the_stricter_threshold():
     a = analysis(item(1, 0.87, language="en"))
     a.language = None
     assert assign(a, Embedder()).assignments[0].in_story is False
+
+
+# --- social media posts ----------------------------------------------------------------------
+
+
+def as_post(i: int, retrieved_by: str, url: str) -> ContextItem:
+    return item(i, 0.99).model_copy(update={"retrieved_by": retrieved_by, "url": url})
+
+
+def test_a_social_media_post_is_never_coverage_however_similar():
+    a = analysis(
+        as_post(1, "bluesky", "https://bsky.app/profile/a/post/3kabc2defgh2x"),
+        as_post(2, "oxylabs", "https://x.com/someone/status/1855000000000000000"),
+        as_post(3, "mastodon", "https://m.example/@a/1234567"),
+        item(4, 0.99),
+    )
+    by = {x.context_id: x for x in assign(a, Embedder()).assignments}
+    for post_id in ("ctx1", "ctx2", "ctx3"):
+        assert by[post_id].in_story is False
+        assert by[post_id].reason.startswith("A social media post, not a news report")
+        assert by[post_id].similarity == pytest.approx(0.99, abs=1e-3)  # still measured
+    assert by["ctx4"].in_story is True
+
+
+def test_a_page_whose_address_only_looks_like_a_mastodon_post_is_judged_as_a_report():
+    a = analysis(as_post(1, "feeds", "https://paper.example/@desk/20261110"))
+    assert assign(a, Embedder()).assignments[0].in_story is True
