@@ -1,3 +1,5 @@
+> **Deprecated.** Roles and ownership: `AGENTS.md`. Plan and timeline: `docs/plan.md`. Do not use this file.
+
 # Playbook — 4 people, 48h, agent-driven
 
 ## Roles
