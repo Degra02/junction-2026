@@ -123,3 +123,48 @@ def test_url_through_the_worker_endpoint():
     patch = ExtractPatch.model_validate(response.json())
     assert patch.document.outlet == "ansa.it"
     assert patch.language is not None and patch.language.code == "it"
+
+
+# Browser fallback (needs Chromium: `uv run playwright install --with-deps chromium`).
+
+
+def test_bot_checked_site_is_read_through_the_browser():
+    """France24 answers plain HTTP with 403 and serves headless Chromium normally."""
+    link = feed_links("https://www.france24.com/fr/rss", 1)[0]
+    patch = run_url(link)
+    assert patch.document.outlet == "france24.com"
+    assert sum(map(len, patch.document.paragraphs)) >= 300
+    assert patch.language is not None and patch.language.code == "fr"
+
+
+def test_site_that_blocks_headless_browsers_gives_a_plain_reason():
+    """TASS blocks headless browsers as well (Sat 14.11): readable only via the paid provider."""
+    link = feed_links("https://tass.ru/rss/v2.xml", 1)[0]
+    try:
+        patch = run_url(link)
+    except StageError as e:
+        assert "paste its text" in str(e)
+    else:  # if TASS ever lets headless browsers in, the article must be complete
+        assert patch.language is not None and patch.language.code == "ru"
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "127.0.0.1.nip.io",  # public names whose DNS answer is private: the proxy must check
+        "169.254.169.254.nip.io",  # the resolved address, not the name (cloud metadata here)
+        "10.0.0.1.nip.io",
+        "localtest.me",  # resolves to ::1
+    ],
+)
+def test_browser_cannot_reach_private_addresses(host):
+    """Every browser connection (navigation, redirect hop, sub-resource) goes through GuardProxy.
+
+    A public redirector cannot be used to test redirect hops (httpbin refuses internal targets),
+    so this drives the same per-connection check with public names that resolve to private IPs.
+    """
+    from pipeline.extract import browser
+    from pipeline.extract.fetch import FetchFailed
+
+    with pytest.raises(FetchFailed, match="public website"):
+        asyncio.run(browser.render_page(f"https://{host}/"))
