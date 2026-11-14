@@ -1000,6 +1000,13 @@
           "value": {
             "type": "string",
             "description": "The pasted text, or the article URL."
+          },
+          "explanation_language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Language the reader wants the explanation in (D14): ISO 639-1 code, e.g. `it`; null\nmeans English. The API lowercases it and drops a region (`pt-BR` → `pt`). Quotations\nstay in their original language."
           }
         }
       },

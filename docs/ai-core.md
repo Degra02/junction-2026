@@ -142,7 +142,7 @@ One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analys
 - No evidence at all → no LLM call; the summary says nothing was found and repeats the abstention reasons.
 - **Uncalibrated confidences are disclosed** (`docs/next-steps.md`: never claim calibration before the fit). Each non-abstained score in the digest carries `calibrated` (`WEIGHTS.<dimension>.calibrated`, true once `pipeline.score.fit` wrote `n > 0`); the prompt says to call uncalibrated numbers estimates; and the `PRIORS_NOTES` sentence ("These percentages are preliminary estimates from hand-set weights, not yet calibrated on labelled data.") is appended to the summary whenever such a confidence is shown, independent of the model's wording. After the fit the note disappears by itself.
 - **Explanation language (D14)**: `explanation_language(analysis)` reads the optional request field `input.explanation_language` (ISO 639-1, `it-IT` → `it`; anything that is not a 2–3 letter code → English) and defaults to English. The prompt asks for that language, with the dimension names translated and quotations kept verbatim in their original language. The two fixed sentences (`PRIORS_NOTES`, `NOTHING_FOUND`) come from tables for en, it, de, fr, es, pt, pl, nl, ru, uk; other languages get them in English. With no evidence and a non-English language, the summary is the translated "nothing found" sentence only (the English abstention reasons are shown with the scores).
-  - **Inert until the contract has the field**: the integrator adds `explanation_language: Option<String>` to `Input` and to the cache key (`input_hash`), otherwise a cached explanation in another language is reused; the UI offers the choice (default English, or the content language).
+  - The request field is in the contract: the API lowercases it, keeps the primary subtag (`pt-BR` → `pt`), rejects anything that is not a 2–3 letter code with 422, and puts it in the cache key (none = `en`). The UI offers the choice (default English, or the content language).
   - Live check (flash-lite, fixture): it, ru and fi all kept 3 reasons and the summary; it/ru notes translated, fi English as designed. The Russian run translated "partisan outlet" as "guerrilla"; the source-profile detail now says "a politically partisan outlet".
 
 ## LLM cost (AI Router)
@@ -251,7 +251,7 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 3. Fit the combiner on mosearc's labelled set; until then confidences are priors, not calibrated.
 4. Integrator: approve the new dependencies; consider pointing `AGENTS.md` "Read first" to this file; suggested `DECISIONS.md` lines: score family values in [-1, 1] with strongest-signal-only and prior weights in `pipeline/score/weights.json`; copies of the document are excluded from claim support and tone peers.
 5. Satire with coverage: no guard yet (no `satire` outlet type in the contract; understand returns no claims for it, techniques still fire).
-6. D14 needs `Input.explanation_language` in the contract and the cache key (integrator) and a selector in the UI (ck-lithium).
+6. D14 needs a language selector in the UI (ck-lithium); the request field and the cache key are done.
 7. Syndication guard relies on retrieve setting `outlet_type` `national`/`local` for mainstream outlets.
 
 ## Changelog
