@@ -219,3 +219,60 @@ def test_no_article_even_rendered_gives_the_plain_reason(monkeypatch):
     # A page that answered but holds no article even rendered: say so.
     with pytest.raises(StageError, match="paste its text"):
         run_url(monkeypatch, 200, "<html><body>Menu</body></html>", lambda render: None)
+
+
+# --- scrape_raw: feeds and API endpoints, passed through unchanged ---------------------------
+
+FEED = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry/></feed>'
+
+
+def raw(api, url=URL):
+    async def go():
+        async with new_client(httpx.MockTransport(api)) as client:
+            return await scraper.scrape_raw(url, client=client)
+
+    return asyncio.run(go())
+
+
+def test_a_raw_scrape_returns_the_answer_unchanged(key):
+    api = Api(markdown=FEED)
+    page = raw(api)
+    assert page.body == FEED.encode() and page.status == 200 and page.url == URL
+    create = api.requests[0]
+    assert json.loads(create.content) == {
+        "url": URL,
+        "output_format": "markdown",
+        "render_javascript": False,
+    }
+    assert create.headers["x-api-key"] == "test-key-not-real"
+
+
+def test_a_raw_scrape_fails_with_plain_reasons(key):
+    with pytest.raises(FetchFailed, match="refused"):
+        raw(Api(create_status=402))
+
+    def down(request):
+        raise httpx.ConnectError("no route")
+
+    with pytest.raises(FetchFailed, match="could not be reached"):
+        raw(down)
+
+    def slow(request):
+        raise httpx.ReadTimeout("slow")
+
+    with pytest.raises(FetchFailed, match="took too long"):
+        raw(slow)
+
+
+def test_a_raw_scrape_refuses_private_addresses_and_needs_a_key(key, monkeypatch):
+    def guard(url):
+        raise StageError("The link does not point to a public website")
+
+    api = Api()
+    monkeypatch.setattr(net, "assert_public_url", guard)
+    with pytest.raises(FetchFailed, match="public website"):
+        raw(api)
+    monkeypatch.delenv(scraper.TOKEN_ENV)
+    with pytest.raises(FetchFailed, match="refused"):
+        raw(api)
+    assert api.requests == []

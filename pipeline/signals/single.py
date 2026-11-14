@@ -1,11 +1,14 @@
-"""`run_single`: the single-actor evidence (plan §4 step 5a). Importing it loads the models."""
+"""`run_single`: the single-actor evidence (plan §4 step 5a). Importing it loads the models.
+
+Claim support runs cross-lingual NLI on CPU first and escalates only candidate contradictions
+(`judge.verify_pairs`); the rest runs purely on the CPU models."""
 
 from itertools import count
 
 from pipeline.common import progress
 from pipeline.common.contracts import Analysis, SignalsPatch
 from pipeline.common.errors import StageError
-from pipeline.signals import models
+from pipeline.signals import judge, models
 from pipeline.signals.claims import claim_support_evidence, fact_check_evidence
 from pipeline.signals.source_profile import source_profile_evidence
 from pipeline.signals.techniques import charge, technique_evidence, tone_evidence
@@ -58,7 +61,9 @@ def run_single(analysis: Analysis) -> SignalsPatch:
 
     if analysis.claims:
         progress.report(f"Checking {len(analysis.claims)} claims against {len(peers)} sources")
-    evidence += claim_support_evidence(analysis.claims, peers, models.nli, next_id)
+    evidence += claim_support_evidence(
+        analysis.claims, peers, models.nli, next_id, cascade=judge.verify_pairs
+    )
     evidence += fact_check_evidence(
         analysis.claims, analysis.context, models.nli, next_id, document.outlet
     )

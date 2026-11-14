@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Decode the Noise</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a id="brand-link" class="brand" href="https://the4thlover.tech" target="_blank" rel="noreferrer">
+        <svg viewBox="0 0 20 20" class="brand-logo" aria-hidden="true">
+          <rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35" />
+          <rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5" />
+          <rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor" />
+          <rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5" />
+        </svg>
+        <span class="brand-title">Decode the Noise</span>
+      </a>
+
+      <div class="topbar-actions">
+        <button id="health-pill" type="button" class="health-pill" title="Connected server — click to configure">
+          <span id="health-dot" class="status-dot"></span>
+          <span id="health-label">Connecting…</span>
+        </button>
+        <button id="sidepanel-btn" type="button" class="icon-btn" title="Dock in browser side panel" aria-label="Dock in browser side panel">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2" />
+            <line x1="10" y1="2.25" x2="10" y2="13.75" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <section id="settings-panel" class="settings-panel" hidden>
+      <div class="settings-header">
+        <span class="section-label">Connected site &amp; API</span>
+        <div class="preset-chips">
+          <button type="button" class="chip" data-endpoint="https://the4thlover.tech">Live VPS</button>
+          <button type="button" class="chip" data-endpoint="http://127.0.0.1:8080">Local :8080</button>
+          <button type="button" class="chip" data-endpoint="http://localhost:5173">Vite :5173</button>
+        </div>
+      </div>
+      <form id="settings-form" class="settings-row">
+        <input
+          id="endpoint-input"
+          type="url"
+          required
+          placeholder="https://the4thlover.tech"
+          aria-label="Site base URL"
+        />
+        <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+      </form>
+      <p id="settings-note" class="muted-note">
+        Analyses run on this server and open full interactive breakdowns on the same origin.
+      </p>
+    </section>
+
+    <main class="container">
+      <section class="capture-card">
+        <div class="mode-tabs" role="tablist" aria-label="Input source">
+          <button type="button" role="tab" id="tab-url" class="mode-tab active" data-mode="url">
+            Page link
+          </button>
+          <button type="button" role="tab" id="tab-selection" class="mode-tab" data-mode="selection">
+            Selection <span id="selection-badge" class="tab-badge" hidden>0w</span>
+          </button>
+          <button type="button" role="tab" id="tab-dom" class="mode-tab" data-mode="dom">
+            Reader text
+          </button>
+        </div>
+
+        <div id="page-preview" class="page-preview">
+          <div id="preview-domain" class="preview-domain">—</div>
+          <div id="preview-title" class="preview-title">Reading active tab…</div>
+        </div>
+
+        <textarea
+          id="payload-input"
+          rows="3"
+          placeholder="Paste an article URL or text…"
+          aria-label="Content to analyse"
+        ></textarea>
+
+        <div class="controls-row">
+          <label class="lang-control">
+            <span class="sr-only">Explanation language</span>
+            <select id="lang-select" title="Explanation language">
+              <option value="">Summary: English</option>
+              <option value="it">Italiano</option>
+              <option value="de">Deutsch</option>
+              <option value="fr">Français</option>
+              <option value="es">Español</option>
+              <option value="nl">Nederlands</option>
+              <option value="pl">Polski</option>
+              <option value="pt">Português</option>
+              <option value="fi">Suomi</option>
+            </select>
+          </label>
+
+          <div class="submit-group">
+            <button id="open-site-btn" type="button" class="btn btn-ghost btn-sm" title="Send to full web workspace">
+              Open in site ↗
+            </button>
+            <button id="analyze-btn" type="button" class="btn btn-primary">
+              Check story
+            </button>
+          </div>
+        </div>
+
+        <p id="error-box" class="error-box" hidden></p>
+      </section>
+
+      <section id="progress-card" class="panel" hidden>
+        <div class="panel-header">
+          <span id="progress-status" class="section-label">Investigating across outlets…</span>
+          <a id="live-report-link" class="inline-link" href="#" target="_blank" rel="noreferrer">
+            Live view ↗
+          </a>
+        </div>
+        <ol id="stage-list" class="stage-list"></ol>
+      </section>
+
+      <section id="result-card" class="result-stack" hidden>
+        <div class="score-grid">
+          <article id="score-single" class="score-box"></article>
+          <article id="score-coordinated" class="score-box"></article>
+        </div>
+
+        <div id="summary-box" class="panel" hidden>
+          <div class="panel-header">
+            <span class="section-label">Evidence summary</span>
+            <span id="context-counts" class="mono-meta"></span>
+          </div>
+          <p id="summary-text" class="summary-text"></p>
+          <ul id="reasons-list" class="reasons-list"></ul>
+        </div>
+
+        <div class="footer-cta">
+          <a id="full-report-btn" class="btn btn-accent full-width" href="#" target="_blank" rel="noreferrer">
+            Open full breakdown &amp; verbatim sources ↗
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>Scores are confidences from documented signals, never verdicts.</span>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

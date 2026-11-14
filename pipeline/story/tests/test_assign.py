@@ -1,4 +1,5 @@
-"""Story assignment with a stand-in embedder: threshold, date window, reasons, inputs."""
+"""Story assignment with a stand-in embedder and same-event check: thresholds, grey zone, date
+window, reasons, inputs."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -10,6 +11,7 @@ from pipeline.common.fixtures import example_analysis
 from pipeline.story.assign import (
     CROSS_LANGUAGE_THRESHOLD,
     LEAD_CHARS,
+    MAX_JUDGED,
     SAME_LANGUAGE_THRESHOLD,
     WINDOW_DAYS,
     assign,
@@ -37,6 +39,22 @@ class Embedder:
         for text in texts[1:]:
             rows.append(unit(float(text.split("sim=")[1].split()[0])))
         return np.stack(rows)
+
+
+class Judge:
+    """Answers the same-event check from a `{similarity: answer}` map; records each call."""
+
+    def __init__(self, answers: dict[float, bool | None] | None = None):
+        self.answers = answers or {}
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def __call__(self, article: str, reports: list[str]) -> list[bool | None]:
+        self.calls.append((article, reports))
+        return [self.answers.get(float(r.split("sim=")[1].split()[0])) for r in reports]
+
+
+def no_answer(article: str, reports: list[str]) -> list[bool | None]:
+    return [None] * len(reports)
 
 
 def item(i: int, sim: float, published: datetime | None = DAY, **kw) -> ContextItem:
@@ -70,7 +88,9 @@ def analysis(*items: ContextItem, document_date: datetime | None = DAY):
 
 def test_threshold_decides_and_every_item_gets_an_assignment():
     embed = Embedder()
-    patch = assign(analysis(item(1, 0.95), item(2, SAME_LANGUAGE_THRESHOLD), item(3, 0.80)), embed)
+    patch = assign(
+        analysis(item(1, 0.95), item(2, SAME_LANGUAGE_THRESHOLD), item(3, 0.80)), embed, no_answer
+    )
     assert [a.context_id for a in patch.assignments] == ["ctx1", "ctx2", "ctx3"]
     assert [a.in_story for a in patch.assignments] == [True, True, False]
     assert [a.similarity for a in patch.assignments] == pytest.approx(
@@ -89,7 +109,9 @@ def test_reports_outside_the_date_window_are_out_whatever_their_similarity():
     early = DAY - timedelta(days=30)
     edge = DAY - timedelta(days=WINDOW_DAYS)
     patch = assign(
-        analysis(item(1, 0.99, late), item(2, 0.99, early), item(3, 0.99, edge)), Embedder()
+        analysis(item(1, 0.99, late), item(2, 0.99, early), item(3, 0.99, edge)),
+        Embedder(),
+        no_answer,
     )
     assert [a.in_story for a in patch.assignments] == [False, False, True]
     assert patch.assignments[0].reason == (
@@ -99,9 +121,11 @@ def test_reports_outside_the_date_window_are_out_whatever_their_similarity():
 
 
 def test_no_window_without_both_dates():
-    undated_item = assign(analysis(item(1, 0.95, None)), Embedder())
+    undated_item = assign(analysis(item(1, 0.95, None)), Embedder(), no_answer)
     undated_document = assign(
-        analysis(item(1, 0.95, DAY - timedelta(days=90)), document_date=None), Embedder()
+        analysis(item(1, 0.95, DAY - timedelta(days=90)), document_date=None),
+        Embedder(),
+        no_answer,
     )
     assert undated_item.assignments[0].in_story is True
     assert undated_document.assignments[0].in_story is True
@@ -110,15 +134,15 @@ def test_no_window_without_both_dates():
 def test_fact_checks_are_exempt_from_the_window():
     check = FactCheck(claim="Wells will be banned", rating="False", publisher="Checker")
     old = item(1, 0.95, DAY - timedelta(days=200), fact_check=check)
-    assert assign(analysis(old), Embedder()).assignments[0].in_story is True
+    assert assign(analysis(old), Embedder(), no_answer).assignments[0].in_story is True
 
 
 def test_nothing_to_compare():
     embed = Embedder()
-    assert assign(analysis(), embed).assignments == []
+    assert assign(analysis(), embed, no_answer).assignments == []
     a = analysis(item(1, 0.9))
     a.document = None
-    assert assign(a, embed).assignments == []
+    assert assign(a, embed, no_answer).assignments == []
     assert embed.calls == []  # no model call when there is nothing to compare
 
 
@@ -134,7 +158,7 @@ def test_story_text_is_headline_and_a_bounded_lead():
 def test_the_patch_is_valid_for_the_api():
     from pipeline.common.contracts import StoryPatch
 
-    patch = assign(analysis(item(1, 0.9), item(2, 0.5)), Embedder())
+    patch = assign(analysis(item(1, 0.9), item(2, 0.5)), Embedder(), no_answer)
     assert StoryPatch.model_validate(patch.model_dump()) == patch
     assert all(isinstance(a.similarity, float) for a in patch.assignments)
 
@@ -145,7 +169,7 @@ def test_same_language_needs_the_stricter_threshold():
     sim = (SAME_LANGUAGE_THRESHOLD + CROSS_LANGUAGE_THRESHOLD) / 2
     a = analysis(item(1, sim, language="it"), item(2, sim, language="en"), item(3, sim))
     a.language.code = "it"
-    patch = assign(a, Embedder())
+    patch = assign(a, Embedder(), no_answer)
     assert [x.in_story for x in patch.assignments] == [False, True, False]
     assert patch.assignments[0].reason.endswith("below 0.900)")
     # An item without a language is held to the stricter threshold.
@@ -162,4 +186,70 @@ def test_threshold_for():
 def test_no_document_language_means_the_stricter_threshold():
     a = analysis(item(1, 0.87, language="en"))
     a.language = None
-    assert assign(a, Embedder()).assignments[0].in_story is False
+    assert assign(a, Embedder(), no_answer).assignments[0].in_story is False
+
+
+def test_the_same_event_check_decides_in_the_grey_zone_only():
+    check = FactCheck(claim="Wells will be banned", rating="False", publisher="Checker")
+    judge = Judge({0.91: False, 0.88: True})
+    a = analysis(
+        item(1, 0.95),  # above the zone: in, no call
+        item(2, 0.88),  # in the zone, same event
+        item(3, 0.91),  # in the zone, different event despite passing the threshold
+        item(4, 0.80),  # below the zone: out, no call
+        item(5, 0.89, fact_check=check),  # fact-checks keep the threshold rule
+        item(6, 0.89, DAY - timedelta(days=30)),  # out of the window before any call
+    )
+    patch = assign(a, Embedder(), judge)
+    assert [x.in_story for x in patch.assignments] == [True, True, False, False, False, False]
+    [(article, reports)] = judge.calls
+    assert article.startswith("The article\n")
+    # Only the two grey-zone reports, most similar first.
+    assert [r.split("\n")[0] for r in reports] == ["Report 3", "Report 2"]
+    assert patch.assignments[1].reason == (
+        "Covers the same event, by headline and lead (similarity 0.880)"
+    )
+    assert patch.assignments[2].reason.startswith("About a different event, by headline and lead")
+
+
+def test_without_an_answer_the_threshold_decides_and_calls_are_capped():
+    judge = Judge()
+    items = [item(i, 0.91) for i in range(MAX_JUDGED + 2)]
+    patch = assign(analysis(*items), Embedder(), judge)
+    assert len(judge.calls[0][1]) == MAX_JUDGED
+    assert all(x.in_story for x in patch.assignments)
+    assert patch.assignments[0].reason == "Covers the same event (similarity 0.910)"
+
+
+# --- social media posts ----------------------------------------------------------------------
+
+
+def as_post(i: int, retrieved_by: str, url: str, similarity: float = 0.99) -> ContextItem:
+    return item(i, similarity).model_copy(update={"retrieved_by": retrieved_by, "url": url})
+
+
+def test_a_social_media_post_is_never_coverage_however_similar():
+    a = analysis(
+        as_post(1, "bluesky", "https://bsky.app/profile/a/post/3kabc2defgh2x"),
+        as_post(2, "oxylabs", "https://x.com/someone/status/1855000000000000000"),
+        as_post(3, "mastodon", "https://m.example/@a/1234567"),
+        item(4, 0.99),
+    )
+    by = {x.context_id: x for x in assign(a, Embedder(), no_answer).assignments}
+    for post_id in ("ctx1", "ctx2", "ctx3"):
+        assert by[post_id].in_story is False
+        assert by[post_id].reason.startswith("A social media post, not a news report")
+        assert by[post_id].similarity == pytest.approx(0.99, abs=1e-3)  # still measured
+    assert by["ctx4"].in_story is True
+
+
+def test_a_post_in_the_grey_zone_is_not_sent_to_the_same_event_check():
+    judge = Judge()
+    a = analysis(as_post(1, "bluesky", "https://bsky.app/profile/a/post/3kabc2defgh2x", 0.88))
+    assert assign(a, Embedder(), judge).assignments[0].in_story is False
+    assert judge.calls == []
+
+
+def test_a_page_whose_address_only_looks_like_a_mastodon_post_is_judged_as_a_report():
+    a = analysis(as_post(1, "feeds", "https://paper.example/@desk/20261110"))
+    assert assign(a, Embedder(), no_answer).assignments[0].in_story is True

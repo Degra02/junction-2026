@@ -39,6 +39,24 @@ Sizes: body `text-sm` (14px), secondary `text-[13px]`, meta `text-xs` (12px), mi
 - `<AnimatedNumber value format>` for headline numbers that should count up once.
 - `data-spotlight` on a bordered surface: the border and surface light up under the pointer (one global listener in `AppShell`). Use on interactive cards only (input, presets, source rows), not on every block.
 - `.shimmer` on text that names work in progress ("Searching other coverage"); `.live-dot` for a running indicator; `.progress-indeterminate` for an unknown-length bar.
+- `<Hint content>` / `<InfoHint label content>` (`components/ui/Hint.tsx`) for help in context: one or two sentences, on hover and keyboard focus.
+- `describeError(err)` (`src/lib/api.ts`) for every error shown to the user.
+
+## Usability (Nielsen's 10 heuristics)
+How each heuristic shows up in this UI; new features follow the same patterns.
+
+| # | Heuristic | Pattern here |
+|---|---|---|
+| 1 | Visibility of system status | Live run ledger with notes and timers; queue place; "Analyzed 3 hours ago" on stored results; buttons say when they start a new run |
+| 2 | Match with the real world | Plain words: "Raised most by fact-checker reviews", "Article", "Other events"; log-odds and IDs only in the Scoring tab |
+| 3 | User control and freedom | Undo after an example or Clear replaces the input; tab in the URL (`?tab=`) so Back and reload keep it; "Skip to result" in replays |
+| 4 | Consistency and standards | `buttonClass`/`tagClass` only; ⌘↵ on Mac, Ctrl ↵ elsewhere; external links carry the external-link icon |
+| 5 | Error prevention | Links without `https://` are recognised; over-limit text is blocked before sending; short texts get a hint; the current summary language cannot be re-requested |
+| 6 | Recognition rather than recall | "Recent" analyses on the home page (this browser only); examples show their outlet |
+| 7 | Flexibility and efficiency | `/` focuses the input; ↵ sends a link; deep links to tabs; re-run from a stage in the Run log |
+| 8 | Aesthetic and minimalist design | See Principles: say less, one line per idea |
+| 9 | Recognise, diagnose, recover | Errors say what happened and what to do (`describeError`); a page that cannot be read offers "Paste the text instead" and "Try again" |
+| 10 | Help and documentation | "How it works" dialog in the header; (i) hints on the scores; every step explains itself on hover |
 
 ## Motion
 - Enter: opacity + 4–8px rise, `GENTLE_SPRING`/`SPATIAL_SPRING` (`src/lib/motion.ts`); lists stagger 30–50ms.

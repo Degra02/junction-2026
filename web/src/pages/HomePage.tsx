@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { AnalysisInputForm, type PrefillValue } from "../components/AnalysisInputForm";
 import { DemoPresets } from "../components/DemoPresets";
+import { RecentAnalyses } from "../components/RecentAnalyses";
 import type { DemoPreset } from "../data/presets";
 import { GENTLE_SPRING } from "../lib/motion";
 
@@ -10,7 +12,33 @@ export type HomePageProps = Record<string, never>;
 const HEADLINE = "Check any story against the rest of the news.";
 
 export function HomePage(_props: Readonly<HomePageProps>) {
+  const [searchParams] = useSearchParams();
   const [prefill, setPrefill] = useState<PrefillValue | null>(null);
+
+  useEffect(() => {
+    const urlParam = searchParams.get("url")?.trim() ?? "";
+    const textParam = searchParams.get("text")?.trim() ?? "";
+    const langParam = searchParams.get("lang")?.trim() ?? "";
+    const autorun = searchParams.get("autorun") === "1" || searchParams.get("autorun") === "true";
+
+    if (urlParam) {
+      setPrefill({
+        value: urlParam,
+        kind: "url",
+        lang: langParam || undefined,
+        autoSubmit: autorun,
+        nonce: 1,
+      });
+    } else if (textParam) {
+      setPrefill({
+        value: textParam,
+        kind: "text",
+        lang: langParam || undefined,
+        autoSubmit: autorun,
+        nonce: 2,
+      });
+    }
+  }, [searchParams]);
 
   function handleSelectPreset(preset: DemoPreset) {
     setPrefill({ value: preset.value, kind: preset.kind, nonce: Date.now() });
@@ -50,6 +78,15 @@ export function HomePage(_props: Readonly<HomePageProps>) {
       >
         <AnalysisInputForm prefill={prefill} />
         <DemoPresets onSelectPreset={handleSelectPreset} />
+        <RecentAnalyses />
+        <p className="text-center">
+          <Link
+            to="/extension"
+            className="text-xs text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors"
+          >
+            Check stories from any page with the browser extension →
+          </Link>
+        </p>
       </motion.div>
     </div>
   );

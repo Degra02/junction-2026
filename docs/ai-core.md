@@ -8,8 +8,8 @@ Updated: Sat 21:45.
 
 | Stage | Entry point | State on `main` |
 |---|---|---|
-| understand | `pipeline/understand/__init__.py: run` (async) | Done. One-fact claims located verbatim, queries in the content's language + English. Real LLM (`gemini-3.1-flash-lite`) |
-| signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers (satire excluded), two-way NLI claim support, fact-check matching (reviewed claim + debunking-verdict fallback across languages), source profile (`satire` included) |
+| understand | `pipeline/understand/__init__.py: run` (async) | Done. One-fact claims located verbatim + rhetorical-question guard + typed claim triage (`triage.py`: keeps `fact`, drops `opinion`/`attributed`/`other`), queries in the content's language + English |
+| signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers (satire + duplicate outlet domains excluded), System-One NLI + selective cascade claim support (`systemone.py`, `judge.verify_pairs`), fact-check matching, source profile |
 | signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams; quotes, agencies, fact-checkers, satire sites and newsrooms excluded), timing, shared tracking IDs, young domains, known networks (`own` + copies + sister sites of `own`'s network / `≥ 0.93` pasted translations) |
 | score | `pipeline/score/__init__.py: run` | **Calibrated on the 284-item set** (`weights.json`: `single` $n = 98$, CV AUC $0.9752$; `coordinated` $n = 132$, CV AUC $1.000$). Satire outlets abstain on `single`; `outlet_satire` maps to −1.0 |
 | explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; `PRIORS_NOTES` now off (`calibrated = true`); explains zero-evidence low baselines (`evidence_count: 0`); writes in `input.explanation_language` (D14) |
@@ -47,8 +47,12 @@ flowchart LR
 
 ```text
 pipeline/understand/__init__.py   prompt, LLM schema, claim location, query cleaning
+pipeline/understand/triage.py     typed second-pass claim triage (fact vs opinion/attributed)
+pipeline/story/judge.py           selective cascade for similarity grey-zone event matching
 pipeline/signals/__init__.py      lazy run_single / run_coordinated (PEP 562)
 pipeline/signals/models.py        technique + NLI models, loaded at import (pinned revisions)
+pipeline/signals/systemone.py     Jev-style System-One calibrated decisions, margin gating, ToS guard
+pipeline/signals/judge.py         selective cascade verifier for candidate NLI contradictions
 pipeline/signals/single.py        run_single: orchestrates the single-actor families
 pipeline/signals/techniques.py    families techniques, tone
 pipeline/signals/claims.py        families claim_support, fact_checks (+ rating vocabulary)
@@ -93,8 +97,8 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 
 Details:
 - **Emotional charge** of a text = mean over its paragraphs of the max probability among Loaded Language, Appeal to Fear, Name Calling, Exaggeration. Peers use their first 3 chunks (~400 chars). Spread floored at 0.05 so near-identical peers don't explode the z-score.
-- **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not satire sites, not the document's outlet, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
-- **Claim support** sends NLI the 4 two-sentence windows of each peer that share most words with the claim. Single sentences lose context: measured, "The draft does not ban private wells." alone → neutral 0.976; with the preceding sentence → contradiction 0.964. A peer that contains the claim verbatim is a quote, skipped for that claim. A contradiction counts only when passage → claim and claim → passage both reach 0.9: the NLI model treats two moments of one story as a contradiction (see "First run on real coverage").
+- **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not satire sites, not the document's outlet, **at most one item per normalized outlet domain**, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
+- **Claim support (System-One + selective cascade)** (`systemone.py`, `claims.py`, `judge.py`): sends NLI the 4 unquoted two-sentence windows of each peer sharing most words with the claim. Confident `supports` (`≥ 0.6`) and `not_addressed` pairs resolve locally on CPU with zero network calls; candidate two-way contradictions (`≥ 0.75`) escalate in a single batched typed call (`judge.verify_pairs`) to filter two-moment false contradictions (falling back to `≥ 0.9` two-way NLI when offline or `DECISION_CASCADE=0`).
 - **Quotations are not the author's words** (`text.mask_quotations`, `text.own_words`): passages inside `"…"`, `“…”`, `„…“`, `«…»`, `‘…’` are replaced by `…` before the technique model reads the document and the peers. A text that is mostly quotation (a pasted post in quote marks) keeps its words. Trade-off: scare quotes (so-called “experts”) are masked too.
 - **Fact-checks from the document's own outlet** are skipped: a fact-checker's article is not rated False by its own review.
 - Budget (2 vCPU): max 30 paragraphs, 10 peers.

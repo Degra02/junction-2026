@@ -1,4 +1,5 @@
-"""The stage as the worker calls it, with a stand-in for the model module (no download)."""
+"""The stage as the worker calls it, with stand-ins for the model module (no download) and for
+the same-event check (no LLM call)."""
 
 import sys
 import types
@@ -9,12 +10,15 @@ from fastapi.testclient import TestClient
 
 from pipeline.common import progress
 from pipeline.common.contracts import StoryPatch
-from pipeline.story.tests.test_assign import Embedder, analysis, item
+from pipeline.story.tests.test_assign import Embedder, analysis, item, no_answer
 
 
 @pytest.fixture
 def fake_model(monkeypatch):
     """`pipeline.story.model` replaced before `stage` imports it; stage re-imported fresh."""
+    from pipeline.story import judge
+
+    monkeypatch.setattr(judge, "same_event", no_answer)
     fake = types.ModuleType("pipeline.story.model")
     fake.embed = Embedder()
     monkeypatch.setitem(sys.modules, "pipeline.story.model", fake)

@@ -186,3 +186,22 @@ async def scrape_page(
         raise FetchFailed("We could not find an article on that page")
     data = page_html.encode("utf-8")
     return Page(url=url, status=200, content_type="text/html", body=data, truncated=False)
+
+
+async def scrape_raw(url: str, *, client: httpx.AsyncClient | None = None) -> Page:
+    """The answer at `url` as Oxylabs receives it, unchanged: for feeds and API endpoints, which
+    AI Studio passes through as text. Raises `FetchFailed` with a plain reason."""
+    if not enabled():
+        raise FetchFailed("The site refused to let us read the page")
+    try:
+        await asyncio.to_thread(net.assert_public_url, url)
+    except StageError as e:
+        raise FetchFailed(str(e)) from e
+    async with _slot():
+        try:
+            text = await _markdown(url, False, client)
+        except httpx.TimeoutException as e:
+            raise FetchFailed("The site took too long to answer") from e
+        except (httpx.HTTPError, json.JSONDecodeError) as e:
+            raise FetchFailed("The site could not be reached") from e
+    return Page(url=url, status=200, content_type="text/plain", body=text.encode(), truncated=False)

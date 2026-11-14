@@ -93,3 +93,25 @@ def test_the_viginum_list_downloads():
     assert len(listing) > 300
     assert listing.match("pravda-de.com") == "pravda-de.com"
     assert listing.match("deutsch.news-pravda.com")  # the Pravda redirect target
+
+
+def test_social_posts_that_repeat_a_phrase():
+    """The first post on X is quoted all over: every platform search should find posts that
+    repeat it, and nothing that does not."""
+    from pipeline.extract import scraper
+    from pipeline.retrieve import social
+
+    phrase = "just setting up my twttr"
+
+    async def go():
+        async with new_client() as client:
+            return await social.find_posts(Web(client), NoCache(), [phrase])
+
+    posts = asyncio.run(go())
+    assert posts and all(phrase in social.social.post_text(p).lower() for p in posts)
+    assert all(p.url.startswith("https://") and p.platform in social.ADAPTERS for p in posts)
+    assert len({(p.platform, p.author) for p in posts}) == len(posts)  # one per account
+    platforms = {p.platform for p in posts}
+    assert "bluesky" in platforms
+    if scraper.enabled():  # X and Reddit are found through the Oxylabs search
+        assert platforms & {"x", "reddit"}
