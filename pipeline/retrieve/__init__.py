@@ -26,7 +26,7 @@ from pipeline.retrieve.cache import default_cache
 from pipeline.retrieve.match import Hit, Query, rank
 from pipeline.retrieve.registry import Registry, load_registry
 from pipeline.retrieve.sources import Profiler, registrable
-from pipeline.retrieve.viginum import load_listing
+from pipeline.retrieve.viginum import Listing, fetch_listing, load_listing
 from pipeline.retrieve.web import Web
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 FEEDS_TIMEOUT_S = 20.0
 ARTICLES_TIMEOUT_S = 50.0
 SOURCES_TIMEOUT_S = 25.0
+VIGINUM_TIMEOUT_S = 10.0  # runs alongside the feeds, so it adds no time
 MAX_HITS = 30  # pages fetched per analysis
 PER_OUTLET = 3  # hits per outlet, so one prolific site does not fill the context
 WIRE_BONUS = 0.1  # agency originals let the signals tell syndication from copying
@@ -134,13 +135,26 @@ def _context(hits: list[Hit], records: list[Record | None]) -> list[ContextItem]
     return context
 
 
+async def _listing(web: Web, cache) -> Listing:
+    """The configured VIGINUM file when there is one, else the downloaded list (cached)."""
+    if len(_LISTING):
+        return _LISTING
+    try:
+        async with asyncio.timeout(VIGINUM_TIMEOUT_S):
+            return await fetch_listing(web, cache)
+    except TimeoutError:
+        log.warning("VIGINUM list download timed out: known_network stays empty")
+        return Listing()
+
+
 async def run(analysis: Analysis) -> RetrievePatch:
     queries = search_queries(analysis)
     document_outlet = analysis.document.outlet if analysis.document else None
     cache = default_cache()
     async with new_client() as client:
         web = Web(client)
-        profiler = Profiler(web, cache, _REGISTRY, _LISTING)
+        # Downloaded while the feeds are read, when no file was configured (see `viginum`).
+        listing = asyncio.create_task(_listing(web, cache))
         context: list[ContextItem] = []
         feeds_read = 0
         if queries:
@@ -157,6 +171,7 @@ async def run(analysis: Analysis) -> RetrievePatch:
             context = _context(hits, records)
         progress.report(f"{len(context)} related reports; checking the outlets")
         domains = [document_outlet or ""] + [item.outlet or "" for item in context]
+        profiler = Profiler(web, cache, _REGISTRY, await listing)
         sources = await profiler.profiles(domains, document_outlet, SOURCES_TIMEOUT_S)
     outlets = len({item.outlet for item in context})
     detail = (

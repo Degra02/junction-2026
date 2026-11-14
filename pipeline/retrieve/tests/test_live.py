@@ -80,3 +80,15 @@ def test_rdap_gives_registration_dates():
     guardian, fullfact = asyncio.run(go())
     assert guardian.registered_at is not None and guardian.registered_at.year < 2000
     assert fullfact.outlet_type == OutletType.fact_checker
+
+
+def test_the_viginum_list_downloads():
+    from pipeline.retrieve.viginum import fetch_listing
+
+    async def go():
+        async with new_client() as client:
+            return await fetch_listing(Web(client), NoCache())
+
+    listing = asyncio.run(go())
+    assert len(listing) > 300
+    assert listing.match("pravda-de.com") == "pravda-de.com"

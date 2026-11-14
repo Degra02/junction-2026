@@ -244,3 +244,56 @@ def test_the_real_viginum_list_parses_when_present():
     listing = parse_viginum(DEFAULT_PATH.read_text(encoding="utf-8"))
     assert len(listing) > 300
     assert listing.match("pravda-de.com") == "pravda-de.com"
+
+
+def _fetch(server, cache):
+    import asyncio
+
+    from pipeline.retrieve.viginum import fetch_listing
+
+    async def go():
+        async with server.client() as client:
+            from pipeline.retrieve.web import Web
+
+            return await fetch_listing(Web(client, guard=lambda u: None), cache)
+
+    return asyncio.run(go())
+
+
+def test_downloaded_viginum_list_is_cached_and_empty_answers_are_not(server, tmp_path):
+    from pipeline.retrieve.cache import Cache
+    from pipeline.retrieve.viginum import SOURCE_URL
+
+    cache = Cache(tmp_path / "r.sqlite")
+    server.pages[SOURCE_URL] = (200, "<html>Rate limited</html>")
+    assert len(_fetch(server, cache)) == 0
+    server.pages[SOURCE_URL] = (
+        200,
+        "domain,create date,first seen,type\npravda-de[.]com,,,domain\n",
+    )
+    assert _fetch(server, cache).match("pravda-de.com") == "pravda-de.com"
+    server.seen.clear()
+    assert _fetch(server, cache).match("pravda-de.com") == "pravda-de.com"
+    assert server.seen == []  # from the cache
+
+
+def test_unreachable_viginum_source_gives_an_empty_list(server, monkeypatch):
+    from pipeline.common import net
+    from pipeline.common.errors import StageError
+    from pipeline.retrieve.cache import NoCache
+
+    def refuse(url):
+        raise StageError("The link's site could not be found")
+
+    monkeypatch.setattr(net, "assert_public_url", refuse)
+
+    import asyncio
+
+    from pipeline.retrieve.viginum import fetch_listing
+    from pipeline.retrieve.web import Web
+
+    async def go():
+        async with server.client() as client:
+            return await fetch_listing(Web(client), NoCache())
+
+    assert len(asyncio.run(go())) == 0

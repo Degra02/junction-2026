@@ -39,6 +39,7 @@ CLAIM_REVIEW = json.dumps(
         "author": {"@type": "Organization", "name": "Checker"},
     }
 )
+HEADER = "domain,create date,first seen,type\n"
 PAYWALL = (
     '<script type="application/ld+json">'
     '{"@type": "NewsArticle", "isAccessibleForFree": false}</script>'
@@ -63,7 +64,10 @@ def stage(server, monkeypatch):
     for entries in registry.values():
         entries[0]["country"] = "IT"
     monkeypatch.setattr(retrieve, "_REGISTRY", parse(registry))
-    monkeypatch.setattr(retrieve, "_LISTING", parse_viginum("domain,create date,first seen,type\n"))
+    # A configured (non-empty) list, so no download is attempted; see test_viginum_download_*.
+    monkeypatch.setattr(
+        retrieve, "_LISTING", parse_viginum(HEADER + "unrelated[.]example,,,domain\n")
+    )
     server.pages[AGENCY_FEED] = (
         200,
         rss(
@@ -310,3 +314,31 @@ def test_through_the_worker_endpoint(stage):
     assert response.status_code == 200, response.text
     patch = RetrievePatch.model_validate(response.json())
     assert len(patch.context) == 2
+
+
+def test_viginum_download_when_no_file_is_configured(stage, monkeypatch):
+    from pipeline.retrieve import viginum
+
+    monkeypatch.setattr(retrieve, "_LISTING", parse_viginum(HEADER))
+    stage.pages[viginum.SOURCE_URL] = (
+        200,
+        "\ufeff" + HEADER + "blog[.]example,01/03/2024,,domain\n",
+    )
+    [blog, *_] = run().sources
+    assert blog.domain == "blog.example" and blog.known_network == "portal_kombat"
+    assert viginum.SOURCE_URL in stage.seen
+
+
+def test_viginum_download_failure_or_timeout_leaves_networks_empty(stage, monkeypatch):
+    from pipeline.retrieve import viginum
+
+    monkeypatch.setattr(retrieve, "_LISTING", parse_viginum(HEADER))
+    stage.pages[viginum.SOURCE_URL] = (503, "")
+    patch = run()
+    assert len(patch.context) == 2 and all(s.known_network is None for s in patch.sources)
+
+    monkeypatch.setattr(retrieve, "VIGINUM_TIMEOUT_S", 0.3)
+    stage.pages[viginum.SOURCE_URL] = (200, HEADER + "blog[.]example,,,domain\n")
+    stage.delays[viginum.SOURCE_URL] = 5
+    patch = run()
+    assert len(patch.context) == 2 and all(s.known_network is None for s in patch.sources)
