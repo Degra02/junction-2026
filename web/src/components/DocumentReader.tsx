@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { ExternalLink, FileText, Tag } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import type {
   Claim,
   ContextItem,
@@ -9,11 +9,14 @@ import type {
   SourceProfile,
   Topic,
 } from "../lib/contracts";
+import { cleanDomain } from "../lib/evidence";
 import { formatShortDate } from "../lib/format";
 import { FAMILY_LABELS, signalLabel } from "../lib/labels";
 import { collectDocumentAnnotations, segmentParagraph } from "../lib/spans";
+import { tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
 import { CitationChip } from "./CitationChip";
+import { Favicon } from "./ui/Favicon";
 
 export interface DocumentReaderProps {
   readonly document: DocumentData | null | undefined;
@@ -36,7 +39,7 @@ export function DocumentReader({
   activeAnnotationId,
   onSelectAnnotation,
 }: Readonly<DocumentReaderProps>) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
 
   const annotations = useMemo(
     () => collectDocumentAnnotations(claims, evidence),
@@ -51,196 +54,220 @@ export function DocumentReader({
     const target = containerRef.current.querySelector<HTMLElement>(
       `[data-annotation-ids~="${CSS.escape(activeAnnotationId)}"]`,
     );
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!target) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    if (!reduced) {
+      target.animate(
+        [{ boxShadow: "0 0 0 4px var(--mark-strong)" }, { boxShadow: "0 0 0 0 transparent" }],
+        { duration: 900, easing: "ease-out" },
+      );
     }
   }, [activeAnnotationId]);
 
   if (!document || document.paragraphs.length === 0) {
     return (
-      <div className="editorial-card rounded-3xl p-6 text-xs text-[var(--fg-muted)]">
-        No extracted source paragraphs available for this item.
+      <div className="editorial-card rounded-xl p-4 sm:p-5 text-[13px] text-[var(--fg-muted)]">
+        No text extracted.
       </div>
     );
   }
 
   const pubDate = formatShortDate(document.published_at);
+  const outlet = document.outlet ? cleanDomain(document.outlet) || document.outlet : null;
+  const topicMeta = [topic?.place, topic?.date].filter(Boolean).join(" · ");
 
   return (
     <section
       ref={containerRef}
-      aria-labelledby="reader-heading"
-      className="editorial-card rounded-3xl p-5 sm:p-7 space-y-5"
+      aria-labelledby={document.title ? "reader-heading" : undefined}
+      aria-label={document.title ? undefined : "Article text"}
+      className="editorial-card rounded-xl p-4 sm:p-8"
     >
-      {/* Header & Source Metadata */}
-      <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-[var(--border-subtle)]">
-        <div className="space-y-1 min-w-0">
-          <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
-            <FileText className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-            <span>Annotated source text</span>
-          </div>
-          {document.title && (
-            <h3
-              id="reader-heading"
-              className="text-base sm:text-lg font-bold text-[var(--fg-primary)] leading-snug m-0"
-            >
-              {document.title}
-            </h3>
+      <header className="max-w-[calc(68ch+2.75rem)] sm:pl-11 space-y-2">
+        {document.title && (
+          <h3
+            id="reader-heading"
+            className="display text-2xl leading-tight text-[var(--fg-primary)]"
+          >
+            {document.title}
+          </h3>
+        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--fg-secondary)]">
+          {outlet && (
+            <span className="inline-flex items-center gap-1.5">
+              <Favicon domain={outlet} size={14} />
+              <span className="font-mono-num">{outlet}</span>
+            </span>
           )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--fg-secondary)]">
-            {document.outlet && <span className="font-semibold">{document.outlet}</span>}
-            {document.author && <span>By {document.author}</span>}
-            {pubDate && <span className="font-mono-num">{pubDate}</span>}
-            {document.url && (
-              <a
-                href={document.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[var(--accent)] hover:underline"
-              >
-                <span>Original page</span>
-                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              </a>
+          {document.author && <span>{document.author}</span>}
+          {pubDate && <span className="font-mono-num text-[var(--fg-muted)]">{pubDate}</span>}
+          {document.url && (
+            <a
+              href={document.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--accent)] hover:underline"
+            >
+              Original
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            </a>
+          )}
+          <span className="ml-auto inline-flex items-center gap-3 text-[var(--fg-muted)]">
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="h-2.5 w-3.5 rounded-[2px] bg-[var(--mark-strong)]" />
+              Evidence
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="w-3.5 border-b-[1.5px] border-dotted border-[var(--accent)]"
+              />
+              Claim
+            </span>
+          </span>
+        </div>
+      </header>
+
+      {topic && (
+        <details className="group mt-4 max-w-[calc(68ch+2.75rem)] sm:ml-11 border-y border-[var(--border-subtle)] py-2 text-xs">
+          <summary className="flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]">
+            <ChevronRight
+              className="h-3.5 w-3.5 shrink-0 text-[var(--fg-muted)] transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+            <span className="font-medium text-[var(--fg-primary)]">Event</span>
+            {topicMeta && <span className="font-mono-num text-[var(--fg-muted)] shrink-0">{topicMeta}</span>}
+            <span className="truncate text-[var(--fg-muted)] group-open:hidden">{topic.summary}</span>
+          </summary>
+          <div className="pl-5.5 pt-2 pb-1 space-y-2">
+            <p className="text-[13px] leading-relaxed text-[var(--fg-secondary)]">{topic.summary}</p>
+            {topic.entities.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {topic.entities.map((entity) => (
+                  <span key={entity} className={tagClass("neutral")}>
+                    {entity}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-
-        <div className="text-xs text-[var(--fg-muted)] bg-[var(--bg-subtle)] px-3 py-1.5 rounded-full">
-          Click any highlighted passage to inspect signals
-        </div>
-      </div>
-
-      {/* Event Summary & Entities Pill Bar */}
-      {topic && (
-        <div className="rounded-2xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)] p-3.5 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)]">
-            <Tag className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-            <span>Identified event</span>
-            {topic.place ? ` · ${topic.place}` : ""}
-            {topic.date ? ` (${topic.date})` : ""}
-          </div>
-          <p className="text-xs text-[var(--fg-secondary)] leading-relaxed m-0">
-            {topic.summary}
-          </p>
-        </div>
+        </details>
       )}
 
-      {/* Clean Paragraph Stream with Floating Popover Annotations (Zero [cl1]/[s1] Bracket Soup) */}
-      <div className="space-y-4 max-w-[70ch]">
+      <div className="mt-6 grid grid-cols-[1.75rem_minmax(0,68ch)] sm:grid-cols-[2rem_minmax(0,68ch)] gap-x-2 sm:gap-x-3 gap-y-5">
         {document.paragraphs.map((para, pIdx) => {
           const segments = segmentParagraph(para, pIdx, annotations);
 
           return (
-            <p
-              key={pIdx}
-              className="text-sm sm:text-[15px] leading-[1.75] text-[var(--fg-primary)] m-0"
-            >
-              {segments.map((seg) => {
-                if (seg.annotations.length === 0) {
-                  return <span key={`${seg.start}-${seg.end}`}>{seg.text}</span>;
-                }
+            <Fragment key={pIdx}>
+              <span
+                aria-hidden="true"
+                className="font-mono-num text-[11px] leading-[1.7] pt-[0.3em] text-right text-[var(--fg-muted)] select-none"
+              >
+                {pIdx + 1}
+              </span>
+              <p className="font-serif text-[17px] leading-[1.7] text-[var(--fg-primary)]">
+                {segments.map((seg) => {
+                  if (seg.annotations.length === 0) {
+                    return <span key={`${seg.start}-${seg.end}`}>{seg.text}</span>;
+                  }
 
-                const uniqueIds = Array.from(new Set(seg.annotations.map((a) => a.id)));
-                const isActive =
-                  activeAnnotationId !== null && uniqueIds.includes(activeAnnotationId);
-                const hasEvidence = seg.annotations.some((a) => a.kind === "evidence");
+                  const uniqueIds = Array.from(new Set(seg.annotations.map((a) => a.id)));
+                  const isActive =
+                    activeAnnotationId !== null && uniqueIds.includes(activeAnnotationId);
+                  const hasEvidence = seg.annotations.some((a) => a.kind === "evidence");
+                  const hasClaim = seg.annotations.some((a) => a.kind === "claim");
 
-                const matchedClaims = uniqueIds
-                  .map((id) => claimMap.get(id))
-                  .filter((c): c is Claim => c !== undefined);
-                const matchedEvidence = uniqueIds
-                  .map((id) => evidenceMap.get(id))
-                  .filter((e): e is Evidence => e !== undefined);
+                  const matchedClaims = uniqueIds
+                    .map((id) => claimMap.get(id))
+                    .filter((c): c is Claim => c !== undefined);
+                  const matchedEvidence = uniqueIds
+                    .map((id) => evidenceMap.get(id))
+                    .filter((e): e is Evidence => e !== undefined);
 
-                return (
-                  <Popover.Root key={`${seg.start}-${seg.end}`}>
-                    <Popover.Trigger asChild>
-                      <mark
-                        data-annotation-ids={uniqueIds.join(" ")}
-                        onClick={() => {
-                          if (uniqueIds[0]) onSelectAnnotation(uniqueIds[0]);
-                        }}
-                        className={cn(
-                          "rounded-md px-1 py-0.5 transition-all cursor-pointer text-inherit border-b-2",
-                          isActive
-                            ? "bg-[var(--accent-soft)] border-[var(--accent)] ring-2 ring-[var(--accent-border)]"
-                            : hasEvidence
-                              ? "bg-[var(--accent-soft)]/70 border-[var(--accent)]/60 hover:bg-[var(--accent-soft)]"
-                              : "bg-[var(--teal-soft)]/70 border-[var(--teal)]/60 hover:bg-[var(--teal-soft)]",
-                        )}
-                      >
-                        {seg.text}
-                      </mark>
-                    </Popover.Trigger>
+                  return (
+                    <Popover.Root key={`${seg.start}-${seg.end}`}>
+                      <Popover.Trigger asChild>
+                        <mark
+                          data-annotation-ids={uniqueIds.join(" ")}
+                          onClick={() => {
+                            if (uniqueIds[0]) onSelectAnnotation(uniqueIds[0]);
+                          }}
+                          className={cn(
+                            "text-inherit rounded-[2px] box-decoration-clone cursor-pointer transition-colors underline-offset-[5px]",
+                            hasEvidence
+                              ? isActive
+                                ? "bg-[var(--mark-strong)]"
+                                : "bg-[var(--mark)] hover:bg-[var(--mark-strong)]"
+                              : "bg-transparent hover:bg-[var(--bg-hover)]",
+                            isActive
+                              ? "underline decoration-2 decoration-[color:var(--caution)]"
+                              : hasClaim && "underline decoration-dotted decoration-[1.5px] decoration-[color:var(--accent)]",
+                          )}
+                        >
+                          {seg.text}
+                        </mark>
+                      </Popover.Trigger>
 
-                    <Popover.Portal>
-                      <Popover.Content
-                        side="top"
-                        align="center"
-                        sideOffset={8}
-                        collisionPadding={16}
-                        className="z-50 glass-popover rounded-2xl p-4 w-80 sm:w-96 space-y-3 outline-none"
-                      >
-                        <div className="text-[11px] font-mono-num text-[var(--fg-muted)]">
-                          Paragraph {pIdx + 1} · Verbatim span
-                        </div>
-
-                        {matchedClaims.map((cl) => (
-                          <div
-                            key={cl.id}
-                            className="rounded-xl bg-[var(--teal-soft)]/60 border border-[var(--teal-border)] p-2.5 space-y-1"
-                          >
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--teal)]">
-                              Extracted assertion checked across outlets
-                            </div>
-                            <p className="text-xs text-[var(--fg-primary)] m-0 leading-snug">
-                              “{cl.text}”
-                            </p>
+                      <Popover.Portal>
+                        <Popover.Content
+                          side="top"
+                          align="center"
+                          sideOffset={8}
+                          collisionPadding={16}
+                          className="z-50 glass-popover rounded-xl w-80 sm:w-96 outline-none divide-y divide-[var(--border-subtle)]"
+                        >
+                          <div className="px-3 py-2 font-mono-num text-[11px] text-[var(--fg-muted)]">
+                            ¶ {pIdx + 1}
                           </div>
-                        ))}
 
-                        {matchedEvidence.map((ev) => (
-                          <div
-                            key={ev.id}
-                            className="rounded-xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] p-2.5 space-y-2"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-bold text-[var(--fg-primary)]">
-                                {signalLabel(ev.signal)}
-                              </span>
-                              <span className="text-[10px] text-[var(--fg-muted)]">
-                                {FAMILY_LABELS[ev.family].name}
-                              </span>
+                          {matchedClaims.map((cl) => (
+                            <div key={cl.id} className="px-3 py-2.5 space-y-1">
+                              <div className="text-xs font-medium text-[var(--accent)]">Claim</div>
+                              <p className="text-[13px] text-[var(--fg-primary)] leading-snug">
+                                “{cl.text}”
+                              </p>
                             </div>
-                            <p className="text-xs text-[var(--fg-secondary)] m-0 leading-relaxed">
-                              {ev.detail}
-                            </p>
-                            <CitationChip
-                              evidence={ev}
-                              document={document}
-                              context={context}
-                              sources={sources}
-                            />
-                          </div>
-                        ))}
-                      </Popover.Content>
-                    </Popover.Portal>
-                  </Popover.Root>
-                );
-              })}
-            </p>
+                          ))}
+
+                          {matchedEvidence.map((ev) => (
+                            <div key={ev.id} className="px-3 py-2.5 space-y-1.5">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className="text-[13px] font-medium text-[var(--fg-primary)]">
+                                  {signalLabel(ev.signal)}
+                                </span>
+                                <span className="text-xs text-[var(--fg-muted)]">
+                                  {FAMILY_LABELS[ev.family].name}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[var(--fg-secondary)] leading-relaxed">
+                                {ev.detail}
+                              </p>
+                              <CitationChip
+                                evidence={ev}
+                                document={document}
+                                context={context}
+                                sources={sources}
+                              />
+                            </div>
+                          ))}
+                        </Popover.Content>
+                      </Popover.Portal>
+                    </Popover.Root>
+                  );
+                })}
+              </p>
+            </Fragment>
           );
         })}
       </div>
 
       {document.tracking_ids.length > 0 && (
-        <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-[var(--fg-muted)]">Embedded analytics / ad tags:</span>
+        <div className="mt-6 pt-4 sm:ml-11 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-[var(--fg-muted)] mr-1">Trackers</span>
           {document.tracking_ids.map((tid) => (
-            <code
-              key={tid}
-              className="px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] font-mono-num text-[11px] text-[var(--fg-secondary)]"
-            >
+            <code key={tid} className={tagClass("neutral", { mono: true })}>
               {tid}
             </code>
           ))}

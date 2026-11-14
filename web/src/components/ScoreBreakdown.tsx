@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Filter } from "lucide-react";
+import { X } from "lucide-react";
 import type {
   ContextItem,
   DimensionKey,
@@ -9,11 +9,12 @@ import type {
   Scores,
   SourceProfile,
 } from "../lib/contracts";
-import { computeWaterfallSteps } from "../lib/evidence";
+import { computeWaterfallSteps, resolveEvidenceSources } from "../lib/evidence";
 import { formatPct, formatSignedContribution } from "../lib/format";
 import { DIMENSION_META, FAMILY_LABELS, signalLabel } from "../lib/labels";
+import { SECTION_LABEL, buttonClass, tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
-import { CitationChip } from "./CitationChip";
+import { Favicon } from "./ui/Favicon";
 
 export interface ScoreBreakdownProps {
   readonly scores: Scores | null | undefined;
@@ -28,279 +29,35 @@ export interface ScoreBreakdownProps {
   readonly onInspectEvidence: (id: string) => void;
 }
 
-const SINGLE_FAMILY_LOOKUP: Partial<Record<Family, true>> = {
-  techniques: true,
-  tone: true,
-  claim_support: true,
-  fact_checks: true,
-  source_profile: true,
-};
+const DIMENSIONS: readonly DimensionKey[] = ["single", "coordinated"];
+const ZERO = 0.005;
+/** Shared row grid: family | diverging bar | values. */
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7.5rem] items-center gap-x-4";
 
-/**
- * Custom SVG SHAP-style Sigmoid Waterfall Plot:
- * Maps additive log-odds `b + Σ w_f·v_f` onto probability space `[0%, 100%]`
- * so readers see how each family moves confidence from the prior baseline to the final score.
- */
-function SigmoidWaterfallSvg({
-  dimension,
-  scores,
-  cappedAt85,
-  selectedFamily,
-  onSelectFamily,
-}: Readonly<{
-  dimension: DimensionKey;
-  scores: Scores;
-  cappedAt85: boolean;
-  selectedFamily: Family | null;
-  onSelectFamily: (family: Family | null) => void;
-}>) {
-  const score = scores[dimension];
-  const wf = computeWaterfallSteps(dimension, score, cappedAt85);
-
-  const leftPad = 176;
-  const rightPad = 112;
-  const trackW = 412;
-  const width = leftPad + trackW + rightPad;
-  const rowH = 34;
-  const topPad = 32;
-  const totalRows = wf.steps.length + 2; // Baseline + N families + Final
-  const height = topPad + totalRows * rowH + 28;
-
-  const xOf = (p: number) => leftPad + Math.max(0, Math.min(1, p)) * trackW;
-
+function DivergingBar({
+  delta,
+  maxAbs,
+  positiveColor,
+}: Readonly<{ delta: number; maxAbs: number; positiveColor: string }>) {
+  const half = maxAbs > 0 ? (Math.min(Math.abs(delta), maxAbs) / maxAbs) * 50 : 0;
+  const positive = delta > ZERO;
+  const negative = delta < -ZERO;
   return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full min-w-[560px] h-auto select-none"
-        role="img"
-        aria-label={`Confidence calculation waterfall chart for ${DIMENSION_META[dimension].shortTitle}`}
-      >
-        {/* Probability Grid Ticks (0%, 25%, 50%, 75%, 100%) */}
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-          const x = xOf(tick);
-          return (
-            <g key={tick}>
-              <line
-                x1={x}
-                y1={topPad - 6}
-                x2={x}
-                y2={topPad + totalRows * rowH}
-                stroke="var(--border-subtle)"
-                strokeDasharray={tick === 0 || tick === 1 ? undefined : "3 3"}
-                strokeWidth="1"
-              />
-              <text
-                x={x}
-                y={topPad - 12}
-                textAnchor="middle"
-                fontSize="10"
-                fontFamily="var(--font-mono)"
-                fill="var(--fg-muted)"
-              >
-                {Math.round(tick * 100)}%
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Row 0: Baseline Prior σ(b) */}
-        {(() => {
-          const y = topPad + 6;
-          const baseX = xOf(wf.baselineProb);
-          return (
-            <g>
-              <text
-                x={leftPad - 12}
-                y={y + 13}
-                textAnchor="end"
-                fontSize="12"
-                fontWeight="600"
-                fill="var(--fg-secondary)"
-              >
-                Prior baseline σ(b)
-              </text>
-              <rect
-                x={xOf(0)}
-                y={y + 3}
-                width={Math.max(3, baseX - xOf(0))}
-                height={14}
-                rx={4}
-                fill="var(--border-strong)"
-                opacity="0.65"
-              />
-              <line
-                x1={baseX}
-                y1={y + 17}
-                x2={baseX}
-                y2={y + rowH + 3}
-                stroke="var(--border-strong)"
-                strokeDasharray="2 2"
-              />
-              <text
-                x={leftPad + trackW + 10}
-                y={y + 14}
-                fontSize="11"
-                fontFamily="var(--font-mono)"
-                fill="var(--fg-muted)"
-              >
-                {formatPct(wf.baselineProb, 0)} (b={wf.intercept.toFixed(1)})
-              </text>
-            </g>
-          );
-        })()}
-
-        {/* Family Step Rows */}
-        {wf.steps.map((step, idx) => {
-          const y = topPad + (idx + 1) * rowH + 6;
-          const xStart = xOf(step.probBefore);
-          const xEnd = xOf(step.probAfter);
-          const barX = Math.min(xStart, xEnd);
-          const barW = Math.max(3, Math.abs(xEnd - xStart));
-          const isPositive = step.logOddsDelta > 0.005;
-          const isNegative = step.logOddsDelta < -0.005;
-          const isSelected = selectedFamily !== null && selectedFamily === step.family;
-
-          const fill = isPositive
-            ? dimension === "single"
-              ? "var(--accent)"
-              : "var(--indigo)"
-            : isNegative
-              ? "var(--teal)"
-              : "var(--border-strong)";
-
-          return (
-            <g
-              key={step.key}
-              onClick={() =>
-                step.family &&
-                onSelectFamily(selectedFamily === step.family ? null : step.family)
-              }
-              style={{ cursor: step.family ? "pointer" : "default" }}
-            >
-              {/* Subtle Interactive Row Hover/Selection Highlight */}
-              <rect
-                x={4}
-                y={y - 4}
-                width={width - 8}
-                height={rowH - 4}
-                rx={8}
-                fill={isSelected ? "var(--accent-soft)" : "transparent"}
-              />
-
-              <text
-                x={leftPad - 12}
-                y={y + 13}
-                textAnchor="end"
-                fontSize="12"
-                fontWeight={isSelected || Math.abs(step.logOddsDelta) > 0.01 ? "600" : "400"}
-                fill={
-                  isSelected
-                    ? "var(--accent)"
-                    : Math.abs(step.logOddsDelta) > 0.01
-                      ? "var(--fg-primary)"
-                      : "var(--fg-muted)"
-                }
-              >
-                {step.label}
-              </text>
-
-              <rect
-                x={barX}
-                y={y + 3}
-                width={barW}
-                height={14}
-                rx={4}
-                fill={fill}
-                opacity={Math.abs(step.logOddsDelta) < 0.005 ? 0.35 : 0.92}
-              />
-
-              {/* Connector to next row */}
-              <line
-                x1={xEnd}
-                y1={y + 17}
-                x2={xEnd}
-                y2={y + rowH + 3}
-                stroke="var(--border-strong)"
-                strokeDasharray="2 2"
-              />
-
-              {/* Signed Log-Odds Label */}
-              <text
-                x={leftPad + trackW + 10}
-                y={y + 14}
-                fontSize="11"
-                fontWeight={Math.abs(step.logOddsDelta) > 0.01 ? "600" : "400"}
-                fontFamily="var(--font-mono)"
-                fill={
-                  isPositive
-                    ? "var(--accent)"
-                    : isNegative
-                      ? "var(--teal)"
-                      : "var(--fg-muted)"
-                }
-              >
-                {formatSignedContribution(step.logOddsDelta)} → {formatPct(step.probAfter, 0)}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Final Combined Confidence Row */}
-        {(() => {
-          const y = topPad + (wf.steps.length + 1) * rowH + 8;
-          const finalX = xOf(wf.finalProb);
-          return (
-            <g>
-              <line
-                x1={8}
-                y1={y - 6}
-                x2={width - 8}
-                y2={y - 6}
-                stroke="var(--border-subtle)"
-              />
-              <text
-                x={leftPad - 12}
-                y={y + 13}
-                textAnchor="end"
-                fontSize="12"
-                fontWeight="700"
-                fill="var(--fg-primary)"
-              >
-                {score.abstained ? "Combined (abstained)" : "Final confidence"}
-              </text>
-              <rect
-                x={xOf(0)}
-                y={y + 3}
-                width={Math.max(4, finalX - xOf(0))}
-                height={14}
-                rx={4}
-                fill={score.abstained ? "var(--fg-muted)" : "var(--accent)"}
-                opacity={score.abstained ? 0.45 : 1}
-              />
-              <circle
-                cx={finalX}
-                cy={y + 10}
-                r={5}
-                fill="var(--bg-surface)"
-                stroke={score.abstained ? "var(--fg-muted)" : "var(--accent)"}
-                strokeWidth="2.5"
-              />
-              <text
-                x={leftPad + trackW + 10}
-                y={y + 14}
-                fontSize="12"
-                fontWeight="700"
-                fontFamily="var(--font-mono)"
-                fill="var(--fg-primary)"
-              >
-                {score.abstained ? "Abstained" : formatPct(wf.finalProb, 1)}
-              </text>
-            </g>
-          );
-        })()}
-      </svg>
-    </div>
+    <span className="relative block h-4" aria-hidden="true">
+      <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--border-subtle)]" />
+      <span className="absolute left-1/2 inset-y-0 w-px bg-[var(--border-strong)]" />
+      {(positive || negative) && (
+        <span
+          className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-sm"
+          style={{
+            width: `${Math.max(half, 1)}%`,
+            left: positive ? "50%" : undefined,
+            right: negative ? "50%" : undefined,
+            background: positive ? positiveColor : "var(--teal)",
+          }}
+        />
+      )}
+    </span>
   );
 }
 
@@ -320,167 +77,220 @@ export function ScoreBreakdown({
 
   if (!scores) {
     return (
-      <div className="editorial-card rounded-3xl p-6 text-xs text-[var(--fg-muted)]">
-        Score breakdown is not available for this run.
+      <div className="editorial-card rounded-xl p-4 sm:p-5 text-[13px] text-[var(--fg-muted)]">
+        No score for this run.
       </div>
     );
   }
 
-  const dimEvidence = evidence.filter((ev) => {
-    const inDim =
-      activeDimension === "single"
-        ? Boolean(SINGLE_FAMILY_LOOKUP[ev.family])
-        : !SINGLE_FAMILY_LOOKUP[ev.family];
-    if (!inDim) return false;
-    if (selectedFamily && ev.family !== selectedFamily) return false;
-    return true;
-  });
+  const score = scores[activeDimension];
+  const wf = computeWaterfallSteps(activeDimension, score, cappedAt85);
+  const positiveColor = activeDimension === "single" ? "var(--accent)" : "var(--indigo)";
+  const maxAbs = Math.max(0.5, ...wf.steps.map((s) => Math.abs(s.logOddsDelta)));
+  const isCapped =
+    cappedAt85 && score.confidence != null && Math.abs(score.confidence - 0.85) < 1e-3;
 
-  const activeScore = scores[activeDimension];
+  const ledger = evidence.filter(
+    (ev) =>
+      FAMILY_LABELS[ev.family].dimension === activeDimension &&
+      (selectedFamily === null || ev.family === selectedFamily),
+  );
 
   return (
-    <div className="space-y-5">
-      {/* Dimension Switcher + Waterfall Card */}
-      <div className="editorial-card rounded-3xl p-5 sm:p-6 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-[var(--fg-primary)] m-0">
-              Logistic Combiner Waterfall
-            </h3>
-            <p className="text-xs text-[var(--fg-secondary)] m-0 max-w-[68ch]">
-              Only the <strong>strongest signal inside each family</strong> counts so correlated cues are never double-counted. Click any family row to filter its underlying evidence below.
-            </p>
-          </div>
+    <section className="editorial-card rounded-xl p-4 sm:p-5 space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-[var(--fg-primary)]">How the score was built</h3>
+        <div
+          role="tablist"
+          aria-label="Dimension"
+          className="inline-flex rounded-lg bg-[var(--bg-subtle)] p-0.5"
+        >
+          {DIMENSIONS.map((dim) => {
+            const selected = activeDimension === dim;
+            return (
+              <button
+                key={dim}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => {
+                  onChangeDimension(dim);
+                  setSelectedFamily(null);
+                }}
+                className={cn(
+                  "h-7 px-3 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                  selected
+                    ? "bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-[var(--shadow-editorial)]"
+                    : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]",
+                )}
+              >
+                {DIMENSION_META[dim].shortTitle}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* Dimension Pill Toggle */}
-          <div className="inline-flex items-center p-1 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-            {(["single", "coordinated"] as const).map((dim) => {
-              const selected = activeDimension === dim;
-              return (
-                <button
-                  key={dim}
-                  type="button"
-                  onClick={() => {
-                    onChangeDimension(dim);
-                    setSelectedFamily(null);
-                  }}
-                  className={cn(
-                    "px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
-                    selected
-                      ? "bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-xs"
-                      : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]",
-                  )}
-                >
-                  {DIMENSION_META[dim].shortTitle}
-                </button>
-              );
-            })}
+      {score.abstained && (
+        <p className="text-[13px] text-[var(--fg-secondary)]">
+          <span className="font-medium text-[var(--fg-primary)]">Not enough evidence.</span>{" "}
+          {score.reason ?? "Too few comparable reports."}
+        </p>
+      )}
+
+      {/* Waterfall: log-odds contribution per family on a zero axis */}
+      <div aria-label={`Score contributions, ${DIMENSION_META[activeDimension].shortTitle}`}>
+        <div className={cn(ROW_GRID, "pb-2 text-[11px] text-[var(--fg-muted)]")}>
+          <span>Family</span>
+          <span className="flex justify-between font-mono-num">
+            <span>lowers</span>
+            <span>0</span>
+            <span>raises</span>
+          </span>
+          <span className="text-right">log-odds → conf.</span>
+        </div>
+
+        <div className={cn(ROW_GRID, "py-2.5 border-t border-[var(--border-subtle)]")}>
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-[var(--fg-secondary)]">Baseline</div>
+            <div className="text-xs text-[var(--fg-muted)] truncate">Before any signal</div>
+          </div>
+          <DivergingBar delta={0} maxAbs={maxAbs} positiveColor={positiveColor} />
+          <div className="text-right font-mono-num text-xs text-[var(--fg-muted)]">
+            b={wf.intercept.toFixed(2)} → {formatPct(wf.baselineProb, 0)}
           </div>
         </div>
 
-        {activeScore.abstained && (
-          <div className="rounded-2xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] px-4 py-3 text-xs text-[var(--fg-secondary)]">
-            <strong className="text-[var(--fg-primary)]">Abstained on this dimension: </strong>
-            {activeScore.reason ?? "Insufficient context items."} Raw family contributions collected before abstention are still plotted below for transparency.
+        {wf.steps.map((step) => {
+          const positive = step.logOddsDelta > ZERO;
+          const negative = step.logOddsDelta < -ZERO;
+          const selected = selectedFamily === step.family;
+          return (
+            <button
+              key={step.key}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setSelectedFamily(selected ? null : step.family)}
+              className={cn(
+                ROW_GRID,
+                "w-full text-left py-2.5 border-t border-[var(--border-subtle)] cursor-pointer transition-colors hover:bg-[var(--bg-hover)]",
+                selected && "bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]",
+              )}
+            >
+              <span className="block min-w-0">
+                <span
+                  className={cn(
+                    "block text-[13px] truncate",
+                    positive || negative
+                      ? "font-medium text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)]",
+                  )}
+                >
+                  {step.label}
+                </span>
+                <span className="block text-xs text-[var(--fg-muted)] truncate">{step.hint}</span>
+              </span>
+              <DivergingBar delta={step.logOddsDelta} maxAbs={maxAbs} positiveColor={positiveColor} />
+              <span className="block text-right font-mono-num text-xs">
+                <span
+                  style={{
+                    color: positive ? positiveColor : negative ? "var(--teal)" : "var(--fg-muted)",
+                  }}
+                >
+                  {formatSignedContribution(step.logOddsDelta)}
+                </span>
+                <span className="text-[var(--fg-muted)]"> → {formatPct(step.probAfter, 0)}</span>
+              </span>
+            </button>
+          );
+        })}
+
+        <div className={cn(ROW_GRID, "pt-3 mt-1 border-t border-[var(--border-strong)]")}>
+          <div className="text-[13px] font-medium text-[var(--fg-primary)]">Confidence</div>
+          <div className="font-mono-num text-[11px] text-[var(--fg-muted)]">
+            σ(b + Σ w·v)
+            {isCapped && <span className={tagClass("caution", { mono: true }, "ml-2")}>capped 85%</span>}
           </div>
-        )}
-
-        <SigmoidWaterfallSvg
-          dimension={activeDimension}
-          scores={scores}
-          cappedAt85={cappedAt85}
-          selectedFamily={selectedFamily}
-          onSelectFamily={setSelectedFamily}
-        />
-
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)] text-[11px] text-[var(--fg-muted)]">
-          <span>
-            Formula: <code className="font-mono-num">confidence = σ(b + Σ w_f · v_f)</code>
-          </span>
-          <div className="flex items-center gap-4">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-[var(--accent)]" />
-              <span>Increases signal score (+w·v)</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-[var(--teal)]" />
-              <span>Corroborated / established agency (−w·v)</span>
-            </span>
+          <div className="text-right">
+            {score.abstained ? (
+              <span className="text-xs text-[var(--fg-muted)]">Not enough evidence</span>
+            ) : (
+              <span className="text-base font-semibold tracking-tight tabular text-[var(--fg-primary)]">
+                {formatPct(wf.finalProb, 1)}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Contributing Evidence Cards */}
-      <div className="editorial-card rounded-3xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-bold text-[var(--fg-primary)] m-0">
-            Contributing evidence ({dimEvidence.length})
-          </h3>
-
+      {/* Evidence ledger */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className={SECTION_LABEL}>
+            Evidence <span className="font-mono-num">{ledger.length}</span>
+          </h4>
           {selectedFamily && (
             <button
               type="button"
               onClick={() => setSelectedFamily(null)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent)] cursor-pointer"
+              className={buttonClass("ghost", "sm")}
             >
-              <Filter className="h-3 w-3" aria-hidden="true" />
-              <span>Filtered: {FAMILY_LABELS[selectedFamily].name} ×</span>
+              {FAMILY_LABELS[selectedFamily].name}
+              <X className="h-3 w-3" aria-hidden="true" />
+              <span className="sr-only">Clear filter</span>
             </button>
           )}
         </div>
 
-        {dimEvidence.length === 0 ? (
-          <p className="text-xs text-[var(--fg-muted)] m-0 py-2">
-            No signals fired for {selectedFamily ? FAMILY_LABELS[selectedFamily].name : DIMENSION_META[activeDimension].shortTitle.toLowerCase()} in the retrieved coverage.
+        {ledger.length === 0 ? (
+          <p className="text-[13px] text-[var(--fg-muted)] py-2 border-t border-[var(--border-subtle)]">
+            No signals fired.
           </p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {dimEvidence.map((ev) => {
-              const isSelected = activeEvidenceId === ev.id;
+          <ul className="p-0 list-none border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+            {ledger.map((ev) => {
+              const isActive = activeEvidenceId === ev.id;
+              const refs = resolveEvidenceSources(ev, document, context, sources);
+              const first = refs[0];
               return (
-                <div
-                  key={ev.id}
-                  id={`evidence-${ev.id}`}
-                  className={cn(
-                    "rounded-2xl border p-4 space-y-2.5 transition-colors",
-                    isSelected
-                      ? "border-[var(--accent)] bg-[var(--accent-soft)]/35"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-canvas)]",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="font-semibold text-[var(--fg-primary)]">
-                      {signalLabel(ev.signal)}
+                <li key={ev.id} id={`evidence-${ev.id}`}>
+                  <button
+                    type="button"
+                    onClick={() => onInspectEvidence(ev.id)}
+                    aria-pressed={isActive}
+                    className={cn(
+                      "w-full text-left grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 py-2.5 px-1 cursor-pointer transition-colors hover:bg-[var(--bg-hover)]",
+                      isActive && "bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]",
+                    )}
+                  >
+                    <span className="font-mono-num text-xs text-[var(--fg-muted)] pt-0.5">{ev.id}</span>
+                    <span className="min-w-0 space-y-0.5">
+                      <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span className="text-[13px] font-medium text-[var(--fg-primary)]">
+                          {signalLabel(ev.signal)}
+                        </span>
+                        <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">
+                          v={ev.value.toFixed(2)}
+                        </span>
+                      </span>
+                      <span className="block text-[13px] text-[var(--fg-secondary)]">{ev.detail}</span>
+                      {first && (
+                        <span className="flex items-center gap-1.5 pt-0.5 text-xs text-[var(--fg-muted)]">
+                          <Favicon domain={first.domain} size={14} />
+                          <span className="font-mono-num truncate">{first.domain}</span>
+                          {refs.length > 1 && (
+                            <span className="font-mono-num">+{refs.length - 1}</span>
+                          )}
+                        </span>
+                      )}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[10px] font-medium text-[var(--fg-muted)]">
-                      {FAMILY_LABELS[ev.family].name}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-[var(--fg-secondary)] leading-relaxed m-0">
-                    {ev.detail}
-                  </p>
-
-                  <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
-                    <CitationChip
-                      evidence={ev}
-                      document={document}
-                      context={context}
-                      sources={sources}
-                      active={isSelected}
-                      onInspect={onInspectEvidence}
-                    />
-
-                    <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">
-                      raw={ev.value.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </div>
-    </div>
+    </section>
   );
 }

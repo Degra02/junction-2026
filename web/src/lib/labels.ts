@@ -17,41 +17,18 @@ export const ALL_STAGES: readonly StageName[] = [
   "explain",
 ];
 
+/** `label`: a finished or waiting step; `active`: the same step while it runs. */
 export const STAGE_LABELS: Readonly<
-  Record<StageName, { readonly label: string; readonly activeVerb: string }>
+  Record<StageName, { readonly label: string; readonly active: string }>
 > = {
-  extract: {
-    label: "Read content & detect language",
-    activeVerb: "Reading the content and outlet metadata…",
-  },
-  understand: {
-    label: "Identify key claims & search queries",
-    activeVerb: "Locating verbatim claims and building multilingual queries…",
-  },
-  retrieve: {
-    label: "Search live coverage & fact-checkers",
-    activeVerb: "Gathering related articles, fact-checks, and domain records…",
-  },
-  story: {
-    label: "Group coverage of the same event",
-    activeVerb: "Clustering articles covering the same story…",
-  },
-  signals_single: {
-    label: "Compare content & claims against peers",
-    activeVerb: "Checking persuasion techniques, peer tone, and claim support…",
-  },
-  signals_coordinated: {
-    label: "Check cross-outlet coordination",
-    activeVerb: "Scanning for copied passages, timing bursts, and shared IDs…",
-  },
-  score: {
-    label: "Combine signal families",
-    activeVerb: "Computing family contributions and abstention checks…",
-  },
-  explain: {
-    label: "Write evidence-backed summary",
-    activeVerb: "Drafting plain-language reasons with verbatim quote checks…",
-  },
+  extract: { label: "Read the article", active: "Reading the article" },
+  understand: { label: "Found the claims and search terms", active: "Finding the claims and search terms" },
+  retrieve: { label: "Searched other coverage", active: "Searching other coverage" },
+  story: { label: "Matched reports on the same event", active: "Matching reports on the same event" },
+  signals_single: { label: "Checked the content", active: "Checking the content" },
+  signals_coordinated: { label: "Checked for coordination", active: "Checking for coordination" },
+  score: { label: "Scored both dimensions", active: "Scoring both dimensions" },
+  explain: { label: "Wrote the explanation", active: "Writing the explanation" },
 };
 
 export const DIMENSION_META: Readonly<
@@ -67,16 +44,14 @@ export const DIMENSION_META: Readonly<
 > = {
   single: {
     title: "Signs of propaganda in the content itself",
-    shortTitle: "Single-actor manipulation",
-    subtitle:
-      "Persuasion techniques, emotional intensity relative to story peers, claims contradicted by other reporting or fact-checkers, and outlet profile.",
+    shortTitle: "Single actor",
+    subtitle: "Persuasion techniques, tone against other reports, contradicted claims, fact-checks, outlet profile.",
     families: ["techniques", "tone", "claim_support", "fact_checks", "source_profile"],
   },
   coordinated: {
     title: "Signs of a coordinated campaign",
-    shortTitle: "Coordinated amplification",
-    subtitle:
-      "Near-duplicate passages across unrelated outlets (excluding wire syndication), synchronized timing, shared analytics IDs, and documented networks.",
+    shortTitle: "Coordinated",
+    subtitle: "Copied passages on unrelated sites, timing, shared tracking IDs, documented networks.",
     families: ["text_reuse", "timing", "infrastructure", "known_networks"],
   },
 };
@@ -86,47 +61,47 @@ export const FAMILY_LABELS: Readonly<
 > = {
   techniques: {
     name: "Persuasion techniques",
-    hint: "Share of paragraphs using loaded wording, attacks, fear appeals, or oversimplification",
+    hint: "Loaded wording, attacks, fear appeals, oversimplification",
     dimension: "single",
   },
   tone: {
-    name: "Tone vs. story peers",
-    hint: "Emotional charge compared with other outlets covering the exact same event",
+    name: "Tone vs. other reports",
+    hint: "Emotional charge against reports on the same event",
     dimension: "single",
   },
   claim_support: {
     name: "Claim corroboration",
-    hint: "Cross-lingual natural-language inference against peer coverage",
+    hint: "Claims supported or contradicted by other reports",
     dimension: "single",
   },
   fact_checks: {
     name: "Fact-checker reviews",
-    hint: "Published ClaimReview verdicts matching assertions in the text",
+    hint: "Published fact-checks matching claims in the text",
     dimension: "single",
   },
   source_profile: {
-    name: "Source & domain profile",
-    hint: "Domain registration age, certificate history, and measurable outlet type",
+    name: "Source profile",
+    hint: "Domain age and outlet type",
     dimension: "single",
   },
   text_reuse: {
     name: "Copied passages",
-    hint: "Unrelated domains publishing the same non-agency passages",
+    hint: "Unrelated sites publishing the same passages (wire copy excluded)",
     dimension: "coordinated",
   },
   timing: {
     name: "Publication timing",
-    hint: "Copies appearing within a narrow 6-hour window",
+    hint: "Copies published within 6 hours",
     dimension: "coordinated",
   },
   infrastructure: {
     name: "Shared infrastructure",
-    hint: "Shared GA / GTM / AdSense IDs or newly registered copying domains",
+    hint: "Shared analytics or ad IDs, newly registered copying domains",
     dimension: "coordinated",
   },
   known_networks: {
     name: "Documented networks",
-    hint: "Presence on VIGINUM's Portal Kombat domain list",
+    hint: "On VIGINUM's Portal Kombat list",
     dimension: "coordinated",
   },
 };
@@ -178,30 +153,30 @@ export const LANGUAGE_SUPPORT_LABELS: Readonly<
   >
 > = {
   evaluated: {
-    badge: "Evaluated language",
-    detail: "Included in our third-party labelled evaluation benchmark.",
+    badge: "Evaluated",
+    detail: "In our labelled evaluation set.",
     tone: "teal",
   },
   supported: {
-    badge: "Supported · uncalibrated tier",
-    detail: "Covered by the multilingual models, without dedicated labelled items yet; confidence is capped at 85%.",
+    badge: "Supported",
+    detail: "Covered by the models but not in the evaluation set: confidence is capped at 85%.",
     tone: "neutral",
   },
   unsupported: {
-    badge: "Unsupported language",
-    detail: "Outside the multilingual model set; the pipeline abstains rather than guessing.",
+    badge: "Unsupported",
+    detail: "Outside the models' languages: the analysis abstains.",
     tone: "caution",
   },
 };
 
 export const ADAPTER_LABELS: Readonly<Record<string, string>> = {
-  feeds: "Curated RSS",
+  feeds: "News feeds",
   google_news: "Google News",
   gdelt: "GDELT",
-  gemini: "Gemini Search",
-  fact_check_api: "Fact Check API",
-  oxylabs: "Oxylabs Web",
-  oxylabs_news: "Oxylabs News",
+  gemini: "Gemini search",
+  fact_check_api: "Fact-check index",
+  oxylabs: "Web search",
+  oxylabs_news: "News search",
 };
 
 export const SET_LABELS: Readonly<

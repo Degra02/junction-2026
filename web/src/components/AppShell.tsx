@@ -1,49 +1,82 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { BarChart3, Moon, Radar, Search, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { getHealth } from "../lib/api";
 import type { Health } from "../lib/contracts";
+import { buttonClass } from "../lib/ui";
 import { cn } from "../lib/utils";
+import { usePointerEffects } from "../hooks/usePointerEffects";
 import { useTheme } from "../hooks/useTheme";
 
 export interface AppShellProps {
   readonly children: ReactNode;
 }
 
+/** Bars of rising height: signal out of noise. */
+function LogoMark() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden="true">
+      <rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35" />
+      <rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5" />
+      <rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor" />
+      <rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5" />
+    </svg>
+  );
+}
+
+const NAV_LINK =
+  "h-8 px-2.5 inline-flex items-center rounded-lg text-[13px] font-medium transition-colors";
+
 export function AppShell({ children }: Readonly<AppShellProps>) {
-  const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const [health, setHealth] = useState<Health | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  usePointerEffects(backdropRef);
 
   useEffect(() => {
     const controller = new AbortController();
     getHealth(controller.signal)
       .then(setHealth)
       .catch(() => {
-        // Silent when running frontend standalone without backend
+        // The UI also runs without a backend (mock server, static preview).
       });
     return () => controller.abort();
   }, []);
 
-  const isMetrics = location.pathname.startsWith("/metrics");
-  const isHome = location.pathname === "/";
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <Tooltip.Provider delayDuration={180}>
-      <div className="min-h-[100dvh] flex flex-col bg-[var(--bg-canvas)] canvas-ambient text-[var(--fg-primary)] selection:bg-[var(--accent-soft)] selection:text-[var(--accent)]">
-        {/* Floating Liquid Glass Top Navigation Bar */}
-        <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-2 pointer-events-none">
-          <div className="mx-auto max-w-[1080px] glass-pill rounded-2xl px-3.5 sm:px-4 h-12 flex items-center justify-between gap-3 pointer-events-auto">
-            <div className="flex items-center gap-2.5 min-w-0">
+    <Tooltip.Provider delayDuration={200}>
+      <div className="relative isolate min-h-[100dvh] flex flex-col text-[var(--fg-primary)]">
+        <div ref={backdropRef} className="app-backdrop" aria-hidden="true">
+          <div className="app-backdrop__glow" />
+          <div className="app-backdrop__cursor" />
+          <div className="app-backdrop__grain" />
+        </div>
+
+        <header
+          className={cn(
+            "sticky top-0 z-40 border-b transition-[background-color,border-color] duration-200",
+            scrolled
+              ? "border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-xl backdrop-saturate-150"
+              : "border-transparent bg-transparent",
+          )}
+        >
+          <div className="mx-auto max-w-[1120px] h-14 px-4 sm:px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <Link
                 to="/"
-                className="inline-flex items-center gap-2.5 text-sm font-bold tracking-tight text-[var(--fg-primary)] hover:opacity-85 transition-opacity truncate"
+                className="inline-flex items-center gap-2 text-[var(--fg-primary)] hover:opacity-80 transition-opacity"
               >
-                <span className="h-7 w-7 rounded-xl bg-[var(--accent)] text-white inline-flex items-center justify-center shadow-xs shrink-0">
-                  <Radar className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="truncate">Decode the Noise</span>
+                <LogoMark />
+                <span className="font-serif text-[17px] font-medium tracking-tight whitespace-nowrap">Decode the Noise</span>
               </Link>
 
               {health && (
@@ -51,7 +84,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                   <Tooltip.Trigger asChild>
                     <span
                       tabIndex={0}
-                      className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] text-[11px] font-mono-num text-[var(--fg-muted)] cursor-default"
+                      className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-mono-num text-[var(--fg-muted)] cursor-default"
                     >
                       <span
                         className={cn(
@@ -59,15 +92,15 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                           health.status === "ok" ? "bg-[var(--teal)]" : "bg-[var(--caution)]",
                         )}
                       />
-                      <span>{health.pipeline_version.slice(0, 10)}</span>
+                      {health.pipeline_version.slice(0, 11)}
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content
                       sideOffset={8}
-                      className="z-50 glass-popover rounded-xl px-3 py-2 text-xs text-[var(--fg-primary)] max-w-xs"
+                      className="z-50 glass-popover rounded-lg px-2.5 py-1.5 text-xs text-[var(--fg-primary)]"
                     >
-                      API {health.status === "ok" ? "online" : "degraded"} · build{" "}
+                      API {health.status === "ok" ? "online" : "degraded"} ·{" "}
                       <code className="font-mono-num">{health.pipeline_version}</code>
                     </Tooltip.Content>
                   </Tooltip.Portal>
@@ -75,43 +108,39 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
               )}
             </div>
 
-            <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              <Link
+            <nav aria-label="Primary" className="flex items-center gap-0.5">
+              <NavLink
                 to="/"
-                aria-current={isHome ? "page" : undefined}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors",
-                  isHome
-                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
-                    : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70",
-                )}
+                end
+                className={({ isActive }) =>
+                  cn(
+                    NAV_LINK,
+                    isActive
+                      ? "text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
+                  )
+                }
               >
-                <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Investigate</span>
-              </Link>
-
-              <Link
+                Analyze
+              </NavLink>
+              <NavLink
                 to="/metrics"
-                aria-current={isMetrics ? "page" : undefined}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors",
-                  isMetrics
-                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
-                    : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70",
-                )}
+                className={({ isActive }) =>
+                  cn(
+                    NAV_LINK,
+                    isActive
+                      ? "text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
+                  )
+                }
               >
-                <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Benchmarks</span>
-              </Link>
-
-              <div className="h-4 w-px bg-[var(--border-subtle)] mx-0.5" aria-hidden="true" />
-
+                Benchmarks
+              </NavLink>
               <button
                 type="button"
                 onClick={toggleTheme}
                 aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-xl text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70 transition-colors cursor-pointer"
+                className={buttonClass("ghost", "icon", "ml-1")}
               >
                 {theme === "dark" ? (
                   <Sun className="h-4 w-4" aria-hidden="true" />
@@ -123,20 +152,15 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
           </div>
         </header>
 
-        <main className="flex-1 mx-auto w-full max-w-[1080px] px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+        <main className="flex-1 mx-auto w-full max-w-[1120px] px-4 sm:px-6 py-8 sm:py-12">
           {children}
         </main>
 
-        <footer className="mt-auto py-6 px-4 sm:px-6">
-          <div className="mx-auto max-w-[1080px] pt-5 border-t border-[var(--border-subtle)]/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[var(--fg-muted)]">
-            <span>
-              Evidence-first verification — confidence scores reflect measured alignment with documented signals, never ground-truth labels.
-            </span>
-            <Link
-              to="/metrics"
-              className="font-medium text-[var(--fg-secondary)] hover:text-[var(--accent)] transition-colors shrink-0"
-            >
-              Methodology &amp; False-Positive Rates →
+        <footer className="mx-auto w-full max-w-[1120px] px-4 sm:px-6 pb-8">
+          <div className="pt-5 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--fg-muted)]">
+            <span>Scores are confidences from documented signals, not verdicts.</span>
+            <Link to="/metrics" className="hover:text-[var(--fg-primary)] transition-colors">
+              How accurate is it? →
             </Link>
           </div>
         </footer>

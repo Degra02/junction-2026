@@ -22,7 +22,7 @@ mise run web:build
 
 ```text
 web/
-├── DESIGN.md                       # Visual tokens, typography, layout & D4 anti-patterns (Stitch taste-design)
+├── DESIGN.md                       # Design system: principles, type, tokens, building blocks, D4 rules
 ├── README.md                       # This guide & cross-agent handoff instructions
 ├── package.json                    # React 19, Vite 7, Tailwind v4, React Router 7, Lucide, local Fontsource woff2
 ├── bun.lock                        # Must stay in sync: deploy/caddy.Dockerfile runs `bun install --frozen-lockfile`
@@ -34,29 +34,36 @@ web/
     │   ├── api.ts                  # Relative /api/* client (create, getAnalysis, rerunAnalysis, getMetrics, getStats, getHealth)
     │   ├── spans.ts                # Unicode code-point span slicer (`Array.from(paragraph)`) + overlapping-span segmenter
     │   ├── labels.ts               # Plain-English labels for StageName, Family, Signal, OutletType, LanguageSupport, datasets
-    │   └── format.ts               # Percentages, Wilson 95% CIs, signed log-odds, domain age, URL/text auto-detection
+    │   ├── format.ts               # Percentages, Wilson 95% CIs, signed log-odds, domain age, URL/text auto-detection
+    │   └── ui.ts                   # buttonClass / tagClass: the only button and tag styles
     ├── data/
     │   └── presets.ts              # Documented live VPS demo items (`replayAnalysisId` + input URL/text)
     ├── hooks/
-    │   ├── useAnalysisStream.ts    # Named SSE listener (`snapshot`, `queue`, `step`, `done`) + `?replay=true` + 404 fallback
-    │   ├── useMetrics.ts           # Parallel `/api/metrics` (404 -> "metrics coming") + `/api/stats`
-    │   └── useTheme.ts             # Light / dark mode persisted in localStorage
+    │   ├── useAnalysisStream.ts    # Named SSE listener (`snapshot`, `queue`, `step`, `done`) + `?replay=true`; per-stage live notes and timings
+    │   ├── usePointerEffects.ts    # One pointer listener: `[data-spotlight]` highlights and the backdrop glow
+    │   ├── useMetrics.ts           # Parallel `/api/metrics` (404 -> "not published yet") + `/api/stats`
+    │   └── useTheme.ts             # Light / dark mode persisted in localStorage (applied before paint in index.html)
     ├── components/
-    │   ├── AppShell.tsx            # Header nav, theme toggle, passive `/api/health` build indicator
-    │   ├── AnalysisInputForm.tsx   # Auto URL/text detection, D14 `explanation_language` selector, `?force=true` toggle
-    │   ├── DemoPresets.tsx         # 1-click `?replay=true` demo playback or input prefill
-    │   ├── PipelineStepper.tsx     # Live 8-stage SSE progress, `queue_position`, `steps[].detail`, and `steps[].error`
-    │   ├── DimensionScoreCard.tsx  # Separate single/coordinated cards (D3/D4) + composed "Not enough evidence" abstention
-    │   ├── ExplanationPanel.tsx    # Verbatim summary + 3 `[evidence_id]`-linked reasons + 1-click D14 content-language switch
-    │   ├── DocumentReader.tsx      # Paragraph reader with clickable code-point Claim/Evidence span highlights + queries drawer
-    │   ├── CoverageView.tsx        # Ground News-style chronological peers, cross-language split, fact-checks, dropped-story tab
-    │   ├── ScoreBreakdown.tsx      # "Show how we calculated this": diverging log-odds bars, evidence ledger, domain table, rerun
-    │   └── MetricsTables.tsx       # Headline w/ & w/o label-shared family, Wilson CIs + coverage, calibration SVG, VPS stats
+    │   ├── ui/Favicon.tsx          # Outlet icon (DuckDuckGo favicon service, lettered fallback) + overlapping stack
+    │   ├── ui/AnimatedNumber.tsx   # Count-up number
+    │   ├── AppShell.tsx            # Header, footer, grain/glow backdrop
+    │   ├── AnalysisInputForm.tsx   # Link/text composer, summary language, skip-cache
+    │   ├── DemoPresets.tsx         # Example chips: fill the input or replay the stored run
+    │   ├── RunProgress.tsx         # Live run: step ledger with live notes, sites being read, sources rail; the same ledger is the Run log tab + re-run control
+    │   ├── DimensionScoreCard.tsx  # Separate single/coordinated cards (D3/D4) + "Not enough evidence" abstention
+    │   ├── ExplanationPanel.tsx    # Summary + evidence-linked reasons + summary-language switch
+    │   ├── CitationChip.tsx        # Source chip with hover card (quote, outlet, fact-check)
+    │   ├── DocumentReader.tsx      # Text tab: paragraphs with code-point claim/evidence highlights
+    │   ├── CoverageView.tsx        # Coverage tab: other reports, fact-checks, outlets, dropped, timeline
+    │   ├── ScoreBreakdown.tsx      # Score tab: log-odds contributions per family and the evidence ledger
+    │   └── MetricsTables.tsx       # /metrics: headline, Wilson CIs + coverage, calibration, ablation, runtime
     └── pages/
         ├── HomePage.tsx            # `/`
-        ├── AnalysisPage.tsx        # `/analyses/:id` (supports `?replay=true`)
+        ├── AnalysisPage.tsx        # `/analyses/:id` (live view while running; result + Coverage/Text/Score/Run log tabs)
         └── MetricsPage.tsx         # `/metrics`
 ```
+
+Live progress: `retrieve` names the outlets it is reading in its progress note (`Reading related reports: 3 of 7 (ansa.it, …)`); the run view shows them as favicon chips. Any domain in a stage's progress note is picked up the same way.
 
 ---
 
@@ -76,10 +83,10 @@ web/
 ### AI Core (`Lyreplus`)
 1. **Adding or renaming signals**: when adding a `(family, signal)` entry to `pipeline/score/families.py`, add its plain-English label to `SIGNAL_LABELS` in `web/src/lib/labels.ts` (unknown signal keys fall back gracefully to space-separated words, never crashing).
 2. **Combiner calibration disclosure**:
-   - `ExplanationPanel` renders `explanation.summary` verbatim as returned by `pipeline/explain`, preserving `PRIORS_NOTES` while `weights.json` has `n == 0`. The `"uncalibrated prior estimate"` label on `DimensionScoreCard` keys on a word of that fixed sentence (`isPreliminaryEstimate` in `AnalysisPage.tsx`, one per `PRIORS_NOTES` language): it clears once fitted weights stop the sentence; a new `PRIORS_NOTES` language needs its word added there.
-   - `ScoreBreakdown` renders `scores.<dim>.breakdown` diverging log-odds bars even when `abstained == true`, and exposes a `"Re-run from stage"` selector (`POST /api/analyses/{id}/rerun?from=<stage>`) at the bottom so you can test `signals_single`, `score`, or `explain` iterations directly in the UI.
+   - `ExplanationPanel` renders `explanation.summary` verbatim as returned by `pipeline/explain`, preserving `PRIORS_NOTES` while `weights.json` has `n == 0`. The `"Prior estimate"` tag on `DimensionScoreCard` keys on a word of that fixed sentence (`PRELIMINARY_RE` in `AnalysisPage.tsx`, one per `PRIORS_NOTES` language): it clears once fitted weights stop the sentence; a new `PRIORS_NOTES` language needs its word added there.
+   - `ScoreBreakdown` (Score tab) renders `scores.<dim>.breakdown` even when `abstained == true`. The Run log tab has a "Re-run from" selector (`POST /api/analyses/{id}/rerun?from=<stage>`) to test `signals_single`, `score` or `explain` iterations in the UI.
 
 ### Problem / Evals / Pitch (`mosearc`)
 1. **Updating demo replay IDs**: `web/src/data/presets.ts` holds the 5 documented preset cards on `/` (the post-#27 IDs from `docs/pitch/demo-script.md` plus the ANSA wire-copy run from `docs/next-steps.md`). After `GOOGLE_FACTCHECK_API_KEY` and the final deploy land and you re-submit the demo items (`POST /api/analyses?force=true`), update `replayAnalysisId` in `web/src/data/presets.ts` alongside `docs/pitch/demo-script.md`.
-2. **Live demo playback**: every preset card has a **"Replay run"** button (`/analyses/{id}?replay=true`), and every finished `/analyses/{id}` page has a **"Replay steps"** button in the header so you can replay any stored run live during the 3-minute pitch without network wait.
-3. **Publishing `evals/metrics.json`**: `/metrics` fetches `/api/metrics` and `/api/stats`. While `/api/metrics` returns `404`, `/metrics` displays an honest `"Evaluation metrics coming"` notice plus live VPS latency stats. As soon as `evals/metrics.json` is committed, `/metrics` automatically renders `headline` (with & without `fact_checks` / `known_networks` / `source_profile`), `fit` CV AUCs, per-set hard-negative FPRs with Wilson 95% CIs + `coverage` (`null` → `n/a`), the reliability calibration curve, and per-language tables.
+2. **Live demo playback**: every example chip has a replay button (`/analyses/{id}?replay=true`), and every finished `/analyses/{id}` page has **Replay** in the header, so any stored run plays back live during the pitch without network wait.
+3. **Publishing `evals/metrics.json`**: `/metrics` fetches `/api/metrics` and `/api/stats`. While `/api/metrics` returns `404`, `/metrics` says the results are not published yet and shows the live runtime stats. Once `evals/metrics.json` is committed, `/metrics` renders `headline` (with & without `fact_checks` / `known_networks` / `source_profile`), `fit` CV AUCs, per-set hard-negative FPRs with Wilson 95% CIs + `coverage` (`null` → `n/a`), the calibration curve, and per-language tables.
