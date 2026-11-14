@@ -3,10 +3,11 @@
 48h hackathon, team of 4, every person drives coding agents. Speed matters, but `main` must always demo.
 
 ## Read first
+- `docs/next-steps.md` — **your current tasks**, per person, updated by the integrator every round. Start here.
 - `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` still shows the superseded Friday spec until mosearc rewrites it from the plan.
 - `DECISIONS.md` — decisions already made. Do not relitigate them; ask the integrator.
 - `docs/ai-core.md` — signal catalogue with value scales, scoring formula, models, and what `extract`, `retrieve` and `story` must provide for the signals.
-- `docs/` — event facts, sponsors, playbook, setup.
+- `docs/` — event facts, sponsors, setup. `docs/[DEPRECATED]playbook.md` is superseded by this file and `docs/next-steps.md`.
 
 ## Commands
 - `mise run setup`: install pinned tools (node, python, bun, uv, rust, cargo-nextest, gitleaks), enable git hooks, `uv sync`.
