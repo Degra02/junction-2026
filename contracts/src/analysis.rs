@@ -298,6 +298,9 @@ pub enum OutletType {
     Partisan,
     StateAffiliated,
     FactChecker,
+    /// Site that publishes satire or parody (The Onion, Il Fatto Quotidaino, Der Postillon):
+    /// invented claims are the genre, not manipulation.
+    Satire,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

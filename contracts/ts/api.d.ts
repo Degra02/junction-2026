@@ -398,7 +398,7 @@ export interface components {
          */
         LanguageSupport: "evaluated" | "supported" | "unsupported";
         /** @enum {string} */
-        OutletType: "wire_service" | "national" | "local" | "partisan" | "state_affiliated" | "fact_checker";
+        OutletType: "wire_service" | "national" | "local" | "partisan" | "state_affiliated" | "fact_checker" | "satire";
         /** @description Nearest-rank percentiles in milliseconds. */
         Percentiles: {
             /** Format: int64 */
