@@ -49,6 +49,19 @@ def test_the_shipped_registry_is_well_formed():
     assert reg.lookup("ansa.it").outlet_type == OutletType.wire_service
     assert reg.lookup("tass.ru").outlet_type == OutletType.state_affiliated
     assert reg.lookup("fullfact.org").outlet_type == OutletType.fact_checker
+    # RT's mirror domains serve RT's own editions (checked Sun 15.11: same pages, same analytics
+    # ID as rt.com, actualidad.rt.com and de.rt.com, "© ANO TV-Novosti" in the footer).
+    for mirror in (
+        "rtrunews.com",
+        "rt-english.com",
+        "actualidad-rt.com",
+        "esrt.press",
+        "de-rt.com",
+        "www.rtrunews.com",
+    ):
+        profile = reg.lookup(mirror)
+        assert profile.outlet_type == OutletType.state_affiliated, mirror
+        assert profile.country == "RU", mirror
     # Reported untyped on the VPS (they counted as possible copiers).
     assert reg.lookup("www.rte.ie").outlet_type == OutletType.national
     assert reg.lookup("wtop.com").outlet_type == OutletType.local

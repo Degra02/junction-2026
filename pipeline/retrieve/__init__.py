@@ -35,7 +35,7 @@ from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import new_client
 from pipeline.extract.urls import canonical_url, outlet_host
 from pipeline.retrieve import factcheck_api, feeds, gdelt, oxylabs, social
-from pipeline.retrieve.articles import Reader, Record, context_item
+from pipeline.retrieve.articles import Reader, Record, context_item, text_language
 from pipeline.retrieve.cache import default_cache
 from pipeline.retrieve.feeds import FeedItem
 from pipeline.retrieve.match import Hit, Query, rank
@@ -173,11 +173,12 @@ def fact_check_item(
     item_id: str, review: factcheck_api.Review, record: Record | None
 ) -> ContextItem:
     """A published review as a context item: the reviewed claim, the rating, then the review
-    article when it could be read (the contract's "claim followed by the verdict text")."""
+    article when it could be read (the contract's "claim followed by the verdict text").
+    CPU-bound (`text_language`): call it from a thread in async code."""
     url = record.url if record else review.url
     body = record.text if record else ""
     text = "\n\n".join(part for part in (review.claim, f"Rating: {review.rating}", body) if part)
-    language = (review.language or (record.language if record else None) or "").split("-")[0]
+    tagged = review.language or (record.language if record else None)
     return ContextItem(
         id=item_id,
         url=url,
@@ -186,7 +187,7 @@ def fact_check_item(
         or (published_utc(record.published_at) if record else None),
         title=review.title or (record.title if record else None),
         text=text,
-        language=language.lower() or None,
+        language=text_language(text, tagged),
         retrieved_by=factcheck_api.NAME,
         tracking_ids=record.tracking_ids if record else [],
         fact_check=FactCheck(claim=review.claim, rating=review.rating, publisher=review.publisher),
@@ -353,8 +354,11 @@ async def run(analysis: Analysis) -> RetrievePatch:
                 ARTICLES_TIMEOUT_S,
                 lambda n: progress.report(f"Reading related reports: {n} of {len(jobs)}{reading}"),
             )
-            context = _context(hits, records[: len(hits)], phrases)
-            context = _with_fact_checks(context, reviews, records[len(hits) :])
+            # Off the event loop: each item's language is detected from its text.
+            context = await asyncio.to_thread(_context, hits, records[: len(hits)], phrases)
+            context = await asyncio.to_thread(
+                _with_fact_checks, context, reviews, records[len(hits) :]
+            )
             posts = await posts_task
             if posts:
                 progress.report(f"{len(posts)} social media posts repeat its wording")

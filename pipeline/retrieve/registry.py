@@ -8,7 +8,11 @@ know it; a type is never guessed.
 Rules for the list:
 - `wire_service`: news agencies whose copy other newsrooms republish (ANSA, Reuters, AFP...).
 - `state_affiliated`: agencies and broadcasters under government editorial control (TASS, RIA,
-  Xinhua, Sputnik, RT...). Descriptive, not a verdict.
+  Xinhua, Sputnik, RT...). Descriptive, not a verdict. A mirror domain is listed only after
+  opening it: it must serve the broadcaster's own edition (same pages, same analytics ID, the
+  broadcaster named as the publisher), as RT's do (`rtrunews.com`, `rt-english.com`,
+  `actualidad-rt.com`, `esrt.press`, `de-rt.com`). A site that only republishes its articles
+  is not a mirror.
 - `fact_checker`: organisations that publish fact-checks (IFCN signatories and similar).
 - `national`: established mainstream newsrooms, including public-service broadcasters.
 - No `partisan` entries: D9 rules out political-bias ratings.

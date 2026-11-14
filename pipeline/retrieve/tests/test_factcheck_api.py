@@ -8,7 +8,8 @@ import pytest
 
 import pipeline.retrieve as retrieve
 from pipeline.common.contracts import Claim, OutletType, Span
-from pipeline.retrieve import factcheck_api
+from pipeline.retrieve import fact_check_item, factcheck_api
+from pipeline.retrieve.articles import Record
 from pipeline.retrieve.cache import Cache, NoCache
 from pipeline.retrieve.factcheck_api import find_reviews, parse
 from pipeline.retrieve.tests.conftest import article_page
@@ -102,7 +103,13 @@ def with_key(stage, monkeypatch):
 def test_a_review_becomes_a_fact_check_item_and_its_outlet_a_fact_checker(with_key):
     with_key.pages[REVIEW_URL] = (
         200,
-        article_page("Verifica", "Il disegno di legge registra i pozzi, non li vieta."),
+        # Long enough for Italian to outweigh the fixture's English filler: the item's language
+        # is read from its text.
+        article_page(
+            "Verifica",
+            "Il disegno di legge registra i pozzi, non li vieta, e il governo lo ha confermato "
+            "ieri sera in una nota ufficiale pubblicata sul sito del ministero.",
+        ),
     )
     a = analysis()
     a.claims = [
@@ -164,3 +171,40 @@ def test_a_slow_api_is_dropped_at_its_budget(with_key, monkeypatch):
     monkeypatch.setattr(factcheck_api, "find_reviews", slow)
     patch = run()
     assert all(c.fact_check is None for c in patch.context) and len(patch.context) == 2
+
+
+def test_a_fact_check_item_takes_its_language_from_its_text():
+    """The API's `languageCode` is the publisher's tag: an English review filed under `it`
+    is English, and a review with only a one-line claim keeps the tag."""
+    italian = (
+        "Il disegno di legge registra i pozzi privati e non li vieta: lo ha confermato il "
+        "ministero in una nota ufficiale pubblicata ieri sera sul proprio sito."
+    )
+    english = (
+        "The bill registers private wells and does not ban them, the ministry confirmed in an "
+        "official note published on its website late on Tuesday evening."
+    )
+
+    def item(language: str | None, body: str | None, claim: str = "Il governo vieterà i pozzi"):
+        review = factcheck_api.Review(
+            url=REVIEW_URL,
+            title="Verifica",
+            claim=claim,
+            rating="Falso",
+            publisher="Checker",
+            publisher_site="checker-unknown.example",
+            published_at=None,
+            language=language,
+        )
+        page = (
+            Record(url=REVIEW_URL, title="Verifica", text=body, published_at=None, language=None)
+            if body
+            else None
+        )
+        return fact_check_item("ctx1", review, page)
+
+    assert item("it", italian).language == "it"
+    assert item("it", english, claim="The government will ban private wells").language == "en"
+    assert item("en", italian).language == "it"
+    assert item("it-IT", None).language == "it"  # claim and rating alone: the tag, bare
+    assert item(None, None, claim="12 345").language is None
