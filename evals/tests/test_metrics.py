@@ -182,6 +182,25 @@ def test_hard_fact_checks_fpr_is_also_reported_without_source_profile():
     assert entry["with"]["fpr"] == 0.5 and entry["without"]["fpr"] == 1.0
 
 
+def test_memes_get_their_own_rows_and_stay_out_of_the_article_headline():
+    items = [
+        item("a1", "fact_checker_debunk", True, None),
+        item("m1", "semeval_memes", True, None),
+        item("m2", "semeval_memes", False, None),
+    ]
+    predictions = {
+        "a1": Prediction("a1", {"single": 0.9}),
+        "m1": Prediction("m1", {"single": None}),  # abstained meme positive
+        "m2": Prediction("m2", {"single": 0.8}),  # false positive on a meme
+    }
+    result = evaluate(items, predictions)
+    single = result.dimensions["single"]
+    assert (single.overall.tp, single.overall.fp, single.overall.abstained) == (1, 0, 0)
+    memes = single.per_set["semeval_memes"]
+    assert (memes.fp, memes.abstained_pos, memes.coverage_pos) == (1, 1, 0.0)
+    assert "semeval_memes" in format_full_report(result)
+
+
 def test_labels_must_be_bool_or_null(tmp_path: Path):
     path = tmp_path / "labelled.jsonl"
     path.write_text(

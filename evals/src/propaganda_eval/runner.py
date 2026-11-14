@@ -27,7 +27,9 @@ resumes; `--fresh` starts over.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import mimetypes
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,7 +40,11 @@ from pipeline.common.contracts import Analysis, AnalysisStatus, Family, StepStat
 from pipeline.score import run as score
 from pipeline.score.families import COORDINATED, SINGLE
 
-from .labelled import LabelledItem
+from .labelled import DATA, LabelledItem
+
+# The API's `MAX_IMAGE_DATA_URI_CHARS` (api/src/routes/analyses.rs): a longer data URI is
+# refused with 400, so the runner fails the item before sending it.
+MAX_IMAGE_DATA_URI_CHARS = 450_000
 
 FAMILIES = {"single": SINGLE, "coordinated": COORDINATED}
 POLL_SECS = 2.0
@@ -52,9 +58,21 @@ class Outcome:
 
 
 def payload(item: LabelledItem) -> dict[str, str]:
+    if item.image:
+        return {"kind": "image", "value": image_data_uri(DATA / item.image)}
     if item.url:
         return {"kind": "url", "value": item.url}
     return {"kind": "text", "value": item.text}
+
+
+def image_data_uri(path: Path) -> str:
+    mime = mimetypes.guess_type(path.name)[0] or ""
+    if not mime.startswith("image/"):
+        raise ValueError(f"{path.name}: not an image file")
+    uri = f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+    if len(uri) > MAX_IMAGE_DATA_URI_CHARS:
+        raise ValueError(f"{path.name}: {len(uri)} characters as a data URI, over the API's limit")
+    return uri
 
 
 def failure(analysis: Analysis) -> str | None:
@@ -109,9 +127,22 @@ def fit_row(item: LabelledItem, analysis: Analysis) -> dict[str, object]:
 
 async def analyse(client: httpx.AsyncClient, item: LabelledItem, timeout: float) -> Outcome:
     try:
-        created = await client.post("/api/analyses", params={"force": "true"}, json=payload(item))
+        body = payload(item)
+    except (OSError, ValueError) as e:  # missing or oversized image: the item fails, not the run
+        return Outcome(item, None, f"input: {e}")
+    analysis, error = await submit(client, body, timeout)
+    return Outcome(item, analysis, error)
+
+
+async def submit(
+    client: httpx.AsyncClient, body: dict[str, str], timeout: float
+) -> tuple[Analysis | None, str | None]:
+    """Submit one input with `force=true` and poll it: the finished analysis and why it does
+    not count as a pipeline result (None when it does)."""
+    try:
+        created = await client.post("/api/analyses", params={"force": "true"}, json=body)
         if created.status_code != 202:
-            return Outcome(item, None, f"submit: HTTP {created.status_code} {created.text[:200]}")
+            return None, f"submit: HTTP {created.status_code} {created.text[:200]}"
         analysis_id = created.json()["id"]
         deadline = time.monotonic() + timeout
         while True:
@@ -119,14 +150,12 @@ async def analyse(client: httpx.AsyncClient, item: LabelledItem, timeout: float)
             response.raise_for_status()
             analysis = Analysis.model_validate(response.json())
             if analysis.status in (AnalysisStatus.done, AnalysisStatus.failed):
-                return Outcome(item, analysis, failure(analysis))
+                return analysis, failure(analysis)
             if time.monotonic() > deadline:
-                return Outcome(
-                    item, analysis, f"still {analysis.status.value} after {timeout:.0f} s"
-                )
+                return analysis, f"still {analysis.status.value} after {timeout:.0f} s"
             await asyncio.sleep(POLL_SECS)
     except (httpx.HTTPError, ValueError) as e:
-        return Outcome(item, None, f"{type(e).__name__}: {e}")
+        return None, f"{type(e).__name__}: {e}"
 
 
 def finished_ids(path: Path) -> set[str]:

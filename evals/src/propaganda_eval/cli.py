@@ -9,16 +9,24 @@ import sys
 from pathlib import Path
 
 from .format import format_full_report
-from .labelled import load_labelled, stats
+from .labelled import default_paths, load_sets, stats
 from .metrics import Prediction, evaluate, fit_summary, to_json
 
 EVALS = Path(__file__).resolve().parents[2]
+LABELLED = EVALS / "labelled.jsonl"
+
+
+def _items(args: argparse.Namespace) -> list:
+    """labelled.jsonl plus the downloaded meme set when present; only the given file when
+    `--labelled` points elsewhere."""
+    path = Path(args.labelled)
+    return load_sets(default_paths(path) if path == LABELLED else [path])
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Propaganda detection eval harness")
     sub = parser.add_subparsers(dest="command")
-    labelled = str(EVALS / "labelled.jsonl")
+    labelled = str(LABELLED)
 
     stats_p = sub.add_parser("stats", help="Labelled set statistics")
     stats_p.add_argument("--labelled", default=labelled, help="Path to labelled.jsonl")
@@ -51,6 +59,13 @@ def main() -> None:
         help="Combiner weights: their cross-validated AUC is quoted next to the metrics",
     )
 
+    sym_p = sub.add_parser("symmetry", help="Single-actor gap on pairs with the target swapped")
+    sym_p.add_argument("--pairs", default=str(EVALS / "symmetry.jsonl"))
+    sym_p.add_argument("--api", default="http://127.0.0.1:8080", help="API base URL")
+    sym_p.add_argument("--out", default=str(EVALS / "results" / "symmetry.json"))
+    sym_p.add_argument("--concurrency", type=int, default=2)
+    sym_p.add_argument("--timeout", type=float, default=420.0, help="Seconds per analysis")
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -61,12 +76,27 @@ def main() -> None:
         _cmd_run(args)
     elif args.command == "eval":
         _cmd_eval(args)
+    elif args.command == "symmetry":
+        _cmd_symmetry(args)
     else:
         parser.print_help()
 
 
+def _cmd_symmetry(args: argparse.Namespace) -> None:
+    from .symmetry import format_report, load_pairs, run
+
+    summary = asyncio.run(
+        run(load_pairs(Path(args.pairs)), args.api, args.concurrency, args.timeout)
+    )
+    print(format_report(summary))
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(f"\nWritten to {out}")
+
+
 def _cmd_stats(args: argparse.Namespace) -> None:
-    items = load_labelled(Path(args.labelled))
+    items = _items(args)
     s = stats(items)
     print(f"Labelled set: {s['total']} items")
     print("\nBy set:")
@@ -82,7 +112,7 @@ def _cmd_stats(args: argparse.Namespace) -> None:
 
 def _cmd_validate(args: argparse.Namespace) -> None:
     try:
-        items = load_labelled(Path(args.labelled))
+        items = _items(args)
         s = stats(items)
         print(f"OK: {s['total']} items, {len(s['by_set'])} sets, {len(s['by_language'])} languages")
     except Exception as e:
@@ -94,7 +124,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     # Imported here: the runner loads the pipeline's contracts and combiner.
     from .runner import run
 
-    items = load_labelled(Path(args.labelled))
+    items = _items(args)
     if args.only:
         unknown = set(args.only) - {i.id for i in items}
         if unknown:
@@ -107,7 +137,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
 
 def _cmd_eval(args: argparse.Namespace) -> None:
-    items = load_labelled(Path(args.labelled))
+    items = _items(args)
     predictions = _load_predictions(args.predictions)
     result = evaluate(items, predictions, threshold=args.threshold)
     weights = Path(args.weights)
