@@ -42,6 +42,18 @@ else
     fi
 fi
 
+# --- 3. ClaimReview feed (fact_checker_debunk / hard_fact_checks source, ~190 MB) ---
+# Every ClaimReview published through Google Fact Check Tools, as one schema.org DataFeed.
+CLAIMREVIEW_JSON="$DATA_DIR/claimreview.json"
+if [ -f "$CLAIMREVIEW_JSON" ]; then
+    echo "[claimreview] already present ($(du -h "$CLAIMREVIEW_JSON" | cut -f1))"
+else
+    echo "[claimreview] downloading the Data Commons ClaimReview feed..."
+    curl -fL -o "$CLAIMREVIEW_JSON" \
+        "https://storage.googleapis.com/datacommons-feeds/claimreview/latest/data.json"
+    echo "[claimreview] OK: $(du -h "$CLAIMREVIEW_JSON" | cut -f1)"
+fi
+
 # --- Summary ---
 echo ""
 echo "Data directory: $DATA_DIR"
