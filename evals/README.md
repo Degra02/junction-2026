@@ -116,6 +116,7 @@ Downloads into `evals/data/` (gitignored): SemEval-2020 Task 11 PTC v2 (techniqu
 evals/
 ├── labelled.jsonl                  # ground truth (committed: URLs, labels, short quoted claims)
 ├── metrics.json                    # latest metrics, numbers only (committed, /api/metrics)
+├── graph.json                      # source graph of the eval records: outlets, ties, clusters (committed, /api/graph; `mise run graph:build`)
 ├── download_data.sh                # external datasets → data/
 ├── fixtures/                       # Analysis records for stage tests
 ├── tests/                          # run by `mise run check`
