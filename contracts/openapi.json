@@ -1,0 +1,1274 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Junction 2026 propaganda analysis API",
+    "description": "Submit text or an article URL, follow progress over SSE, read the evidence-backed scores. Stage patch schemas describe the internal worker API (`POST /stages/{name}`).",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/analyses": {
+      "post": {
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Start an analysis of pasted text or an article URL.",
+        "description": "Returns at once; follow progress on `/api/analyses/{id}/events`. Re-submitting the same input\nreturns the earlier analysis (`cached: true`) unless that one failed.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Analysis queued or reused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyses/{id}": {
+      "get": {
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Read an analysis: progress while running, the full result once done.",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Analysis ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyses/{id}/events": {
+      "get": {
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Server-sent progress events.",
+        "description": "Starts with a `snapshot` of the record, then `step` events, and ends with `done`. A finished\nanalysis sends `snapshot` and `done` at once. Clients that fall behind are disconnected and\nget a fresh snapshot when `EventSource` reconnects. Payloads are `AnalysisEvent`.",
+        "operationId": "events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Analysis ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream of `AnalysisEvent`",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "API, database and worker status.",
+        "description": "200 while the API and its database work, even if the worker is down (`worker: null`), so a\nworker restart does not take the API out of the load balancer.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Evaluation metrics for the metrics page, as written by the eval harness (`evals/`).",
+        "description": "The shape is owned by the eval harness; the API serves the file unchanged.",
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "description": "Eval harness output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No metrics published yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Analysis": {
+        "type": "object",
+        "description": "One analysis of one piece of content. Every stage reads it and returns a patch.",
+        "required": [
+          "id",
+          "schema_version",
+          "pipeline_version",
+          "created_at",
+          "updated_at",
+          "status",
+          "steps",
+          "input",
+          "claims",
+          "queries",
+          "context",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "[`crate::SCHEMA_VERSION`] at creation time.",
+            "minimum": 0
+          },
+          "pipeline_version": {
+            "type": "string",
+            "description": "Build or model-set identifier; part of the cache key, so a new pipeline re-analyses."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnalysisStatus"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the analysis failed, in plain language. Set only when `status` is `failed`."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "description": "One entry per pipeline stage, in execution order."
+          },
+          "input": {
+            "$ref": "#/components/schemas/Input"
+          },
+          "language": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Language",
+                "description": "Detected language of the input and how well the pipeline supports it (D2). Set by `extract`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Document",
+                "description": "Cleaned content of the input. Set by `extract`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "topic": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Topic",
+                "description": "What the item is about. Set by `understand`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "description": "Key claims, each traceable to a verbatim span of the document. Set by `understand`."
+          },
+          "queries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchQuery"
+            },
+            "description": "Search queries in the item's language and in English. Set by `understand`."
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            },
+            "description": "Related items found online. Set by `retrieve`; `story` fills the story fields."
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "description": "Signals with their evidence. Appended by `signals_single` and `signals_coordinated`."
+          },
+          "scores": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Scores",
+                "description": "Confidence per dimension. Set by `score`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "explanation": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Explanation",
+                "description": "Plain-language reasons, each tied to evidence. Set by `explain`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AnalysisEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "SnapshotEvent",
+            "required": [
+              "analysis",
+              "type"
+            ],
+            "properties": {
+              "analysis": {
+                "$ref": "#/components/schemas/Analysis"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "snapshot"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "StepEvent",
+            "required": [
+              "step",
+              "type"
+            ],
+            "properties": {
+              "step": {
+                "$ref": "#/components/schemas/Step"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "step"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "DoneEvent",
+            "required": [
+              "analysis",
+              "type"
+            ],
+            "properties": {
+              "analysis": {
+                "$ref": "#/components/schemas/Analysis"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "done"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Payload of the server-sent events on `GET /api/analyses/{id}/events`.\n\nThe SSE event name equals `type`. The stream starts with `snapshot`, sends `step` on every\nstep change and ends with `done` (also sent for failed analyses)."
+      },
+      "AnalysisStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "done",
+          "failed"
+        ]
+      },
+      "Claim": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "span"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique within the analysis, e.g. `cl1`."
+          },
+          "text": {
+            "type": "string",
+            "description": "Must equal the document text at `span`, otherwise the claim is dropped."
+          },
+          "span": {
+            "$ref": "#/components/schemas/Span"
+          }
+        }
+      },
+      "ContextItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "text",
+          "retrieved_by"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique within the analysis, e.g. `ctx1`."
+          },
+          "url": {
+            "type": "string"
+          },
+          "outlet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "Extracted body text; quotes in evidence must be substrings of it."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 639-1 code."
+          },
+          "retrieved_by": {
+            "type": "string",
+            "description": "Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`."
+          },
+          "similarity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Similarity to the analysed item. Set by `story`."
+          },
+          "in_story": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether it covers the same event. Set by `story`."
+          },
+          "story_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it was kept or dropped from the story. Set by `story`."
+          }
+        }
+      },
+      "Contribution": {
+        "type": "object",
+        "required": [
+          "family",
+          "contribution",
+          "evidence_ids"
+        ],
+        "properties": {
+          "family": {
+            "$ref": "#/components/schemas/Family"
+          },
+          "contribution": {
+            "type": "number",
+            "format": "double",
+            "description": "Log-odds contribution of the family (combiner coefficient × value)."
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Created": {
+        "type": "object",
+        "description": "Response of `POST /api/analyses`.",
+        "required": [
+          "id",
+          "cached"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cached": {
+            "type": "boolean",
+            "description": "True when an earlier analysis of the same input and pipeline version was reused."
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "required": [
+          "paragraphs",
+          "outbound_links",
+          "tracking_ids"
+        ],
+        "properties": {
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source URL when the input was a URL."
+          },
+          "outlet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Outlet domain, e.g. `example.com`."
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paragraphs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Body paragraphs; spans index into these."
+          },
+          "outbound_links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tracking_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Analytics and ad IDs found in the page (GA, GTM, `AdSense`), e.g. `UA-12345-1`."
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "Error body of every non-2xx JSON response.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Stable machine-readable code, e.g. `invalid_input`, `not_found`, `rate_limited`."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable explanation."
+          }
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "required": [
+          "id",
+          "family",
+          "signal",
+          "value",
+          "detail",
+          "source_refs"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique within the analysis. Use a stage prefix (`s1`, `c1`) to avoid clashes."
+          },
+          "family": {
+            "$ref": "#/components/schemas/Family"
+          },
+          "signal": {
+            "type": "string",
+            "description": "Signal name inside the family, e.g. `loaded_language`, `minhash_copies`."
+          },
+          "value": {
+            "type": "number",
+            "format": "double",
+            "description": "Signal value; scale is defined per signal and documented by its owner."
+          },
+          "detail": {
+            "type": "string",
+            "description": "One plain-language sentence for the UI."
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            },
+            "description": "Where the evidence comes from. Items with a dangling or non-verbatim ref are dropped."
+          }
+        }
+      },
+      "ExplainPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/explain`.",
+        "required": [
+          "explanation"
+        ],
+        "properties": {
+          "explanation": {
+            "$ref": "#/components/schemas/Explanation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Explanation": {
+        "type": "object",
+        "required": [
+          "summary",
+          "reasons"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reason"
+            },
+            "description": "Each reason must cite at least one existing evidence ID, otherwise it is dropped."
+          }
+        }
+      },
+      "ExtractPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/extract`.",
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "language": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Language"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Family": {
+        "type": "string",
+        "description": "Signal family; inside a family only the strongest signal counts (plan §5).",
+        "enum": [
+          "techniques",
+          "tone",
+          "claim_support",
+          "fact_checks",
+          "source_profile",
+          "text_reuse",
+          "timing",
+          "infrastructure",
+          "known_networks"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "description": "Response of `GET /api/health`.",
+        "required": [
+          "status",
+          "pipeline_version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`ok` when the API and its database work."
+          },
+          "pipeline_version": {
+            "type": "string"
+          },
+          "worker": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerHealth",
+                "description": "Null when the worker is unreachable."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Input": {
+        "type": "object",
+        "required": [
+          "kind",
+          "value"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/InputKind"
+          },
+          "value": {
+            "type": "string",
+            "description": "The pasted text, or the article URL."
+          }
+        }
+      },
+      "InputKind": {
+        "type": "string",
+        "enum": [
+          "text",
+          "url"
+        ]
+      },
+      "Language": {
+        "type": "object",
+        "required": [
+          "code",
+          "confidence",
+          "support"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "ISO 639-1 code, e.g. `it`."
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double",
+            "description": "Detector confidence in `[0, 1]`."
+          },
+          "support": {
+            "$ref": "#/components/schemas/LanguageSupport"
+          }
+        }
+      },
+      "LanguageSupport": {
+        "type": "string",
+        "description": "Support tiers shown to the user (D2).",
+        "enum": [
+          "evaluated",
+          "supported",
+          "unsupported"
+        ]
+      },
+      "Reason": {
+        "type": "object",
+        "required": [
+          "text",
+          "evidence_ids"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RetrievePatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/retrieve`.",
+        "required": [
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Progress note, e.g. \"14 sources from 3 adapters\"."
+          }
+        },
+        "additionalProperties": false
+      },
+      "Score": {
+        "type": "object",
+        "required": [
+          "abstained",
+          "breakdown"
+        ],
+        "properties": {
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Calibrated confidence in `[0, 1]`; null when abstained."
+          },
+          "abstained": {
+            "type": "boolean",
+            "description": "True shows \"Not enough evidence\" instead of a score."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it abstained. Required when `abstained`."
+          },
+          "breakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Contribution"
+            },
+            "description": "Contribution of each family, the weights shown to the user."
+          }
+        }
+      },
+      "ScorePatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/score`.",
+        "required": [
+          "scores"
+        ],
+        "properties": {
+          "scores": {
+            "$ref": "#/components/schemas/Scores"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Scores": {
+        "type": "object",
+        "required": [
+          "single",
+          "coordinated"
+        ],
+        "properties": {
+          "single": {
+            "$ref": "#/components/schemas/Score"
+          },
+          "coordinated": {
+            "$ref": "#/components/schemas/Score"
+          }
+        }
+      },
+      "SearchQuery": {
+        "type": "object",
+        "required": [
+          "text",
+          "language"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO 639-1 code of the query."
+          }
+        }
+      },
+      "SignalsPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/signals_single` and `POST /stages/signals_coordinated`.\n\nEvery evidence family must belong to the stage's dimension.",
+        "required": [
+          "evidence"
+        ],
+        "properties": {
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SourceRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "DocumentRef",
+            "description": "A span of the analysed document.",
+            "required": [
+              "span",
+              "kind"
+            ],
+            "properties": {
+              "span": {
+                "$ref": "#/components/schemas/Span"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "document"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "ContextRef",
+            "description": "A retrieved context item, optionally with a quote that must appear verbatim in its text.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "quote": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "context"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "UrlRef",
+            "description": "An external source that is not a context item, e.g. a fact-check or RDAP record.",
+            "required": [
+              "url",
+              "kind"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "url"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Span": {
+        "type": "object",
+        "description": "A verbatim slice of `document.paragraphs[paragraph]`.\n\nOffsets count Unicode code points (Python `str` indexing), `end` exclusive.",
+        "required": [
+          "paragraph",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "paragraph": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "StageAvailability": {
+        "type": "object",
+        "required": [
+          "name",
+          "implemented"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/StageName"
+          },
+          "implemented": {
+            "type": "boolean",
+            "description": "False until the stage's owner ships its `run` function."
+          }
+        }
+      },
+      "StageName": {
+        "type": "string",
+        "description": "Pipeline stage. The worker serves each one at `POST /stages/{name}`.",
+        "enum": [
+          "extract",
+          "understand",
+          "retrieve",
+          "story",
+          "signals_single",
+          "signals_coordinated",
+          "score",
+          "explain"
+        ]
+      },
+      "Step": {
+        "type": "object",
+        "required": [
+          "name",
+          "state"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/StageName"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short progress note for the UI, e.g. \"14 sources\" or \"2 claims dropped: not verbatim\"."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the stage failed or was skipped."
+          }
+        }
+      },
+      "StepState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "running",
+          "done",
+          "skipped",
+          "failed"
+        ]
+      },
+      "StoryAssignment": {
+        "type": "object",
+        "required": [
+          "context_id",
+          "similarity",
+          "in_story"
+        ],
+        "properties": {
+          "context_id": {
+            "type": "string"
+          },
+          "similarity": {
+            "type": "number",
+            "format": "double"
+          },
+          "in_story": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "StoryPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/story`: story fields for existing context items.",
+        "required": [
+          "assignments"
+        ],
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryAssignment"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Topic": {
+        "type": "object",
+        "required": [
+          "summary",
+          "entities"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Event date as written or normalised (free text, e.g. `2026-11-12`)."
+          },
+          "place": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UnderstandPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/understand`.",
+        "required": [
+          "topic",
+          "claims",
+          "queries"
+        ],
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/Topic"
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            }
+          },
+          "queries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchQuery"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkerHealth": {
+        "type": "object",
+        "description": "Response of the worker's `GET /health`.",
+        "required": [
+          "stages"
+        ],
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageAvailability"
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "analyses",
+      "description": "Create and read analyses"
+    },
+    {
+      "name": "ops",
+      "description": "Health and metrics"
+    }
+  ]
+}
