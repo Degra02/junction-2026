@@ -11,13 +11,27 @@ from pipeline.common.errors import StageError
 from pipeline.signals import judge, models
 from pipeline.signals.claims import claim_support_evidence, fact_check_evidence
 from pipeline.signals.source_profile import source_profile_evidence
-from pipeline.signals.techniques import charge, technique_evidence, tone_evidence
-from pipeline.signals.text import chunks, mask_quotations, own_words, story_peers
+from pipeline.signals.techniques import (
+    SentenceScores,
+    charge,
+    cited_paragraphs,
+    technique_evidence,
+    tone_evidence,
+)
+from pipeline.signals.text import (
+    chunks,
+    mask_quotations,
+    own_words,
+    sentence_spans,
+    story_peers,
+)
 
 # CPU budget on 2 vCPU (D13): the technique model is XLM-R large.
 MAX_PARAGRAPHS = 30
 MAX_PEERS = 10
 CHUNKS_PER_PEER_FOR_TONE = 3
+# Sentences scored to point each technique at its words (cited paragraphs only).
+MAX_SENTENCES = 24  # ~5-8 s on a laptop CPU for 20-28 sentences; the VPS has 2 vCPU
 
 
 def run_single(analysis: Analysis) -> SignalsPatch:
@@ -38,6 +52,7 @@ def run_single(analysis: Analysis) -> SignalsPatch:
     probabilities = models.technique_probabilities(texts)
     mine, theirs = probabilities[: len(indices)], probabilities[len(indices) :]
 
+    cited = cited_paragraphs(indices, mine, models.TECHNIQUE_LABELS, models.TECHNIQUE_THRESHOLDS)
     evidence = technique_evidence(
         document.paragraphs,
         indices,
@@ -45,6 +60,7 @@ def run_single(analysis: Analysis) -> SignalsPatch:
         models.TECHNIQUE_LABELS,
         models.TECHNIQUE_THRESHOLDS,
         next_id,
+        sentences=_sentence_scores(document.paragraphs, own, cited),
     )
     peer_charge, at = [], 0
     for cs in peer_chunks:
@@ -69,3 +85,27 @@ def run_single(analysis: Analysis) -> SignalsPatch:
     )
     evidence += source_profile_evidence(analysis, next_id)
     return SignalsPatch(evidence=evidence)
+
+
+def _sentence_scores(paragraphs: list[str], own: list[str], cited: set[int]) -> SentenceScores:
+    """Technique probabilities of each sentence of the cited paragraphs that have more than one,
+    whole paragraphs only, at most MAX_SENTENCES in all. A sentence is read in the author's own
+    words, like its paragraph."""
+    where: list[tuple[int, tuple[int, int]]] = []
+    texts: list[str] = []
+    for index in sorted(cited):
+        paragraph = paragraphs[index]
+        spans = sentence_spans(paragraph)
+        if len(spans) < 2 or len(where) + len(spans) > MAX_SENTENCES:
+            continue
+        masked = own[index] != paragraph
+        for start, end in spans:
+            where.append((index, (start, end)))
+            text = paragraph[start:end]
+            texts.append(mask_quotations(text) if masked else text)
+    scores: SentenceScores = {}
+    for (index, span), probabilities in zip(
+        where, models.technique_probabilities(texts), strict=True
+    ):
+        scores.setdefault(index, []).append((span, probabilities))
+    return scores

@@ -87,7 +87,7 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 
 | Family | Signal | Value | When emitted | Source refs |
 |---|---|---|---|---|
-| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | **share of the analysed paragraphs** with a detected technique of that SemEval-2023 category, `(0, 1]`; a text shorter than 4 paragraphs counts as 4 | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 document paragraphs, strongest first |
+| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | **share of the analysed paragraphs** with a detected technique of that SemEval-2023 category, `(0, 1]`; a text shorter than 4 paragraphs counts as 4 | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 flagged paragraphs, strongest first, each narrowed to its highest-scoring sentence (whole paragraph when no sentence reaches half the threshold) |
 | tone | `tone_vs_peers` | z-score of the document's emotional charge vs story peers, `[-5, 5]` (positive = more charged) | ≥3 story peers | most charged paragraph + up to 3 peers |
 | claim_support | `contradicted` | (contradicting + 1) / (addressing + 2): the contradicting share, smoothed so one source moves it little, `(0, 1)` | ≥1 peer supports the claim (entailment ≥ 0.6) or contradicts it (contradiction ≥ 0.9 in **both** directions) | claim span + contradicting passages (quoted) + supporting peers |
 | claim_support | `unaddressed` | 1.0 | ≥3 peers judged, none addresses the claim | claim span |

@@ -7,6 +7,10 @@ six SemEval-2023 categories, one evidence item per category found.
   the category is detected (the model's own per-label thresholds), in `(0, 1]`. Not the highest
   probability: on real articles one paragraph in twenty passes a threshold by chance (measured:
   BBC, tagesschau and factcheck.org reports reached 0.9), and a maximum grows with length.
+  Each reference points at the sentence of the flagged paragraph that scores highest for the
+  category (`sentences`, scored by the stage), so the reader sees the words, not a whole
+  paragraph; the paragraph stays the reference when no sentence reaches half the threshold
+  (the technique only shows across sentences). Detection and value stay per paragraph.
 - `tone` / `tone_vs_peers`: value = z-score of the document's emotional charge against the
   other reports of the same story (positive = more charged), clipped to `[-5, 5]`. Charge of a
   text = mean over its paragraphs of the strongest emotive technique probability.
@@ -16,7 +20,7 @@ from collections.abc import Callable, Sequence
 
 import numpy as np
 
-from pipeline.common.contracts import ContextItem, Evidence, Family
+from pipeline.common.contracts import ContextItem, DocumentRef, Evidence, Family, Span
 from pipeline.signals.text import context_ref, paragraph_ref
 
 CATEGORIES: dict[str, tuple[str, list[str]]] = {
@@ -77,6 +81,57 @@ MIN_PEERS_FOR_TONE = 3
 # model decision, not "every paragraph".
 MIN_PARAGRAPHS = 4
 _MAX_REFS = 3
+# A sentence is pointed at when its score for the category reaches this share of the threshold.
+SENTENCE_MIN_SHARE = 0.5
+
+# Document paragraph index -> its sentences as ((start, end), per-technique probabilities).
+SentenceScores = dict[int, list[tuple[tuple[int, int], np.ndarray]]]
+
+
+def _category_rows(
+    probabilities: np.ndarray, labels: list[str], thresholds: np.ndarray
+) -> dict[str, tuple[list[int], list[int], np.ndarray]]:
+    """Per category with a detection: its label columns, the rows (strongest first) and the
+    thresholded probabilities."""
+    detected = probabilities >= thresholds
+    out = {}
+    for signal, (_, techniques) in CATEGORIES.items():
+        columns = [labels.index(t) for t in techniques if t in labels]
+        hits = np.where(detected[:, columns], probabilities[:, columns], 0.0)
+        strongest = hits.max(axis=1) if columns else np.zeros(len(probabilities))
+        rows = [int(k) for k in np.argsort(-strongest) if strongest[k] > 0]
+        if rows:
+            out[signal] = (columns, rows, hits)
+    return out
+
+
+def cited_paragraphs(
+    indices: list[int], probabilities: np.ndarray, labels: list[str], thresholds: np.ndarray
+) -> set[int]:
+    """The document paragraphs `technique_evidence` will cite: the ones worth scoring by
+    sentence."""
+    return {
+        indices[k]
+        for _, rows, _ in _category_rows(probabilities, labels, thresholds).values()
+        for k in rows[:_MAX_REFS]
+    }
+
+
+def _ref(
+    paragraphs: list[str],
+    index: int,
+    columns: list[int],
+    thresholds: np.ndarray,
+    sentences: SentenceScores | None,
+) -> DocumentRef:
+    scored = (sentences or {}).get(index)
+    if scored:
+        ratio = [float((probs[columns] / thresholds[columns]).max()) for _, probs in scored]
+        best = int(np.argmax(ratio))
+        if ratio[best] >= SENTENCE_MIN_SHARE:
+            start, end = scored[best][0]
+            return DocumentRef(kind="document", span=Span(paragraph=index, start=start, end=end))
+    return paragraph_ref(paragraphs, index)
 
 
 def technique_evidence(
@@ -86,19 +141,18 @@ def technique_evidence(
     labels: list[str],
     thresholds: np.ndarray,
     next_id: Callable[[], str],
+    sentences: SentenceScores | None = None,
 ) -> list[Evidence]:
     """One item per category with a detected technique; `probabilities[k]` belongs to
-    `paragraphs[indices[k]]`. `indices` may be the first paragraphs only (the stage's cap)."""
+    `paragraphs[indices[k]]`. `indices` may be the first paragraphs only (the stage's cap).
+    `sentences` narrows each reference to the sentence that carries the technique."""
     capped = len(indices) < sum(1 for p in paragraphs if p.strip())
-    detected = probabilities >= thresholds
     evidence = []
-    for signal, (description, techniques) in CATEGORIES.items():
-        columns = [labels.index(t) for t in techniques if t in labels]
-        hits = np.where(detected[:, columns], probabilities[:, columns], 0.0)
-        strongest = hits.max(axis=1) if columns else np.zeros(len(indices))
-        rows = [k for k in np.argsort(-strongest) if strongest[k] > 0]
-        if not rows:
+    found_rows = _category_rows(probabilities, labels, thresholds)
+    for signal, (description, _) in CATEGORIES.items():
+        if signal not in found_rows:
             continue
+        columns, rows, hits = found_rows[signal]
         best = hits.max(axis=0)
         found = [labels[columns[c]] for c in np.argsort(-best) if best[c] > 0]
         names = ", ".join(t.replace("_", " ").replace("-", " / ").lower() for t in found)
@@ -112,7 +166,10 @@ def technique_evidence(
                 value=round(count / max(total, MIN_PARAGRAPHS), 3),
                 detail=f"{description} ({names}) in {count} of {scope} "
                 f"paragraph{'s' if total > 1 else ''}.",
-                source_refs=[paragraph_ref(paragraphs, indices[k]) for k in rows[:_MAX_REFS]],
+                source_refs=[
+                    _ref(paragraphs, indices[k], columns, thresholds, sentences)
+                    for k in rows[:_MAX_REFS]
+                ],
             )
         )
     return evidence

@@ -293,6 +293,38 @@ def test_techniques_aggregate_to_categories_with_paragraph_refs() -> None:
     assert [e.id for e in evidence] == ["s1", "s2"]
 
 
+def _one_flagged_paragraph(sentence_probs: list[float]):
+    """A paragraph of two sentences flagged for loaded language, and per-sentence scores."""
+    paragraphs = ["The council met on Monday. These traitors are destroying our city!"]
+    probs = np.full((1, len(LABELS)), 0.1, dtype=np.float32)
+    probs[0, LABELS.index("Loaded_Language")] = 0.9
+    thresholds = np.full(len(LABELS), 0.5, dtype=np.float32)
+    column = LABELS.index("Loaded_Language")
+    sentences = {0: []}
+    for span, p in zip([(0, 26), (27, 67)], sentence_probs, strict=True):
+        row = np.full(len(LABELS), 0.05, dtype=np.float32)
+        row[column] = p
+        sentences[0].append((span, row))
+    return paragraphs, probs, thresholds, sentences
+
+
+def test_a_technique_points_at_the_sentence_that_carries_it() -> None:
+    paragraphs, probs, thresholds, sentences = _one_flagged_paragraph([0.1, 0.8])
+    [item] = technique_evidence(paragraphs, [0], probs, LABELS, thresholds, ids(), sentences)
+    span = item.source_refs[0].root.span
+    assert paragraphs[0][span.start : span.end] == "These traitors are destroying our city!"
+    # Detection and value stay per paragraph: the fitted weights still apply.
+    assert item.value == pytest.approx(1 / 4)
+
+
+def test_no_sentence_near_the_threshold_keeps_the_whole_paragraph() -> None:
+    # 0.2 is under half of the 0.5 threshold: the technique only shows across sentences.
+    paragraphs, probs, thresholds, sentences = _one_flagged_paragraph([0.2, 0.15])
+    [item] = technique_evidence(paragraphs, [0], probs, LABELS, thresholds, ids(), sentences)
+    span = item.source_refs[0].root.span
+    assert (span.start, span.end) == (0, len(paragraphs[0]))
+
+
 def test_technique_share_of_a_long_and_of_a_capped_text() -> None:
     paragraphs = [f"Paragraph number {i} of the report." for i in range(12)]
     probs = np.full((10, len(LABELS)), 0.1, dtype=np.float32)
