@@ -65,8 +65,6 @@ services:
       # 2 vCPU: one inference at a time (the API's MAX_CONCURRENT_INFERENCE), using both cores.
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
-      # No Chromium in the image (DECISIONS.md, Sat 17:55): blocked pages ask for pasted text.
-      BROWSER_FALLBACK: "0"
     volumes:
       - hf-cache:/models
     # An OOM kills the worker (restarted; the API marks the step failed), not the API or Caddy.

@@ -16,6 +16,7 @@ import asyncio
 import logging
 from collections import Counter
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 
 from pipeline.common import progress
 from pipeline.common.contracts import (
@@ -26,14 +27,16 @@ from pipeline.common.contracts import (
     OutletType,
     RetrievePatch,
 )
+from pipeline.extract import scraper
 from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import new_client
 from pipeline.extract.urls import canonical_url, outlet_host
 from pipeline.retrieve import factcheck_api, feeds, gdelt, oxylabs
 from pipeline.retrieve.articles import Reader, Record, context_item
 from pipeline.retrieve.cache import default_cache
+from pipeline.retrieve.feeds import FeedItem
 from pipeline.retrieve.match import Hit, Query, rank
-from pipeline.retrieve.phrases import distinctive_phrases
+from pipeline.retrieve.phrases import contains, distinctive_phrases
 from pipeline.retrieve.registry import Registry, load_registry
 from pipeline.retrieve.sources import Profiler, registrable
 from pipeline.retrieve.viginum import Listing, fetch_listing, load_listing
@@ -50,6 +53,7 @@ FACTCHECK_TIMEOUT_S = 15.0  # likewise
 # realtime scraping), so the phases still total 100 s, under the 120 s stage timeout.
 PHRASES_TIMEOUT_S = 25.0
 GDELT_PHRASES = 2  # 5.5 s apart: two fit in the budget
+NEWS_QUERIES = 4  # Google News searches per analysis (each costs Oxylabs credit)
 MAX_HITS = 30  # pages fetched per analysis
 PER_OUTLET = 3  # hits per outlet, so one prolific site does not fill the context
 WIRE_BONUS = 0.1  # agency originals let the signals tell syndication from copying
@@ -134,18 +138,30 @@ async def _until(
     return results
 
 
-def _context(hits: list[Hit], records: list[Record | None]) -> list[ContextItem]:
+PHRASE_ADAPTERS = (gdelt.NAME, oxylabs.NAME)
+
+
+def _context(
+    hits: list[Hit], records: list[Record | None], phrases: list[str] = ()
+) -> list[ContextItem]:
+    """Context items for the hits that were read. A phrase-search hit stays only if the page
+    really repeats one of the phrases: search engines loosen quoted queries."""
     context: list[ContextItem] = []
     seen: set[str] = set()
     for hit, record in zip(hits, records, strict=True):
         if record is None:
             continue
+        retrieved_by = hit.retrieved_by
+        if retrieved_by in PHRASE_ADAPTERS and not any(contains(record.text, p) for p in phrases):
+            if hit.fallback is None:
+                continue
+            retrieved_by = hit.fallback
         key = canonical_url(record.url)
         if key in seen:
             continue
         seen.add(key)
         context.append(
-            context_item(f"ctx{len(context) + 1}", record, hit.retrieved_by, hit.item.language)
+            context_item(f"ctx{len(context) + 1}", record, retrieved_by, hit.item.language)
         )
     return context
 
@@ -191,34 +207,55 @@ def _with_fact_checks(
     return out
 
 
-async def _phrase_hits(client, cache, phrases: list[str]) -> list[Hit]:
-    """Reports that repeat one of the document's phrases verbatim (GDELT, Oxylabs), as hits
-    that skip the word matching: an exact phrase is relevant by construction."""
-    if not phrases:
-        return []
-    searches = [gdelt.search(client, cache, p) for p in phrases[:GDELT_PHRASES]]
-    names = [gdelt.NAME] * len(searches)
-    auth = oxylabs.credentials()
-    if auth:
-        searches += [oxylabs.search(client, cache, p, auth) for p in phrases]
-        names += [oxylabs.NAME] * len(phrases)
+async def _search_hits(
+    client, cache, phrases: list[str], queries: list[Query]
+) -> tuple[list[Hit], list[FeedItem]]:
+    """Searches beyond the feeds, run together under PHRASES_TIMEOUT_S:
+    - hits that repeat one of the document's phrases verbatim (GDELT, Oxylabs), which skip the
+      word matching: an exact phrase is relevant by construction;
+    - web results for understand's topic queries (Oxylabs), returned for the same word matching
+      as feed items."""
+    searches, names = [], []
+    for phrase in phrases[:GDELT_PHRASES]:
+        searches.append(gdelt.search(client, cache, phrase))
+        names.append(gdelt.NAME)
+    if scraper.enabled():
+        for phrase in phrases:
+            searches.append(oxylabs.search(client, cache, phrase))
+            names.append(oxylabs.NAME)
+        for query in queries[:NEWS_QUERIES]:
+            searches.append(oxylabs.news_search(client, cache, query.text, query.language))
+            names.append(oxylabs.NEWS_NAME)
+    if not searches:
+        return [], []
     tasks = [asyncio.ensure_future(s) for s in searches]
     done, pending = await asyncio.wait(tasks, timeout=PHRASES_TIMEOUT_S)
     for task in pending:
         task.cancel()
     hits: dict[str, Hit] = {}
+    news: list[FeedItem] = []
     for name, task in zip(names, tasks, strict=True):
         if task not in done or task.exception() is not None:
             continue
+        if name == oxylabs.NEWS_NAME:
+            news.extend(task.result())
+            continue
         for item in task.result():
             hits.setdefault(canonical_url(item.url), Hit(item, 1.0, name))
-    return list(hits.values())
+    return list(hits.values()), news
 
 
 def _merge(phrase_hits: list[Hit], feed_hits: list[Hit]) -> list[Hit]:
-    """Phrase hits first; a feed hit for the same article is dropped."""
+    """Phrase hits first; a word-matched hit for the same article becomes its fallback."""
+    matched = {canonical_url(h.item.url): h for h in feed_hits}
+    merged = [
+        replace(h, fallback=matched[key].retrieved_by)
+        if (key := canonical_url(h.item.url)) in matched
+        else h
+        for h in phrase_hits
+    ]
     seen = {canonical_url(h.item.url) for h in phrase_hits}
-    return phrase_hits + [h for h in feed_hits if canonical_url(h.item.url) not in seen]
+    return merged + [h for h in feed_hits if canonical_url(h.item.url) not in seen]
 
 
 def _fact_check_queries(analysis: Analysis) -> list[tuple[str, str | None]]:
@@ -265,6 +302,8 @@ async def _listing(web: Web, cache) -> Listing:
 
 async def run(analysis: Analysis) -> RetrievePatch:
     queries = search_queries(analysis)
+    # Only understand's queries go to paid news search; claims and title are matched locally.
+    user_queries = [Query(q.text.strip(), q.language or None) for q in analysis.queries]
     document_outlet = analysis.document.outlet if analysis.document else None
     cache = default_cache()
     async with new_client() as client:
@@ -273,14 +312,21 @@ async def run(analysis: Analysis) -> RetrievePatch:
         listing = asyncio.create_task(_listing(web, cache))
         reviews_task = asyncio.create_task(_reviews(client, cache, analysis))
         phrases = distinctive_phrases(analysis.document)
-        phrase_task = asyncio.create_task(_phrase_hits(client, cache, phrases))
+        search_task = asyncio.create_task(_search_hits(client, cache, phrases, user_queries))
         context: list[ContextItem] = []
         feeds_read = 0
         if queries or phrases:
             progress.report("Reading news feeds")
             items, feeds_read = await feeds.read_feeds(web, cache, _REGISTRY, FEEDS_TIMEOUT_S)
-            phrase_hits = await phrase_task
-            hits = select(_merge(phrase_hits, rank(items, queries)), analysis, _REGISTRY)
+            phrase_hits, news = await search_task
+            # One ranking, so news results get the same word weights as feed items.
+            news_urls = {item.url for item in news}
+            ranked = [
+                replace(h, retrieved_by=oxylabs.NEWS_NAME) if h.item.url in news_urls else h
+                for h in rank(items + news, queries)
+            ]
+            found = _merge(phrase_hits, ranked)
+            hits = select(found, analysis, _REGISTRY)
             reviews = await reviews_task
             progress.report(
                 f"{len(hits)} possibly related reports"
@@ -296,11 +342,11 @@ async def run(analysis: Analysis) -> RetrievePatch:
                 ARTICLES_TIMEOUT_S,
                 lambda n: progress.report(f"Reading related reports: {n} of {len(jobs)}"),
             )
-            context = _context(hits, records[: len(hits)])
+            context = _context(hits, records[: len(hits)], phrases)
             context = _with_fact_checks(context, reviews, records[len(hits) :])
         else:
             reviews_task.cancel()
-            phrase_task.cancel()
+            search_task.cancel()
         progress.report(f"{len(context)} related reports; checking the outlets")
         domains = [document_outlet or ""] + [item.outlet or "" for item in context]
         # Publishing in Google's fact-check index is what makes an outlet a fact-checker.
@@ -321,10 +367,12 @@ async def run(analysis: Analysis) -> RetrievePatch:
     reports = [item for item in context if item.retrieved_by != factcheck_api.NAME]
     checks = len(context) - len(reports)
     outlets = len({item.outlet for item in reports})
-    by_phrase = sum(item.retrieved_by in (gdelt.NAME, oxylabs.NAME) for item in reports)
+    by_phrase = sum(item.retrieved_by in PHRASE_ADAPTERS for item in reports)
+    by_news = sum(item.retrieved_by == oxylabs.NEWS_NAME for item in reports)
     detail = (
         f"{len(reports)} related reports from {outlets} outlets"
         + (f" ({by_phrase} by exact phrase)" if by_phrase else "")
+        + (f" ({by_news} from news search)" if by_news else "")
         + (f", {checks} fact-checks" if checks else "")
         + f" ({feeds_read} feeds read)"
         if queries or phrases

@@ -5,8 +5,8 @@ Living task list per person, kept by the integrator. Agents: read your section, 
 ## State of `main` (Sat 18:00)
 - Live at <https://the4thlover.tech> (API docs: `/api/docs`). Every merge to `main` deploys; the deploy goes red if a stage fails to import.
 - **All stages are on `main`**: `extract`, `understand`, `retrieve`, `story`, `signals_single`, `signals_coordinated`, `score`, `explain`.
-- Merged this round: #15 signals on real coverage (techniques = share of paragraphs, two-way NLI, one-fact claims) and the fit ablation; #16 `retrieve` + `story`; #17 AI-core status and requests; #18 retrieve recall: Google Fact Check Tools adapter (D8), exact-phrase search for copies (GDELT, Oxylabs), ~300 more typed outlets, story threshold 0.90 same-language / 0.845 across languages; #20 `OutletType::Satire` and the fixture's technique value as a share of paragraphs.
-- **No Chromium** (`DECISIONS.md`, Sat 17:55): the worker runs with `BROWSER_FALLBACK=0`. A URL whose site refuses plain HTTP gets "paste its text instead". Do not add Playwright/Chromium to the image; pages that matter go through Oxylabs (D7).
+- Merged this round: #15 signals on real coverage (techniques = share of paragraphs, two-way NLI, one-fact claims) and the fit ablation; #16 `retrieve` + `story`; #17 AI-core status and requests; #18 retrieve recall: Google Fact Check Tools adapter (D8), exact-phrase search for copies (GDELT, Oxylabs), ~300 more typed outlets, story threshold 0.90 same-language / 0.845 across languages; #20 `OutletType::Satire` and the fixture's technique value as a share of paragraphs; `ck-lithium/oxylabs`: Oxylabs AI Studio for blocked pages, phrase search and news search beyond the feeds.
+- **No Chromium, Oxylabs instead** (`DECISIONS.md`, Sat 17:55 and 18:05): Playwright is gone. A site that refuses plain HTTP is read through Oxylabs AI Studio (`pipeline/extract/scraper.py`); without `OXYLABS_TOKEN` it gets "paste its text instead". The old `OXYLABS_USERNAME` / `OXYLABS_PASSWORD` are not read any more.
 - Still missing on `main`: **no `web/`** (`/` has no UI); **no `evals/metrics.json`** (`/api/metrics` is 404); `pipeline/score/weights.json` is still priors (`n = 0`, `cv = null`), so the explanation says the confidences are uncalibrated.
 - Not yet confirmed on the VPS: retrieve output on real texts, worker memory with every model loaded, the fact-check and Oxylabs keys in the VPS `.env`.
 
@@ -42,7 +42,7 @@ Retrieve and story are merged (#16, #18). `EVALUATED_LANGUAGES` already lists en
    - Show `scores.<dimension>.reason` when a dimension abstains, the failed-step message when a step fails, and the explanation summary as written (it carries the "preliminary estimates" sentence).
    - Metrics page from `GET /api/metrics` (404 = not published yet: show "metrics coming").
 2. **VPS check**: a pasted Italian or English news text gets ≥ 3 context items with full bodies and a `sources[]` entry per outlet, inside the 120 s stage budget. Post the analysis ID in your next PR.
-3. **Memory check**: worker RSS on the VPS (`docker stats` or Hostinger Docker stats) with lingua, e5 and the AI-core models loaded, during an analysis; limit 6 GB. Post the number. No Chromium (decided). For reference: locally the worker was at ~740 MB before e5 and the AI-core models had finished loading.
+3. **Memory check**: worker RSS on the VPS (`docker stats` or Hostinger Docker stats) with lingua, e5 and the AI-core models loaded, during an analysis; limit 6 GB. Post the number. For reference: locally the worker was at ~740 MB before e5 and the AI-core models had finished loading.
 4. **Confirm #18 on real data** (code is merged, output unverified):
    - `fcd_*` items in `evals/labelled.jsonl` get a context item with `fact_check` set, and a `fact_checks / rated_false` evidence item.
    - A `pk_*` item gets ≥ 1 context item on another `*.news-pravda.com` or listed domain.
@@ -63,13 +63,12 @@ All AI-core stages are done on `main`.
 3. **Metrics** (blocked on the integrator's VPS run, then on Lyreplus's fit): `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). Recompute after the fit lands. The API serves it at `/api/metrics` on the next deploy.
 4. **Honest coordinated number**: the VIGINUM list both labels `viginum_pravda` and is the `known_networks` signal, so the coordinated AUC is about 1 by construction. Report it without that family next to the headline (`weights.json → cv.ablation.known_networks.auc_without`, after the fit). Same caution for `fact_checks` on `fact_checker_debunk` and `outlet_fact_checker` on `hard_fact_checks`.
 5. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
-6. `mosearc/labelled-set` is stale: its `evals/labelled.jsonl` is identical to `main` (merged in #13). Delete it if you no longer need it.
 
 ## Integrator (Degra02)
-1. **VPS `.env`**: confirm `LLM_*` (`gemini-3.1-flash-lite`), `GEMINI_API_KEY`, `GOOGLE_FACTCHECK_API_KEY`, `OXYLABS_USERNAME`, `OXYLABS_PASSWORD`. Without the last three the #18 adapters do not run on the VPS.
-2. **VPS eval run** (blocks Lyreplus and mosearc), limits off for the run and restored after: `PYTHONPATH=evals/src uv run --frozen python -m propaganda_eval.cli run --api http://127.0.0.1:8080 --concurrency 2`. `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc.
+1. **VPS `.env`**: confirm `LLM_*` (`gemini-3.1-flash-lite`), `GOOGLE_FACTCHECK_API_KEY`, `OXYLABS_TOKEN` (AI Studio key; replaces `OXYLABS_USERNAME` / `OXYLABS_PASSWORD`), then recreate the worker. `GEMINI_API_KEY` is not read by any code yet (no grounded-search adapter).
+2. **Eval run** (blocks Lyreplus and mosearc). The API publishes no host port on the VPS and the VPS has no checkout, so the runner runs from a laptop: against a local API with the limits off (`deploy/README.md`, "Local"), or against `--api https://the4thlover.tech --concurrency 2` (260 items stay under the 30/min and 600/h limits, but the site is busy for hours). `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc.
 3. ~~**Contract**: `satire` in `OutletType`; fixture `manipulative_wording` 0.87 → 0.25~~: done in #20. `source_profile.py` got the one-line `_TYPE_WORDS` entry so a satire outlet cannot crash `signals_single`.
-4. ~~Chromium for the extract fallback~~: decided, no Chromium (`DECISIONS.md`, Sat 17:55).
+4. ~~Chromium for the extract fallback~~: decided, no Chromium; Oxylabs AI Studio reads blocked pages (`DECISIONS.md`, Sat 17:55 and 18:05).
 5. **Decision still open**: whether `claim_support` gets an LLM verifier per (claim, passage) for false NLI contradictions (network I/O in a signal stage, beyond D5) or the fit decides its weight.
-6. `k8s` branch: 2 commits ahead of `main`, no PR; Kubernetes is not in `docs/plan.md`. Merge or drop.
+6. `k8s` branch: 3 commits ahead of `main`, no PR; Kubernetes is not in `docs/plan.md`. Merge or drop.
 7. Keep `main` deployable; update this file after every round.

@@ -10,7 +10,7 @@ import pytest
 
 import pipeline.retrieve as retrieve
 from pipeline.common import net
-from pipeline.extract import browser
+from pipeline.extract import scraper
 from pipeline.extract.fetch import new_client
 from pipeline.retrieve.cache import NoCache
 from pipeline.retrieve.registry import parse
@@ -67,9 +67,12 @@ def _kind(url: httpx.URL) -> str:
 
 @pytest.fixture
 def server(monkeypatch) -> Server:
-    """Also allows every host in the URL guard and turns the browser fallback off."""
+    """Also allows every host in the URL guard and turns the scraping fallback off."""
     monkeypatch.setattr(net, "assert_public_url", lambda url: None)
-    monkeypatch.setattr(browser, "enabled", lambda: False)
+    monkeypatch.setattr(scraper, "enabled", lambda: False)
+    # Offline tests never use real keys from `.env` (mise loads it): no paid calls by accident.
+    for name in (scraper.TOKEN_ENV, "GOOGLE_FACTCHECK_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
     return Server()
 
 

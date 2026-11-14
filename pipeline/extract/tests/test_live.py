@@ -17,6 +17,7 @@ import pipeline.extract as extract
 from pipeline.common.contracts import ExtractPatch, Input, InputKind
 from pipeline.common.errors import StageError
 from pipeline.common.fixtures import example_analysis
+from pipeline.extract import scraper
 from pipeline.extract.fetch import USER_AGENT
 from pipeline.extract.language import support_for
 
@@ -126,11 +127,14 @@ def test_url_through_the_worker_endpoint():
     assert patch.language is not None and patch.language.code == "it"
 
 
-# Browser fallback (needs Chromium: `uv run playwright install --with-deps chromium`).
+# Scraping fallback (needs OXYLABS_TOKEN, or OXYLABS_USERNAME and OXYLABS_PASSWORD; costs credit).
+
+needs_oxylabs = pytest.mark.skipif(not scraper.enabled(), reason="set the Oxylabs credentials")
 
 
-def test_bot_checked_site_is_read_through_the_browser():
-    """France24 answers plain HTTP with 403 and serves headless Chromium normally."""
+@needs_oxylabs
+def test_bot_checked_site_is_read_through_the_scraper():
+    """France24 answers plain HTTP with 403 (Sat 14.11)."""
     link = feed_links("https://www.france24.com/fr/rss", 1)[0]
     patch = run_url(link)
     assert patch.document.outlet == "france24.com"
@@ -138,34 +142,13 @@ def test_bot_checked_site_is_read_through_the_browser():
     assert patch.language is not None and patch.language.code == "fr"
 
 
-def test_site_that_blocks_headless_browsers_gives_a_plain_reason():
-    """TASS blocks headless browsers as well (Sat 14.11): readable only via the paid provider."""
+@needs_oxylabs
+def test_site_behind_a_javascript_challenge_gives_an_article_or_a_plain_reason():
+    """TASS serves a JavaScript challenge to plain clients and to headless browsers."""
     link = feed_links("https://tass.ru/rss/v2.xml", 1)[0]
     try:
         patch = run_url(link)
     except StageError as e:
-        assert "paste its text" in str(e)
-    else:  # if TASS ever lets headless browsers in, the article must be complete
+        assert "paste its text" in str(e) or "refused" in str(e)
+    else:
         assert patch.language is not None and patch.language.code == "ru"
-
-
-@pytest.mark.parametrize(
-    "host",
-    [
-        "127.0.0.1.nip.io",  # public names whose DNS answer is private: the proxy must check
-        "169.254.169.254.nip.io",  # the resolved address, not the name (cloud metadata here)
-        "10.0.0.1.nip.io",
-        "localtest.me",  # resolves to ::1
-    ],
-)
-def test_browser_cannot_reach_private_addresses(host):
-    """Every browser connection (navigation, redirect hop, sub-resource) goes through GuardProxy.
-
-    A public redirector cannot be used to test redirect hops (httpbin refuses internal targets),
-    so this drives the same per-connection check with public names that resolve to private IPs.
-    """
-    from pipeline.extract import browser
-    from pipeline.extract.fetch import FetchFailed
-
-    with pytest.raises(FetchFailed, match="public website"):
-        asyncio.run(browser.render_page(f"https://{host}/"))

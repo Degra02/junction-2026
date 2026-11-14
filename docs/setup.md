@@ -27,7 +27,7 @@ Only what the decided plan uses (D7, D8, D12, D15); names in `.env.example`.
 - [ ] Hostinger AI Router key (hPanel → AI Router): `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`; set a per-key spend limit
 - [ ] Gemini API key (AI Studio) for grounded search: `GEMINI_API_KEY`
 - [ ] Google Fact Check Tools API key: `GOOGLE_FACTCHECK_API_KEY`
-- [ ] Oxylabs $500 Flexible plan with code `JUNCTION2026`: `OXYLABS_USERNAME`, `OXYLABS_PASSWORD`. **Cancel right after the event** or month two is charged
+- [ ] Oxylabs $500 Flexible plan with code `JUNCTION2026`; AI Studio API key: `OXYLABS_TOKEN`. **Cancel right after the event** or month two is charged
 - [ ] GitHub repo under a team org; protect `main` (PR required, CI must pass)
 - [ ] Junction Discord; shared password manager vault for keys
 
