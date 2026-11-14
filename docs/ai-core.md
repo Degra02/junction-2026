@@ -136,11 +136,14 @@ One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analys
 
 ## explain
 
-- One `llm.ask_json_async` call (max 800 output tokens). The `user` message is a JSON digest: both scores (confidence + non-zero contributions, or the abstention reason), the 20 strongest evidence items (`id`, family, signal, detail; ranked by `|strength|`), the title and the claims. The system prompt forbids outside knowledge, invented numbers, verdict labels (D4) and non-verbatim quotes.
+- One `llm.ask_json_async` call (max 1000 output tokens: non-Latin scripts need more). The `user` message is a JSON digest: both scores (confidence + non-zero contributions, or the abstention reason), the 20 strongest evidence items (`id`, family, signal, detail; ranked by `|strength|`), the title and the claims. The system prompt forbids outside knowledge, invented numbers, verdict labels (D4) and non-verbatim quotes.
 - Output: a 1–2 sentence summary and up to 3 reasons, each with evidence IDs.
 - The stage applies the API's rules itself (`check`): unknown evidence IDs are removed and a reason left with none is dropped; a reason whose quotation (≥12 chars inside `"…"`, `“…”`, `„…“`, `«…»`) is not verbatim in the document, context or an evidence detail is dropped; a misquoting summary is blanked. `quotations` mirrors `contracts/src/apply.rs`.
 - No evidence at all → no LLM call; the summary says nothing was found and repeats the abstention reasons.
-- **Uncalibrated confidences are disclosed** (`docs/next-steps.md`: never claim calibration before the fit). Each non-abstained score in the digest carries `calibrated` (`WEIGHTS.<dimension>.calibrated`, true once `pipeline.score.fit` wrote `n > 0`); the prompt says to call uncalibrated numbers estimates; and `PRIORS_NOTE` ("These percentages are preliminary estimates from hand-set weights, not yet calibrated on labelled data.") is appended to the summary whenever such a confidence is shown, independent of the model's wording. After the fit the note disappears by itself.
+- **Uncalibrated confidences are disclosed** (`docs/next-steps.md`: never claim calibration before the fit). Each non-abstained score in the digest carries `calibrated` (`WEIGHTS.<dimension>.calibrated`, true once `pipeline.score.fit` wrote `n > 0`); the prompt says to call uncalibrated numbers estimates; and the `PRIORS_NOTES` sentence ("These percentages are preliminary estimates from hand-set weights, not yet calibrated on labelled data.") is appended to the summary whenever such a confidence is shown, independent of the model's wording. After the fit the note disappears by itself.
+- **Explanation language (D14)**: `explanation_language(analysis)` reads the optional request field `input.explanation_language` (ISO 639-1, `it-IT` → `it`; anything that is not a 2–3 letter code → English) and defaults to English. The prompt asks for that language, with the dimension names translated and quotations kept verbatim in their original language. The two fixed sentences (`PRIORS_NOTES`, `NOTHING_FOUND`) come from tables for en, it, de, fr, es, pt, pl, nl, ru, uk; other languages get them in English. With no evidence and a non-English language, the summary is the translated "nothing found" sentence only (the English abstention reasons are shown with the scores).
+  - **Inert until the contract has the field**: the integrator adds `explanation_language: Option<String>` to `Input` and to the cache key (`input_hash`), otherwise a cached explanation in another language is reused; the UI offers the choice (default English, or the content language).
+  - Live check (flash-lite, fixture): it, ru and fi all kept 3 reasons and the summary; it/ru notes translated, fi English as designed. The Russian run translated "partisan outlet" as "guerrilla"; the source-profile detail now says "a politically partisan outlet".
 
 ## LLM cost (AI Router)
 
@@ -248,10 +251,12 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 3. Fit the combiner on mosearc's labelled set; until then confidences are priors, not calibrated.
 4. Integrator: approve the new dependencies; consider pointing `AGENTS.md` "Read first" to this file; suggested `DECISIONS.md` lines: score family values in [-1, 1] with strongest-signal-only and prior weights in `pipeline/score/weights.json`; copies of the document are excluded from claim support and tone peers.
 5. Satire with coverage: no guard yet (no `satire` outlet type in the contract; understand returns no claims for it, techniques still fire).
-6. Syndication guard relies on retrieve setting `outlet_type` `national`/`local` for mainstream outlets.
+6. D14 needs `Input.explanation_language` in the contract and the cache key (integrator) and a selector in the UI (ck-lithium).
+7. Syndication guard relies on retrieve setting `outlet_type` `national`/`local` for mainstream outlets.
 
 ## Changelog
 
+- Sat 16:30 — D14: explanation in the reader's language (inert until the request field exists); fixed sentences per language; clearer outlet-type wording.
 - Sat 16:00 — explain discloses prior (uncalibrated) confidences; `DimensionWeights.calibrated`.
 - Sat 15:30 — language spot check (D6); hard negatives: quotations masked, claims only asserted ones, own fact-checks skipped, newsrooms as syndication, signed tone and claim support.
 - Sat 15:00 — explain stage; LLM cost measurements.

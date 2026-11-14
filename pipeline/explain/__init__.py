@@ -12,13 +12,19 @@ are dropped, a misquoting summary is blanked); this stage applies them first, mi
 
 No LLM call when there is no evidence: the summary then states that nothing was found and why.
 
+Language (D14): the reader may ask for the explanation in a language (`explanation_language`,
+ISO 639-1); without it, English. The model writes in that language and keeps quotations in their
+original language (they must stay verbatim). The two fixed sentences (PRIORS_NOTES,
+NOTHING_FOUND) come from tables, never from the model; languages outside the tables get English.
+
 While a dimension's combiner weights are hand-set priors (`pipeline.score.WEIGHTS`, `n == 0`),
 its confidence is not calibrated: the digest says so, the prompt forbids calling it calibrated,
-and PRIORS_NOTE is appended to the summary whenever such a confidence is shown, so the claim
-never depends on the model's wording.
+and the PRIORS_NOTES sentence is appended to the summary whenever such a confidence is shown, so
+the claim never depends on the model's wording.
 """
 
 import json
+import re
 
 from pydantic import BaseModel, Field
 
@@ -41,10 +47,6 @@ MIN_QUOTE_CHARS = 12
 _EDGE = " \t\n.,;:!?…"
 # Opening mark -> marks that close it (same table as the API).
 _CLOSES = {'"': '"', "“": "”", "”": "”", "„": "“”", "«": "»", "»": "«"}
-PRIORS_NOTE = (
-    "These percentages are preliminary estimates from hand-set weights, not yet calibrated on "
-    "labelled data."
-)
 
 SYSTEM = f"""\
 You explain the result of an automated analysis of one news article or post to a general \
@@ -74,7 +76,56 @@ which rating, how old the domain is).
 
 Rules: use only facts in the digest, never outside knowledge. Do not invent numbers. Quote only \
 text copied exactly from the digest, inside double quotes; otherwise paraphrase without \
-quotation marks. Write in English."""
+quotation marks."""
+
+DEFAULT_LANGUAGE = "en"
+LANGUAGE_NAMES = {
+    "en": "English",
+    "it": "Italian",
+    "de": "German",
+    "fr": "French",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "pl": "Polish",
+    "nl": "Dutch",
+    "ru": "Russian",
+    "uk": "Ukrainian",
+}
+# Fixed sentences per language, so they never depend on the model's wording.
+PRIORS_NOTES = {
+    "en": "These percentages are preliminary estimates from hand-set weights, not yet calibrated "
+    "on labelled data.",
+    "it": "Queste percentuali sono stime preliminari basate su pesi impostati a mano, non ancora "
+    "calibrate su dati etichettati.",
+    "de": "Diese Prozentwerte sind vorläufige Schätzungen auf Grundlage manuell festgelegter "
+    "Gewichte und noch nicht an gelabelten Daten kalibriert.",
+    "fr": "Ces pourcentages sont des estimations préliminaires fondées sur des pondérations fixées "
+    "à la main, pas encore calibrées sur des données annotées.",
+    "es": "Estos porcentajes son estimaciones preliminares basadas en pesos fijados manualmente, "
+    "todavía no calibradas con datos etiquetados.",
+    "pt": "Estas percentagens são estimativas preliminares baseadas em pesos definidos "
+    "manualmente, ainda não calibradas com dados rotulados.",
+    "pl": "Te wartości procentowe to wstępne szacunki oparte na ręcznie ustalonych wagach, jeszcze "
+    "nieskalibrowane na oznaczonych danych.",
+    "nl": "Deze percentages zijn voorlopige schattingen op basis van handmatig ingestelde "
+    "gewichten, nog niet gekalibreerd op gelabelde gegevens.",
+    "ru": "Эти проценты — предварительные оценки на основе весов, заданных вручную, ещё не "
+    "откалиброванные на размеченных данных.",
+    "uk": "Ці відсотки — попередні оцінки на основі вагових коефіцієнтів, заданих вручну, ще не "
+    "відкалібровані на розмічених даних.",
+}
+NOTHING_FOUND = {
+    "en": "No signals were found in this content or in its coverage",
+    "it": "Non sono stati trovati segnali in questo contenuto né nella sua copertura",
+    "de": "In diesem Inhalt und in seiner Berichterstattung wurden keine Signale gefunden",
+    "fr": "Aucun signal n'a été trouvé dans ce contenu ni dans sa couverture",
+    "es": "No se encontraron señales en este contenido ni en su cobertura",
+    "pt": "Não foram encontrados sinais neste conteúdo nem na sua cobertura",
+    "pl": "W tej treści ani w jej relacjach medialnych nie znaleziono żadnych sygnałów",
+    "nl": "In deze inhoud en in de berichtgeving erover zijn geen signalen gevonden",
+    "ru": "В этом материале и в его освещении в СМИ сигналов не обнаружено",
+    "uk": "У цьому матеріалі та в його висвітленні в медіа сигналів не виявлено",
+}
 
 
 class _Reason(BaseModel):
@@ -90,18 +141,43 @@ class Draft(BaseModel):
 
 
 async def run(analysis: Analysis) -> ExplainPatch:
+    language = explanation_language(analysis)
     if not analysis.evidence:
-        return ExplainPatch(explanation=Explanation(summary=_nothing_found(analysis), reasons=[]))
+        summary = _nothing_found(analysis, language)
+        return ExplainPatch(explanation=Explanation(summary=summary, reasons=[]))
     try:
         draft = await llm.ask_json_async(
-            Draft, system=SYSTEM, user=digest(analysis), max_tokens=800
+            Draft, system=system_prompt(language), user=digest(analysis), max_tokens=1000
         )
     except llm.LLMOutputError as e:
         raise StageError("The language model gave an answer we could not read") from e
     explanation = check(analysis, draft)
     if shows_uncalibrated(analysis):
-        explanation.summary = f"{explanation.summary} {PRIORS_NOTE}".strip()
+        note = PRIORS_NOTES.get(language, PRIORS_NOTES[DEFAULT_LANGUAGE])
+        explanation.summary = f"{explanation.summary} {note}".strip()
     return ExplainPatch(explanation=explanation)
+
+
+def explanation_language(analysis: Analysis) -> str:
+    """ISO 639-1 code of the language the reader asked for, English when none or invalid.
+
+    Reads the optional request field `input.explanation_language` (D14). The field is added to
+    the contract by the integrator; while the generated `Input` lacks it, this returns English.
+    """
+    asked = getattr(analysis.input, "explanation_language", None) or DEFAULT_LANGUAGE
+    code = str(asked).strip().replace("_", "-").split("-")[0].lower()
+    return code if re.fullmatch(r"[a-z]{2,3}", code) else DEFAULT_LANGUAGE
+
+
+def system_prompt(language: str) -> str:
+    """SYSTEM plus the output language; `language` is a validated ISO code, never free text."""
+    if language == DEFAULT_LANGUAGE:
+        return f"{SYSTEM}\n\nWrite in English."
+    name = LANGUAGE_NAMES.get(language, f"the language with ISO 639-1 code {language}")
+    return (
+        f"{SYSTEM}\n\nWrite the summary and the reasons in {name}, translating the two dimension "
+        "names faithfully. Quotations stay in their original language, copied exactly."
+    )
 
 
 def shows_uncalibrated(analysis: Analysis) -> bool:
@@ -208,7 +284,10 @@ def _evidence(item: Evidence) -> dict[str, object]:
     }
 
 
-def _nothing_found(analysis: Analysis) -> str:
+def _nothing_found(analysis: Analysis, language: str) -> str:
+    if language != DEFAULT_LANGUAGE and language in NOTHING_FOUND:
+        # The abstention reasons are English (the UI shows them with the scores).
+        return f"{NOTHING_FOUND[language]}."
     why = []
     if analysis.scores:
         for label, score in (
@@ -218,4 +297,4 @@ def _nothing_found(analysis: Analysis) -> str:
             if score.abstained and score.reason:
                 why.append(f"{label}: {score.reason}")
     detail = f" ({'; '.join(why)})" if why else ""
-    return f"No signals were found in this content or in its coverage{detail}."
+    return f"{NOTHING_FOUND[DEFAULT_LANGUAGE]}{detail}."
