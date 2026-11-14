@@ -5,53 +5,77 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg-canvas: #f8fafc;
+  --bg-canvas: #f7f9fc;
   --bg-surface: #ffffff;
+  --bg-elevated: rgba(255, 255, 255, 0.82);
+  --bg-popover: rgba(255, 255, 255, 0.92);
   --bg-subtle: #f1f5f9;
-  --fg-primary: #0f172a;
+  --fg-primary: #0b1120;
   --fg-secondary: #475569;
   --fg-muted: #64748b;
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
+  --border-glass: rgba(15, 23, 42, 0.09);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --shadow-editorial: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.04);
+  --shadow-floating: 0 18px 42px -12px rgba(15, 23, 42, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  --shadow-omnibox: 0 20px 50px -14px rgba(15, 23, 42, 0.10), 0 2px 8px -2px rgba(15, 23, 42, 0.05);
+  --shadow-omnibox-focus: 0 0 0 4px rgba(29, 78, 216, 0.11), 0 24px 56px -12px rgba(29, 78, 216, 0.16);
+  --canvas-glow: radial-gradient(900px 380px at 50% -80px, rgba(37, 99, 235, 0.075), rgba(20, 184, 166, 0.03) 48%, transparent 78%);
+
   --accent: #1d4ed8;
   --accent-hover: #1e40af;
   --accent-soft: #eff6ff;
-  --accent-border: #93c5fd;
+  --accent-border: #bfdbfe;
+  --indigo: #4f46e5;
+  --indigo-soft: #eef2ff;
   --caution: #b45309;
   --caution-soft: #fffbeb;
-  --caution-border: #fcd34d;
+  --caution-border: #fde68a;
   --teal: #0f766e;
   --teal-soft: #f0fdfa;
   --teal-border: #99f6e4;
   --danger: #b91c1c;
   --danger-soft: #fef2f2;
-  --danger-border: #fca5a5;
+  --danger-border: #fecaca;
 
   --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .dark {
-  --bg-canvas: #090d16;
-  --bg-surface: #111827;
-  --bg-subtle: #1e293b;
+  --bg-canvas: #070b14;
+  --bg-surface: #0f1626;
+  --bg-elevated: rgba(15, 22, 38, 0.76);
+  --bg-popover: rgba(15, 22, 38, 0.90);
+  --bg-subtle: #182236;
   --fg-primary: #f1f5f9;
   --fg-secondary: #94a3b8;
   --fg-muted: #64748b;
   --border-subtle: #1e293b;
   --border-strong: #334155;
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
-  --accent-soft: rgba(59, 130, 246, 0.16);
-  --accent-border: rgba(96, 165, 250, 0.45);
+  --border-glass: rgba(148, 163, 184, 0.16);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-editorial: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.35);
+  --shadow-floating: 0 22px 48px -12px rgba(0, 0, 0, 0.62), 0 4px 14px -2px rgba(0, 0, 0, 0.42);
+  --shadow-omnibox: 0 24px 56px -14px rgba(0, 0, 0, 0.55), 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --shadow-omnibox-focus: 0 0 0 4px rgba(59, 130, 246, 0.18), 0 26px 64px -12px rgba(37, 99, 235, 0.28);
+  --canvas-glow: radial-gradient(920px 400px at 50% -90px, rgba(59, 130, 246, 0.14), rgba(45, 212, 191, 0.05) 50%, transparent 80%);
+
+  --accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --accent-soft: rgba(59, 130, 246, 0.18);
+  --accent-border: rgba(96, 165, 250, 0.42);
+  --indigo: #818cf8;
+  --indigo-soft: rgba(129, 140, 248, 0.15);
   --caution: #f59e0b;
-  --caution-soft: rgba(245, 158, 11, 0.12);
-  --caution-border: rgba(245, 158, 11, 0.35);
+  --caution-soft: rgba(245, 158, 11, 0.13);
+  --caution-border: rgba(245, 158, 11, 0.34);
   --teal: #2dd4bf;
-  --teal-soft: rgba(45, 212, 191, 0.12);
-  --teal-border: rgba(45, 212, 191, 0.35);
+  --teal-soft: rgba(45, 212, 191, 0.13);
+  --teal-border: rgba(45, 212, 191, 0.34);
   --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-soft: rgba(248, 113, 113, 0.13);
   --danger-border: rgba(248, 113, 113, 0.35);
 }
 
@@ -81,6 +105,58 @@
 .font-mono-num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Apple HIG Liquid Glass functional layer — reserved strictly for floating chrome, popovers, pills & drawers */
+.glass-panel {
+  background-color: var(--bg-elevated);
+  backdrop-filter: blur(20px) saturate(165%);
+  -webkit-backdrop-filter: blur(20px) saturate(165%);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--glass-highlight), var(--shadow-floating);
+}
+
+.glass-popover {
+  background-color: var(--bg-popover);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--glass-highlight), var(--shadow-floating);
+}
+
+.glass-pill {
+  background-color: var(--bg-elevated);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--glass-highlight), 0 4px 14px -4px rgba(15, 23, 42, 0.08);
+}
+
+/* High-contrast opaque Editorial surface for reading prose, tables, and charts */
+.editorial-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-editorial);
+}
+
+.omnibox-shell {
+  background-color: var(--bg-elevated);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--glass-highlight), var(--shadow-omnibox);
+  transition: border-color 180ms ease, box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.omnibox-shell:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--glass-highlight), var(--shadow-omnibox-focus);
+}
+
+.canvas-ambient {
+  background-image: var(--canvas-glow);
+  background-repeat: no-repeat;
+  background-position: top center;
 }
 
 @media (prefers-reduced-motion: reduce) {
