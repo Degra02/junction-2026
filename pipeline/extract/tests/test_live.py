@@ -6,7 +6,9 @@ Articles come from each outlet's own RSS feed at run time, so the tests do not r
 """
 
 import asyncio
+import base64
 import os
+from pathlib import Path
 
 import feedparser
 import httpx
@@ -17,7 +19,7 @@ import pipeline.extract as extract
 from pipeline.common.contracts import ExtractPatch, Input, InputKind
 from pipeline.common.errors import StageError
 from pipeline.common.fixtures import example_analysis
-from pipeline.extract import scraper
+from pipeline.extract import scraper, vision
 from pipeline.extract.fetch import USER_AGENT
 from pipeline.extract.language import support_for
 
@@ -127,7 +129,7 @@ def test_url_through_the_worker_endpoint():
     assert patch.language is not None and patch.language.code == "it"
 
 
-# Scraping fallback (needs OXYLABS_TOKEN, or OXYLABS_USERNAME and OXYLABS_PASSWORD; costs credit).
+# Scraping fallback (needs OXYLABS_TOKEN; costs credit).
 
 needs_oxylabs = pytest.mark.skipif(not scraper.enabled(), reason="set the Oxylabs credentials")
 
@@ -231,3 +233,34 @@ def test_a_reddit_post():
     assert document.author == "u/Mav3r1ck-13" and document.published_at.year == 2022
     assert document.url.startswith("https://www.reddit.com/r/cs50/comments/y7dleo/")
     assert document.paragraphs[0].startswith("I am new to coding")
+
+
+# --- images (needs GEMINI_API_KEY, or the LLM_* settings with a model that sees images) --------
+
+needs_vision = pytest.mark.skipif(
+    not (
+        os.environ.get("GEMINI_API_KEY")
+        or all(os.environ.get(k) for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"))
+    ),
+    reason="set GEMINI_API_KEY or the LLM_* settings",
+)
+# Drawn for this test: two panels, "WHAT THE MAYOR PROMISED: SCHOOL REPAIRS" over
+# "WHAT WE GOT: A NEW STADIUM". It states nothing; the contrast is the message.
+MEME = Path(__file__).parent / "data" / "promise_meme.png"
+VERDICT_WORDS = ("propaganda", "misleading", "false", "untrue", "unfair", "manipulat")
+
+
+@needs_vision
+def test_the_visual_context_of_a_meme_says_what_it_implies_without_a_verdict():
+    analysis = example_analysis()
+    data = base64.b64encode(MEME.read_bytes()).decode()
+    analysis.input = Input(kind=InputKind.image, value=f"data:image/png;base64,{data}")
+    document = asyncio.run(extract.run(analysis)).document
+    text = " ".join(document.paragraphs[:-1]).casefold()
+    assert "school repairs" in text and "a new stadium" in text
+    note = document.paragraphs[-1]
+    assert note.startswith(vision.VISUAL_CONTEXT_PREFIX)
+    assert "The image implies that " in note
+    implied = note[note.index("The image implies that ") :].casefold()
+    assert "stadium" in implied or "school" in implied or "promise" in implied
+    assert not any(word in implied for word in VERDICT_WORDS)

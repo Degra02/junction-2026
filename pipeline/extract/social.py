@@ -13,6 +13,11 @@ one post without logging in, and that is what is read here:
 Only public posts are readable; a private, deleted or login-only post raises `FetchFailed` with a
 plain reason. Nothing here logs in, and no account data beyond the public handle is kept.
 
+A post whose content is a picture (a meme, a screenshot) says little in words. `image_address`
+gives the address of that picture, for `extract` to read it through `vision`: Reddit names it in
+the feed (`i.redd.it`, `preview.redd.it`); X leaves it out of the oEmbed answer, so it is asked
+from the endpoint behind embedded posts (`cdn.syndication.twimg.com/tweet-result`).
+
 `Document.outlet` stays empty for a post. The platform is not its publisher (the account is), and
 the signals compare outlets by domain: with `x.com` as the outlet, every other post on X would
 count as the document's own site and could never be a copy of it.
@@ -66,6 +71,11 @@ _SNOWFLAKE_MIN = 1 << 40
 _SNOWFLAKE_EPOCH_MS = 1288834974657
 _X_NOISE = re.compile(r"\s*(?:https?://t\.co/\w+|pic\.(?:twitter|x)\.com/\w+)")
 _REDDIT_GONE = {"[removed]", "[deleted]", "[ removed by reddit ]"}
+# Hosts that serve the picture of a post, nothing else.
+IMAGE_HOSTS = {"i.redd.it", "preview.redd.it", "pbs.twimg.com"}
+_X_PICTURE = re.compile(r"pic\.(?:twitter|x)\.com/\w+")
+# The endpoint wants a token and accepts any (checked Sun 15.11.2026).
+_X_RESULT = "https://cdn.syndication.twimg.com/tweet-result?id={id}&token=a&lang=en"
 
 type Get = Callable[[str], Awaitable[Page]]
 
@@ -94,6 +104,7 @@ class Post:
     community: str | None = None  # Reddit: "r/worldnews"
     language: str | None = None  # ISO 639-1, when the platform says
     links: list[str] = field(default_factory=list)
+    has_media: bool = False  # X: the post carries a picture or video the answer does not name
 
 
 def post_ref(url: str) -> PostRef | None:
@@ -196,6 +207,7 @@ def parse_x(body: bytes, ref: PostRef) -> Post:
         published_at=_x_time(int(ref.url.rsplit("/", 1)[1]), dates[-1] if dates else ""),
         language=_language(paragraph.get("lang")),
         links=links,
+        has_media=_X_PICTURE.search(text) is not None,
     )
 
 
@@ -336,6 +348,30 @@ async def read_post(ref: PostRef, get: Get, *, client: httpx.AsyncClient | None 
     if not post.text and not post.title:
         raise FetchFailed(NO_TEXT)
     return post
+
+
+def _image_links(links: list[str]) -> list[str]:
+    return [link for link in links if (urlsplit(link).hostname or "").lower() in IMAGE_HOSTS]
+
+
+async def image_address(post: Post, get: Get) -> str | None:
+    """Where the picture of `post` is, or None when its content is not a picture (or the
+    platform does not say). The first one when there are several. Never raises: without the
+    picture the post's words are still analysed."""
+    if found := _image_links(post.links):
+        return found[0]
+    if post.platform != X or not post.has_media:
+        return None
+    try:
+        page = await get(_X_RESULT.format(id=post.url.rsplit("/", 1)[1]))
+        if page.status != 200:
+            return None
+        media = json.loads(page.body).get("mediaDetails") or []
+        photos = [m.get("media_url_https") for m in media if m.get("type") == "photo"]
+    except FetchFailed, ValueError, AttributeError, TypeError:
+        return None
+    found = _image_links([p for p in photos if isinstance(p, str)])
+    return found[0] if found else None
 
 
 def post_text(post: Post) -> str:

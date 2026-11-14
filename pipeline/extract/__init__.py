@@ -5,7 +5,9 @@ image with an optional companion post/article `context_url`) into the `Document`
 `article`) are pure; `fetch` (plain HTTP) and `scraper` (the Oxylabs fallback for sites that turn
 away a plain client) do the network I/O and are shared with `retrieve`. `social` reads one post
 on X, Reddit, Bluesky, Mastodon or Telegram from the platform's public endpoint; `vision` reads
-memes and screenshots via `gemini-4-hydrogen` (with AI Router fallback).
+memes and screenshots via `gemini-4-hydrogen` (with AI Router fallback). A Reddit or X post
+whose content is a picture is read both ways: the picture through `vision`, with the post as
+its companion, which gives the same document as uploading the picture with the post's address.
 """
 
 import asyncio
@@ -29,6 +31,8 @@ from pipeline.extract.language import detect_language, language_from_code
 from pipeline.extract.urls import outlet_host
 
 log = logging.getLogger(__name__)
+# Asked of an image host: `i.redd.it` sends a client that prefers HTML to a viewer page.
+IMAGE_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.5"
 NO_ARTICLE = (
     "We could not find an article on that page. If it opens in your browser, paste its text instead"
 )
@@ -95,9 +99,10 @@ async def _extract_image_input(value: str, context_url: str | None) -> tuple[Doc
 async def _extract_url_input(url: str) -> tuple[Document, str | None]:
     ref = social.post_ref(url)
     if ref is not None:
-        document = await _post_document(ref)
-        if document is not None:
-            return document, None
+        post = await _read_post(ref)
+        if post is not None:
+            document = social.document_from_post(post)
+            return await _post_with_image(post, document) or (document, None)
     try:
         async with new_client() as client:
             page = await fetch_page(url, client)
@@ -190,8 +195,44 @@ async def document_from_url(url: str) -> Document:
     return document_from_article(article, page.url)
 
 
+async def _post_with_image(
+    post: social.Post, companion: Document
+) -> tuple[Document, str | None] | None:
+    """A post whose content is a picture: the picture read through `vision` with the post as
+    its companion, and the language of the picture's text. None when the post has no picture,
+    or the picture cannot be fetched or read: the post's own words are then analysed alone."""
+    try:
+        async with new_client() as client:
+            link = await social.image_address(post, lambda u: fetch_page(u, client))
+            if link is None:
+                return None
+            progress.report("Reading the image in the post")
+            client.headers["Accept"] = IMAGE_ACCEPT
+            page = await fetch_page(link, client)
+        if page.status != 200 or page.truncated:
+            log.warning("the image of a post was not fetched (HTTP %s)", page.status)
+            return None
+        if not vision.is_image_content_type(page.content_type):
+            return None
+        mime, b64 = vision.encode_image_bytes(page.body, page.content_type)
+        reading = await vision.read_image(mime, b64)
+    except (FetchFailed, StageError) as e:
+        log.warning("the image of a post could not be read (%s), keeping its text", e)
+        return None
+    document = vision.build_image_document(
+        reading, image_url=page.url, companion=companion, companion_url=post.url
+    )
+    return document, reading.language
+
+
 async def _post_document(ref: social.PostRef) -> Document | None:
     """The post as a document; None when the address only looked like a post (`ref.certain`)."""
+    post = await _read_post(ref)
+    return social.document_from_post(post) if post is not None else None
+
+
+async def _read_post(ref: social.PostRef) -> social.Post | None:
+    """The post; None when the address only looked like a post (`ref.certain`)."""
     progress.report(f"Reading the post on {social.PLATFORMS[ref.platform]}")
     try:
         async with new_client() as client:
@@ -202,7 +243,7 @@ async def _post_document(ref: social.PostRef) -> Document | None:
         if "public website" in e.reason:
             raise StageError(e.reason) from e
         raise StageError(f"{e.reason}. Paste its text instead") from e
-    return social.document_from_post(post)
+    return post
 
 
 async def _extract(page: Page) -> Article | None:

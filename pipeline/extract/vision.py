@@ -9,6 +9,10 @@ decomposes it into structured fields for the rest of the pipeline:
   symbols, juxtaposed panels, chart axes), prefixed with `VISUAL_CONTEXT_PREFIX` so `understand`
   uses it to build accurate search queries without `signals` or `claims` treating our own
   description as the author's words;
+- `implied_message`: what the image puts across by implication (juxtaposition, irony,
+  caricature), as one neutral sentence "The image implies that ...". A meme rarely states its
+  point; this sentence, kept inside the `[Visual context]` note, is how the later stages can see
+  it. It reports the image's message and never says whether that message is true or fair;
 - `claimed_outlet` / `claimed_author`: any news brand or social handle shown inside a screenshot
   (recorded in visual context rather than trusted as `Document.outlet`, so a forged BBC/ANSA
   screenshot never inherits a trusted outlet badge);
@@ -28,6 +32,7 @@ from pydantic import BaseModel, Field, ValidationError
 from pipeline.common import llm
 from pipeline.common.contracts import Document
 from pipeline.common.errors import StageError
+from pipeline.extract import social
 from pipeline.extract.text import paragraphs_from_text
 from pipeline.extract.urls import outlet_host
 
@@ -37,6 +42,7 @@ DEFAULT_GEMINI_VISION_MODEL = "gemini-4-hydrogen"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 VISUAL_CONTEXT_PREFIX = "[Visual context] "
 SATIRE_MEME_PREFIX = "[Satire/humour meme] "
+IMPLIES_PREFIX = "The image implies that "
 _TIMEOUT_S = 45.0
 _SUPPORTED_MIMES = {
     "image/png": "image/png",
@@ -64,6 +70,14 @@ reading order, keeping original language, casing and punctuation. Do not paraphr
 - visual_context: 1 or 2 neutral, objective sentences in English describing what the image \
 visually shows (depicted people/places if identifiable, chart axes and trend, meme template or \
 visual juxtaposition between panels/symbols). State no opinion or verdict.
+- implied_message: when the image makes its point by implication instead of stating it \
+(juxtaposition of panels or labels, irony, sarcasm, caricature, a symbol, a rhetorical \
+question), one neutral sentence in English that begins "The image implies that" and reports \
+that message as the image's own, e.g. "The image implies that the mayor cares more about the \
+stadium than about the schools." Report the message only, the same way whichever person, party \
+or group it is about: do not say whether it is true, fair, misleading or propaganda, and add \
+nothing the image does not suggest. Empty string when the image means only what it literally \
+shows or says.
 - pure_humour_or_satire: true ONLY when the image is pure everyday comedy, a reaction joke or \
 explicit parody that asserts or implies NO factual, political, historical, health, war or \
 institutional claim about the real world. Whenever a meme uses sarcasm, caricature or irony to \
@@ -78,11 +92,22 @@ class VisionReading(BaseModel):
     language: str | None = None
     ocr_paragraphs: list[str] = Field(default_factory=list)
     visual_context: str = ""
+    implied_message: str = ""
     pure_humour_or_satire: bool = False
 
 
 def is_synthetic_vision_paragraph(paragraph: str) -> bool:
     return paragraph.startswith((VISUAL_CONTEXT_PREFIX, SATIRE_MEME_PREFIX))
+
+
+def implied_note(message: str) -> str:
+    """`message` as one sentence that says it is the image's implication, or "" for none."""
+    text = " ".join(message.split())
+    if not text:
+        return ""
+    if not text.casefold().startswith("the image implies"):
+        text = IMPLIES_PREFIX + text
+    return text if text.endswith((".", "!", "?")) else text + "."
 
 
 def is_image_content_type(content_type: str) -> bool:
@@ -231,6 +256,9 @@ def build_image_document(
         notes.append(f"Author/handle shown in image: {reading.claimed_author}.")
     if reading.visual_context.strip():
         notes.append(reading.visual_context.strip())
+    # A joke that implies nothing about the world keeps its note as it is.
+    if not reading.pure_humour_or_satire and (implied := implied_note(reading.implied_message)):
+        notes.append(implied)
 
     if reading.pure_humour_or_satire and companion is None:
         prefix = SATIRE_MEME_PREFIX
@@ -243,15 +271,18 @@ def build_image_document(
         paragraphs.append(SATIRE_MEME_PREFIX + "Comedic or parody meme without factual claims.")
 
     # Never trust `claimed_outlet` inside a screenshot as `Document.outlet`; only a real fetched
-    # companion URL establishes the publishing domain.
+    # companion URL establishes the publishing domain. A social media post has none: the
+    # platform is not its publisher (see `social`), so the outlet stays empty as it does when
+    # the post is analysed on its own.
     source_url = (
         (companion.url if companion and companion.url else None) or companion_url or image_url
     )
-    outlet = (
-        (companion.outlet if companion and companion.outlet else None)
-        or (outlet_host(companion_url) if companion_url else None)
-        or None
-    )
+    if companion is not None:
+        outlet = companion.outlet
+    elif companion_url and not social.is_post(companion_url):
+        outlet = outlet_host(companion_url) or None
+    else:
+        outlet = None
     title = (reading.title or "").strip() or (companion.title if companion else None) or None
     author = (companion.author if companion and companion.author else None) or None
 

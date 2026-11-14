@@ -1,7 +1,9 @@
 """The stage function as the worker calls it, offline: fake HTTP responses, permissive URL guard."""
 
 import asyncio
+import base64
 import json
+from html import escape
 
 import httpx
 import pytest
@@ -12,8 +14,9 @@ from pipeline.common import net
 from pipeline.common.contracts import ExtractPatch, Input, InputKind, LanguageSupport
 from pipeline.common.errors import StageError
 from pipeline.common.fixtures import example_analysis
-from pipeline.extract import scraper, social
+from pipeline.extract import scraper, social, vision
 from pipeline.extract.fetch import new_client
+from pipeline.extract.vision import VisionReading
 
 BODY = [
     "The city council approved the new tram line on Tuesday after a debate that lasted six hours.",
@@ -44,10 +47,12 @@ def analysis(kind: InputKind, value: str):
 @pytest.fixture
 def web(monkeypatch):
     """Serve `pages[url] = (status, headers, body)`; the URL guard allows every host."""
-    pages: dict[str, tuple[int, dict, str]] = {}
+    pages: dict[str, tuple[int, dict, str | bytes]] = {}
 
     def handler(request):
         status, headers, body = pages[str(request.url)]
+        if isinstance(body, bytes):
+            return httpx.Response(status, headers=headers, content=body)
         return httpx.Response(status, headers=headers, text=body)
 
     monkeypatch.setattr(net, "assert_public_url", lambda url: None)
@@ -237,3 +242,164 @@ def test_a_post_through_the_worker_endpoint(web):
     response = TestClient(app).post("/stages/extract", json=body)
     assert response.status_code == 200
     assert ExtractPatch.model_validate(response.json()).document.paragraphs == [POST]
+
+
+# --- posts whose content is a picture (P-C2) -------------------------------------------------
+
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+REDDIT_URL = "https://www.reddit.com/r/worldnews/comments/1abc2d/the_title/"
+REDDIT_IMAGE = "https://i.redd.it/meme1.png"
+REDDIT_TITLE = "They said it was about the harbour"
+READING = VisionReading(
+    kind="meme",
+    language="en",
+    ocr_paragraphs=["HARBOUR JOBS", "LUXURY FLATS", "I thought this was about my job"],
+    visual_context="A cartoon podium labelled with jobs stands in front of a tower of flats.",
+    implied_message="The image implies that the harbour plan is about flats, not about jobs.",
+)
+
+
+def reddit_image_post(image: str = REDDIT_IMAGE) -> str:
+    content = (
+        f'<table><tr><td><a href="{REDDIT_URL}"><img src="https://preview.redd.it/meme1.png?width=640"/>'
+        '</a></td><td> submitted by <a href="https://www.reddit.com/user/alice">/u/alice</a> '
+        f'<a href="{image}">[link]</a> <a href="{REDDIT_URL}">[comments]</a></td></tr></table>'
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">'
+        "<entry><author><name>/u/alice</name></author>"
+        '<category term="worldnews" label="r/worldnews"/>'
+        f'<content type="html">{escape(content)}</content><id>t3_1abc2d</id>'
+        f'<link href="{REDDIT_URL}"/><published>2026-11-14T09:07:12+00:00</published>'
+        f"<title>{REDDIT_TITLE}</title></entry></feed>"
+    )
+
+
+@pytest.fixture
+def seen_images(monkeypatch):
+    """`vision.read_image` answers READING and records what it was shown."""
+    seen: list[tuple[str, bytes]] = []
+
+    async def read_image(mime: str, b64: str) -> VisionReading:
+        seen.append((mime, base64.b64decode(b64)))
+        return READING
+
+    monkeypatch.setattr(vision, "read_image", read_image)
+    return seen
+
+
+def test_a_reddit_image_post_is_read_through_vision_with_the_post_as_companion(web, seen_images):
+    endpoint = social.post_ref(REDDIT_URL).endpoint
+    web[endpoint] = (200, {"content-type": "application/atom+xml"}, reddit_image_post())
+    web[REDDIT_IMAGE] = (200, {"content-type": "image/png"}, PNG)
+    patch = asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL)))
+    document = patch.document
+    assert seen_images == [("image/png", PNG)]
+    assert document.paragraphs == [
+        "HARBOUR JOBS",
+        "LUXURY FLATS",
+        "I thought this was about my job",
+        REDDIT_TITLE,
+        "[Visual context] A cartoon podium labelled with jobs stands in front of a tower of flats."
+        " The image implies that the harbour plan is about flats, not about jobs.",
+    ]
+    # The post stays the document's source, and a post has no outlet.
+    assert (document.url, document.outlet, document.author) == (REDDIT_URL, None, "u/alice")
+    assert document.published_at.isoformat() == "2026-11-14T09:07:12+00:00"
+    assert document.outbound_links == [REDDIT_IMAGE]
+    assert patch.language.code == "en"
+
+
+def test_the_post_alone_gives_the_same_document_as_its_image_with_the_post_as_context(
+    web, seen_images
+):
+    web[social.post_ref(REDDIT_URL).endpoint] = (200, {}, reddit_image_post())
+    web[REDDIT_IMAGE] = (200, {"content-type": "image/png"}, PNG)
+    alone = asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL)))
+
+    upload = example_analysis()
+    upload.input = Input(
+        kind=InputKind.image,
+        value="data:image/png;base64," + base64.b64encode(PNG).decode(),
+        context_url=REDDIT_URL,
+    )
+    with_context = asyncio.run(extract.run(upload))
+    assert alone.document == with_context.document
+    assert alone.language == with_context.language
+    assert alone.document.outlet is None
+
+
+def test_the_image_host_is_asked_for_an_image_not_a_viewer_page(web, seen_images, monkeypatch):
+    asked: dict[str, str] = {}
+
+    def handler(request):
+        asked[str(request.url)] = request.headers["accept"]
+        status, headers, body = web[str(request.url)]
+        kind = {"content": body} if isinstance(body, bytes) else {"text": body}
+        return httpx.Response(status, headers=headers, **kind)
+
+    monkeypatch.setattr(extract, "new_client", lambda: new_client(httpx.MockTransport(handler)))
+    web[social.post_ref(REDDIT_URL).endpoint] = (200, {}, reddit_image_post())
+    web[REDDIT_IMAGE] = (200, {"content-type": "image/png"}, PNG)
+    asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL)))
+    assert asked[REDDIT_IMAGE].startswith("image/") and "text/html" not in asked[REDDIT_IMAGE]
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        (404, {}, ""),
+        (200, {"content-type": "text/html"}, "<html><body>viewer</body></html>"),
+        (200, {"content-type": "image/svg+xml"}, "<svg/>"),
+    ],
+)
+def test_a_picture_that_cannot_be_fetched_leaves_the_post_s_words(web, seen_images, image):
+    web[social.post_ref(REDDIT_URL).endpoint] = (200, {}, reddit_image_post())
+    web[REDDIT_IMAGE] = image
+    document = asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL))).document
+    assert seen_images == []
+    assert document.paragraphs == [REDDIT_TITLE] and document.outlet is None
+
+
+def test_a_picture_the_vision_model_cannot_read_leaves_the_post_s_words(web, monkeypatch):
+    async def read_image(mime: str, b64: str) -> VisionReading:
+        raise StageError("Could not read the image right now")
+
+    monkeypatch.setattr(vision, "read_image", read_image)
+    web[social.post_ref(REDDIT_URL).endpoint] = (200, {}, reddit_image_post())
+    web[REDDIT_IMAGE] = (200, {"content-type": "image/png"}, PNG)
+    document = asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL))).document
+    assert document.paragraphs == [REDDIT_TITLE]
+
+
+def test_a_reddit_link_post_is_not_sent_to_vision(web, seen_images):
+    endpoint = social.post_ref(REDDIT_URL).endpoint
+    web[endpoint] = (200, {}, reddit_image_post(image="https://paper.example/harbour"))
+    document = asyncio.run(extract.run(analysis(InputKind.url, REDDIT_URL))).document
+    assert seen_images == [] and list(web) == [endpoint]
+    assert document.paragraphs == [REDDIT_TITLE]
+
+
+def test_an_x_post_with_a_picture_is_read_through_vision(web, seen_images):
+    endpoint = social.post_ref(X_URL).endpoint
+    picture = "https://pbs.twimg.com/media/Gabc.jpg"
+    result = "https://cdn.syndication.twimg.com/tweet-result?id=1855000000000000000&token=a&lang=en"
+    web[endpoint] = (
+        200,
+        {"content-type": "application/json"},
+        x_answer(f'{POST} <a href="https://t.co/pic1">pic.twitter.com/pic1</a>'),
+    )
+    web[result] = (
+        200,
+        {"content-type": "application/json"},
+        json.dumps({"mediaDetails": [{"type": "photo", "media_url_https": picture}]}),
+    )
+    web[picture] = (200, {"content-type": "image/jpeg"}, PNG)
+    document = asyncio.run(extract.run(analysis(InputKind.url, X_URL))).document
+    assert seen_images == [("image/jpeg", PNG)]
+    assert document.paragraphs[:4] == [*READING.ocr_paragraphs, POST]
+    assert document.paragraphs[-1].startswith("[Visual context] ")
+    assert (document.author, document.outlet) == ("@Some_User", None)
+    assert document.url == "https://x.com/Some_User/status/1855000000000000000"
