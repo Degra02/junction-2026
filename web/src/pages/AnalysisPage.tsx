@@ -66,9 +66,16 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   useEffect(() => {
     if (!analysis || replay || (analysis.status !== "done" && analysis.status !== "failed")) return;
     const domain = cleanDomain(analysis.document?.outlet ?? analysis.document?.url) || null;
+    const firstOwnPara = analysis.document?.paragraphs.find((p) => !p.startsWith("[")) ?? "";
     const title =
       analysis.document?.title ||
-      (analysis.input.kind === "url" ? analysis.input.value : Array.from(analysis.input.value).slice(0, 90).join(""));
+      (analysis.input.kind === "image"
+        ? firstOwnPara
+          ? Array.from(firstOwnPara).slice(0, 90).join("")
+          : "Image / meme analysis"
+        : analysis.input.kind === "url"
+          ? analysis.input.value
+          : Array.from(analysis.input.value).slice(0, 90).join(""));
     rememberAnalysis({ id: analysis.id, title, domain, at: analysis.created_at });
   }, [analysis, replay]);
 
@@ -234,11 +241,16 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   const cappedAt85 = analysis.language?.support === "supported";
   const published = formatShortDate(analysis.document?.published_at);
 
+  const firstOwnParagraph = analysis.document?.paragraphs.find((p) => !p.startsWith("[")) ?? "";
   const headlineTitle =
     analysis.document?.title ||
-    (analysis.input.kind === "url"
-      ? analysis.input.value
-      : `${Array.from(analysis.input.value).slice(0, 120).join("")}${analysis.input.value.length > 120 ? "…" : ""}`);
+    (analysis.input.kind === "image"
+      ? firstOwnParagraph
+        ? `${Array.from(firstOwnParagraph).slice(0, 120).join("")}${firstOwnParagraph.length > 120 ? "…" : ""}`
+        : "Image / meme analysis"
+      : analysis.input.kind === "url"
+        ? analysis.input.value
+        : `${Array.from(analysis.input.value).slice(0, 120).join("")}${analysis.input.value.length > 120 ? "…" : ""}`);
 
   const isPreliminaryEstimate = PRELIMINARY_RE.test(analysis.explanation?.summary ?? "");
   const totalMs = analysis.steps.reduce((acc, s) => acc + (s.duration_ms ?? 0), 0);
@@ -246,11 +258,21 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   const extractStep = analysis.steps.find((s) => s.name === "extract");
   const couldNotRead = analysis.input.kind === "url" && extractStep?.state === "failed";
   // The failed step's own message is plainer than the analysis summary ("… (extract): …").
-  const failureMessage = (couldNotRead ? extractStep?.error : null) ?? analysis.error ?? error ?? "";
-  const inputDomain = analysis.input.kind === "url" ? cleanDomain(analysis.input.value) : "";
+  const failureMessage =
+    (couldNotRead ? extractStep?.error : null) ?? analysis.error ?? error ?? "";
+  const inputDomain =
+    analysis.input.kind === "url"
+      ? cleanDomain(analysis.input.value)
+      : analysis.input.context_url
+        ? cleanDomain(analysis.input.context_url)
+        : "";
   const shownOutlet = docOutlet || inputDomain;
   const techniquesState = analysis.steps.find((s) => s.name === "signals_single")?.state;
   const hasTechniques = techniquesState === "done";
+  const externalHref =
+    analysis.document?.url ??
+    analysis.input.context_url ??
+    (analysis.input.kind === "url" ? analysis.input.value : undefined);
 
   return (
     <div className="max-w-[960px] mx-auto space-y-8">
@@ -374,9 +396,9 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         >
           <header className="space-y-3">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--fg-secondary)]">
-              {shownOutlet ? (
+              {shownOutlet && externalHref ? (
                 <a
-                  href={analysis.document?.url ?? analysis.input.value}
+                  href={externalHref}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-1.5 font-mono-num text-[var(--fg-primary)] hover:underline underline-offset-2"
@@ -386,7 +408,9 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                   <ExternalLink className="h-3 w-3 text-[var(--fg-muted)]" aria-hidden="true" />
                 </a>
               ) : (
-                <span className="text-[var(--fg-primary)]">Pasted text</span>
+                <span className="text-[var(--fg-primary)]">
+                  {analysis.input.kind === "image" ? "Uploaded image / meme" : "Pasted text"}
+                </span>
               )}
               {published && <span className="font-mono-num text-[var(--fg-muted)]">{published}</span>}
               {outletType && (
@@ -407,15 +431,24 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                 </span>
               )}
             </div>
-            <h1
-              className={
-                analysis.document?.title || analysis.input.kind === "text"
-                  ? "display text-[28px] sm:text-[36px] leading-[1.12] break-words"
-                  : "font-mono-num text-base sm:text-lg text-[var(--fg-secondary)] break-all"
-              }
-            >
-              {headlineTitle}
-            </h1>
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+              {analysis.input.kind === "image" && (
+                <img
+                  src={analysis.input.value}
+                  alt="Analysed meme or screenshot"
+                  className="max-h-44 sm:w-44 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] object-contain shrink-0"
+                />
+              )}
+              <h1
+                className={
+                  analysis.document?.title || analysis.input.kind !== "url"
+                    ? "display text-[28px] sm:text-[36px] leading-[1.12] break-words"
+                    : "font-mono-num text-base sm:text-lg text-[var(--fg-secondary)] break-all"
+                }
+              >
+                {headlineTitle}
+              </h1>
+            </div>
           </header>
 
           {!analysis.document ? (

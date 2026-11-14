@@ -180,6 +180,7 @@ pub fn test_config(dir: &TempDir, worker_url: &str) -> Config {
         stages_disabled: vec![],
         backup_interval: Duration::ZERO,
         metrics_path: dir.path().join("metrics.json"),
+        graph_path: dir.path().join("graph.json"),
         pipeline_version: "test".into(),
     }
 }

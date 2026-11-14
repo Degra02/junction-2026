@@ -16,7 +16,8 @@ RUN cargo chef cook --release --locked -p junction-api --recipe-path recipe.json
 COPY . .
 RUN cargo build --release --locked -p junction-api \
     && mkdir -p /out/data \
-    && { cp evals/metrics.json /out/metrics.json 2>/dev/null || true; }
+    && { cp evals/metrics.json /out/metrics.json 2>/dev/null || true; } \
+    && { cp evals/graph.json /out/graph.json 2>/dev/null || true; }
 
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /app/target/release/junction-api /usr/local/bin/junction-api
@@ -25,6 +26,7 @@ COPY --from=builder --chown=65532:65532 /out/ /app/
 ENV API_ADDR=0.0.0.0:8080 \
     DATABASE_PATH=/app/data/app.db \
     METRICS_PATH=/app/metrics.json \
+    GRAPH_PATH=/app/graph.json \
     LOG_FORMAT=json
 EXPOSE 8080
 ENTRYPOINT ["junction-api"]

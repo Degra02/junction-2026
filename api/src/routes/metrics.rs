@@ -1,7 +1,7 @@
-use anyhow::Context as _;
 use axum::{Json, extract::State};
 use junction_contracts::ErrorBody;
 
+use super::published;
 use crate::{AppState, error::ApiError};
 
 /// Evaluation metrics for the metrics page, as written by the eval harness (`evals/`).
@@ -17,19 +17,5 @@ use crate::{AppState, error::ApiError};
     )
 )]
 pub async fn metrics(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let path = &state.config.metrics_path;
-    let bytes = match tokio::fs::read(path).await {
-        Ok(b) => b,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(ApiError::NotFound("no metrics published yet".into()));
-        }
-        Err(e) => {
-            return Err(anyhow::Error::from(e)
-                .context(format!("reading {}", path.display()))
-                .into());
-        }
-    };
-    let value = serde_json::from_slice(&bytes)
-        .with_context(|| format!("{} is not valid JSON", path.display()))?;
-    Ok(Json(value))
+    published(&state.config.metrics_path, "no metrics published yet").await
 }

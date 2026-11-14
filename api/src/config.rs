@@ -46,6 +46,8 @@ pub struct Config {
     pub backup_interval: Duration,
     /// `METRICS_PATH`, default `evals/metrics.json` (committed, written by the eval harness).
     pub metrics_path: PathBuf,
+    /// `GRAPH_PATH`, default `evals/graph.json` (committed, written by `mise run graph:build`).
+    pub graph_path: PathBuf,
     /// `PIPELINE_VERSION`, default `dev`. Part of the cache key.
     pub pipeline_version: String,
 }
@@ -68,6 +70,7 @@ impl Config {
             stages_disabled: stages(&var::<String>("STAGES_DISABLED", "")?)?,
             backup_interval: Duration::from_secs(60 * var::<u64>("BACKUP_INTERVAL_MINS", "0")?),
             metrics_path: var("METRICS_PATH", "evals/metrics.json")?,
+            graph_path: var("GRAPH_PATH", "evals/graph.json")?,
             pipeline_version: var("PIPELINE_VERSION", "dev")?,
         })
     }

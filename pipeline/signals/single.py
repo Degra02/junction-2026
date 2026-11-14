@@ -38,10 +38,16 @@ def run_single(analysis: Analysis) -> SignalsPatch:
     document = analysis.document
     if document is None:
         raise StageError("There is no text to analyse")
-    indices = [i for i, p in enumerate(document.paragraphs) if p.strip()][:MAX_PARAGRAPHS]
-    if not indices:
+    if not any(p.strip() for p in document.paragraphs):
         raise StageError("There is no text to analyse")
     next_id = (f"s{n}" for n in count(1)).__next__
+    indices = [
+        i
+        for i, p in enumerate(document.paragraphs)
+        if p.strip() and not p.startswith(("[Visual context] ", "[Satire/humour meme] "))
+    ][:MAX_PARAGRAPHS]
+    if not indices:
+        return SignalsPatch(evidence=source_profile_evidence(analysis, next_id))
     peers = story_peers(analysis, MAX_PEERS)
 
     progress.report("Looking for persuasion techniques")

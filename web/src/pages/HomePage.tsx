@@ -16,15 +16,27 @@ export function HomePage(_props: Readonly<HomePageProps>) {
   const [prefill, setPrefill] = useState<PrefillValue | null>(null);
 
   useEffect(() => {
+    const imageParam = searchParams.get("image")?.trim() ?? "";
     const urlParam = searchParams.get("url")?.trim() ?? "";
     const textParam = searchParams.get("text")?.trim() ?? "";
+    const contextUrlParam = searchParams.get("context_url")?.trim() ?? "";
     const langParam = searchParams.get("lang")?.trim() ?? "";
     const autorun = searchParams.get("autorun") === "1" || searchParams.get("autorun") === "true";
 
-    if (urlParam) {
+    if (imageParam) {
+      setPrefill({
+        value: imageParam,
+        kind: "image",
+        contextUrl: contextUrlParam || undefined,
+        lang: langParam || undefined,
+        autoSubmit: autorun,
+        nonce: 3,
+      });
+    } else if (urlParam) {
       setPrefill({
         value: urlParam,
         kind: "url",
+        contextUrl: contextUrlParam || undefined,
         lang: langParam || undefined,
         autoSubmit: autorun,
         nonce: 1,
@@ -33,6 +45,7 @@ export function HomePage(_props: Readonly<HomePageProps>) {
       setPrefill({
         value: textParam,
         kind: "text",
+        contextUrl: contextUrlParam || undefined,
         lang: langParam || undefined,
         autoSubmit: autorun,
         nonce: 2,
@@ -66,7 +79,7 @@ export function HomePage(_props: Readonly<HomePageProps>) {
           transition={{ ...GENTLE_SPRING, delay: 0.35 }}
           className="text-[15px] text-[var(--fg-secondary)]"
         >
-          Paste a link or text. Every score comes with its sources.
+          Paste a link, text, or drop a meme. Every score comes with its sources.
         </motion.p>
       </div>
 

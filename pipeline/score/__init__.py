@@ -135,6 +135,10 @@ def _single_abstention(analysis: Analysis, values: list[FamilyValue]) -> str | N
         return reason
     if _is_satire(analysis):
         return "The source is a satire publication, not factual news reporting."
+    if analysis.document and any(
+        p.startswith("[Satire/humour meme] ") for p in analysis.document.paragraphs
+    ):
+        return "This image appears to be humour or satire without checkable factual claims."
     fact_checked = any(v.family == Family.fact_checks and v.value != 0 for v in values)
     satire_domains = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
     related = [

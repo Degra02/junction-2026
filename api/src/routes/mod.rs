@@ -1,12 +1,14 @@
 //! HTTP routes and the OpenAPI document generated from them.
 
 mod analyses;
+mod graph;
 mod health;
 mod metrics;
 mod stats;
 
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
+use anyhow::Context as _;
 use axum::{Json, Router, http::StatusCode, routing::get};
 use junction_contracts as c;
 use tower_http::{
@@ -19,7 +21,7 @@ use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable as _};
 
-use crate::AppState;
+use crate::{AppState, error::ApiError};
 
 /// Request bodies above this are rejected before parsing (50 000 chars of UTF-8 fit easily).
 const MAX_BODY_BYTES: usize = 512 * 1024;
@@ -45,6 +47,7 @@ const MAX_BODY_BYTES: usize = 512 * 1024;
     tags(
         (name = "analyses", description = "Create and read analyses"),
         (name = "ops", description = "Health, usage and evaluation metrics"),
+        (name = "sources", description = "What stored analyses show about the outlets"),
     )
 )]
 struct ApiDoc;
@@ -59,6 +62,26 @@ fn documented() -> OpenApiRouter<AppState> {
         .routes(routes!(health::health))
         .routes(routes!(stats::stats))
         .routes(routes!(metrics::metrics))
+        .routes(routes!(graph::graph))
+}
+
+/// A JSON file built offline and shipped with the API, served unchanged; 404 with `missing`
+/// until it exists.
+async fn published(path: &Path, missing: &str) -> Result<Json<serde_json::Value>, ApiError> {
+    let bytes = match tokio::fs::read(path).await {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ApiError::NotFound(missing.into()));
+        }
+        Err(e) => {
+            return Err(anyhow::Error::from(e)
+                .context(format!("reading {}", path.display()))
+                .into());
+        }
+    };
+    let value = serde_json::from_slice(&bytes)
+        .with_context(|| format!("{} is not valid JSON", path.display()))?;
+    Ok(Json(value))
 }
 
 /// The OpenAPI document, as written to `contracts/openapi.json`.

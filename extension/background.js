@@ -1,6 +1,7 @@
 const DEFAULT_ENDPOINT = "https://the4thlover.tech";
 
 const MENU_IDS = {
+  image: "dtn-check-image",
   selection: "dtn-check-selection",
   link: "dtn-check-link",
   page: "dtn-check-page",
@@ -8,6 +9,11 @@ const MENU_IDS = {
 
 function installContextMenus() {
   chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_IDS.image,
+      title: "Check image / meme with Decode the Noise",
+      contexts: ["image"],
+    });
     chrome.contextMenus.create({
       id: MENU_IDS.selection,
       title: "Check selected text with Decode the Noise",
@@ -41,15 +47,24 @@ async function getEndpoint() {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const endpoint = await getEndpoint();
   const params = new URLSearchParams();
+  const pageUrl = info.pageUrl || (tab && tab.url) || "";
 
-  if (info.menuItemId === MENU_IDS.selection && info.selectionText) {
+  if (info.menuItemId === MENU_IDS.image && info.srcUrl) {
+    params.set("image", info.srcUrl);
+    if (/^https?:\/\//i.test(pageUrl)) {
+      params.set("context_url", pageUrl);
+    }
+    params.set("autorun", "1");
+  } else if (info.menuItemId === MENU_IDS.selection && info.selectionText) {
     params.set("text", info.selectionText.trim().slice(0, 12000));
+    if (/^https?:\/\//i.test(pageUrl)) {
+      params.set("context_url", pageUrl);
+    }
     params.set("autorun", "1");
   } else if (info.menuItemId === MENU_IDS.link && info.linkUrl) {
     params.set("url", info.linkUrl);
     params.set("autorun", "1");
   } else {
-    const pageUrl = info.pageUrl || (tab && tab.url) || "";
     if (!/^https?:\/\//i.test(pageUrl)) return;
     params.set("url", pageUrl);
     params.set("autorun", "1");

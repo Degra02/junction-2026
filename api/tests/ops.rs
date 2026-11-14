@@ -56,6 +56,20 @@ async fn metrics_serves_the_eval_harness_output() {
 }
 
 #[tokio::test]
+async fn graph_serves_the_offline_build() {
+    let app = TestApp::spawn().await;
+    let missing = app.http.get(app.url("/api/graph")).send().await.unwrap();
+    assert_eq!(missing.status(), 404);
+
+    let graph =
+        json!({ "counts": { "outlets": 2 }, "edges": [{ "a": "a.example", "b": "b.example" }] });
+    std::fs::write(&app.state.config.graph_path, graph.to_string()).unwrap();
+    let response = app.http.get(app.url("/api/graph")).send().await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.json::<serde_json::Value>().await.unwrap(), graph);
+}
+
+#[tokio::test]
 async fn docs_and_spec_are_served() {
     let app = TestApp::spawn().await;
     let docs = app.http.get(app.url("/api/docs")).send().await.unwrap();
