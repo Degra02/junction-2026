@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --fg-primary: #0f172a;
+  --fg-secondary: #475569;
+  --fg-muted: #64748b;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-soft: #eff6ff;
+  --accent-border: #93c5fd;
+  --caution: #b45309;
+  --caution-soft: #fffbeb;
+  --caution-border: #fcd34d;
+  --teal: #0f766e;
+  --teal-soft: #f0fdfa;
+  --teal-border: #99f6e4;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #fca5a5;
+
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.dark {
+  --bg-canvas: #090d16;
+  --bg-surface: #111827;
+  --bg-subtle: #1e293b;
+  --fg-primary: #f1f5f9;
+  --fg-secondary: #94a3b8;
+  --fg-muted: #64748b;
+  --border-subtle: #1e293b;
+  --border-strong: #334155;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --accent-border: rgba(96, 165, 250, 0.45);
+  --caution: #f59e0b;
+  --caution-soft: rgba(245, 158, 11, 0.12);
+  --caution-border: rgba(245, 158, 11, 0.35);
+  --teal: #2dd4bf;
+  --teal-soft: rgba(45, 212, 191, 0.12);
+  --teal-border: rgba(45, 212, 191, 0.35);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-border: rgba(248, 113, 113, 0.35);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--bg-canvas);
+    color: var(--fg-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background-color: var(--bg-canvas);
+    color: var(--fg-primary);
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+  }
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
