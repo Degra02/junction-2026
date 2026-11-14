@@ -244,6 +244,38 @@
         }
       }
     },
+    "/api/graph": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "The source graph: outlets tied by shared analytics IDs, copied text, translations and links.",
+        "description": "Built offline from stored analyses (`mise run graph:build`). The shape is owned by\n`pipeline/graph/build.py`; the API serves the file unchanged. A tie is evidence of a\nrelationship between two sites, not a judgement of either.",
+        "operationId": "graph",
+        "responses": {
+          "200": {
+            "description": "Outlets, ties with their evidence, clusters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No source graph published yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -1701,6 +1733,10 @@
     {
       "name": "ops",
       "description": "Health, usage and evaluation metrics"
+    },
+    {
+      "name": "sources",
+      "description": "What stored analyses show about the outlets"
     }
   ]
 }
