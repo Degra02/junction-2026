@@ -28,8 +28,6 @@ mise run dev                   # worker :8001 + API :8080, docs at http://127.0.
 | `docs/directions.md` | Earlier direction comparison, judges' feedback (background) |
 | `docs/playbook.md` | Roles, 48h timeline, agent workflow, submission checklist |
 | `docs/setup.md` | Machine setup, sandboxed agents, accounts to create |
-| `evals/` | Eval harness, dataset download, hard-negative sets — see `evals/README.md` |
-| `docs/pitch/` | Pitch deck, demo script, submission text |
 | `mise.toml` | Pinned toolchain, env loading, tasks |
 | `.devcontainer/` | Dev container: mise + pinned toolchain, runs setup on create |
 | `.githooks/` | Pre-commit: block commits to `main`, scan for secrets, rustfmt + clippy on Rust changes |
