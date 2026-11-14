@@ -1,0 +1,2002 @@
+{
+  "threshold": 0.5,
+  "items": 284,
+  "pipeline_versions": [
+    "dev"
+  ],
+  "headline": {
+    "single": {
+      "family_removed": "fact_checks",
+      "with": {
+        "tp": 55,
+        "fp": 1,
+        "fn": 4,
+        "tn": 38,
+        "positives": 120,
+        "negatives": 108,
+        "abstained_pos": 60,
+        "abstained_neg": 63,
+        "failed_pos": 1,
+        "failed_neg": 6,
+        "precision": 0.9821,
+        "precision_ci": [
+          0.9055,
+          0.9968
+        ],
+        "coverage": 0.4298,
+        "recall": 0.9322,
+        "recall_ci": [
+          0.8382,
+          0.9733
+        ],
+        "coverage_pos": 0.4917,
+        "recall_all": 0.4583,
+        "recall_all_ci": [
+          0.3719,
+          0.5474
+        ],
+        "f1": 0.9565,
+        "fpr": 0.0256,
+        "fpr_ci": [
+          0.0045,
+          0.1318
+        ],
+        "coverage_neg": 0.3611,
+        "abstain_rate": 0.5566,
+        "failure_rate": 0.0307
+      },
+      "without": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 9,
+        "tn": 38,
+        "positives": 120,
+        "negatives": 108,
+        "abstained_pos": 110,
+        "abstained_neg": 63,
+        "failed_pos": 1,
+        "failed_neg": 6,
+        "precision": 0.0,
+        "precision_ci": [
+          0.0,
+          0.7935
+        ],
+        "coverage": 0.2105,
+        "recall": 0.0,
+        "recall_ci": [
+          0.0,
+          0.2992
+        ],
+        "coverage_pos": 0.075,
+        "recall_all": 0.0,
+        "recall_all_ci": [
+          0.0,
+          0.031
+        ],
+        "f1": 0.0,
+        "fpr": 0.0256,
+        "fpr_ci": [
+          0.0045,
+          0.1318
+        ],
+        "coverage_neg": 0.3611,
+        "abstain_rate": 0.7828,
+        "failure_rate": 0.0307
+      },
+      "fit": {
+        "n": 98,
+        "auc": 0.9752,
+        "auc_without": 0.8405,
+        "auc_alone": 0.9426
+      }
+    },
+    "coordinated": {
+      "family_removed": "known_networks",
+      "with": {
+        "tp": 56,
+        "fp": 0,
+        "fn": 0,
+        "tn": 76,
+        "positives": 56,
+        "negatives": 108,
+        "abstained_pos": 0,
+        "abstained_neg": 26,
+        "failed_pos": 0,
+        "failed_neg": 6,
+        "precision": 1.0,
+        "precision_ci": [
+          0.9358,
+          1.0
+        ],
+        "coverage": 0.8049,
+        "recall": 1.0,
+        "recall_ci": [
+          0.9358,
+          1.0
+        ],
+        "coverage_pos": 1.0,
+        "recall_all": 1.0,
+        "recall_all_ci": [
+          0.9358,
+          1.0
+        ],
+        "f1": 1.0,
+        "fpr": 0.0,
+        "fpr_ci": [
+          0.0,
+          0.0481
+        ],
+        "coverage_neg": 0.7037,
+        "abstain_rate": 0.1646,
+        "failure_rate": 0.0366
+      },
+      "without": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 44,
+        "tn": 76,
+        "positives": 56,
+        "negatives": 108,
+        "abstained_pos": 12,
+        "abstained_neg": 26,
+        "failed_pos": 0,
+        "failed_neg": 6,
+        "precision": null,
+        "precision_ci": null,
+        "coverage": 0.7317,
+        "recall": 0.0,
+        "recall_ci": [
+          0.0,
+          0.0803
+        ],
+        "coverage_pos": 0.7857,
+        "recall_all": 0.0,
+        "recall_all_ci": [
+          0.0,
+          0.0642
+        ],
+        "f1": null,
+        "fpr": 0.0,
+        "fpr_ci": [
+          0.0,
+          0.0481
+        ],
+        "coverage_neg": 0.7037,
+        "abstain_rate": 0.2405,
+        "failure_rate": 0.0366
+      },
+      "fit": {
+        "n": 132,
+        "auc": 1.0,
+        "auc_without": 0.3751,
+        "auc_alone": 1.0
+      }
+    },
+    "single/hard_fact_checks": {
+      "family_removed": "source_profile",
+      "with": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 2,
+        "positives": 0,
+        "negatives": 31,
+        "abstained_pos": 0,
+        "abstained_neg": 29,
+        "failed_pos": 0,
+        "failed_neg": 0,
+        "precision": null,
+        "precision_ci": null,
+        "coverage": 0.0645,
+        "recall": null,
+        "recall_ci": null,
+        "coverage_pos": null,
+        "recall_all": null,
+        "recall_all_ci": null,
+        "f1": null,
+        "fpr": 0.0,
+        "fpr_ci": [
+          0.0,
+          0.6576
+        ],
+        "coverage_neg": 0.0645,
+        "abstain_rate": 0.9355,
+        "failure_rate": 0.0
+      },
+      "without": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 2,
+        "positives": 0,
+        "negatives": 31,
+        "abstained_pos": 0,
+        "abstained_neg": 29,
+        "failed_pos": 0,
+        "failed_neg": 0,
+        "precision": null,
+        "precision_ci": null,
+        "coverage": 0.0645,
+        "recall": null,
+        "recall_ci": null,
+        "coverage_pos": null,
+        "recall_all": null,
+        "recall_all_ci": null,
+        "f1": null,
+        "fpr": 0.0,
+        "fpr_ci": [
+          0.0,
+          0.6576
+        ],
+        "coverage_neg": 0.0645,
+        "abstain_rate": 0.9355,
+        "failure_rate": 0.0
+      }
+    }
+  },
+  "fit": {
+    "single": {
+      "n": 98,
+      "auc": 0.9752,
+      "log_loss": 0.2001,
+      "brier": 0.0491,
+      "ablation": {
+        "techniques": {
+          "items_nonzero": 54,
+          "auc_without": 0.9605,
+          "log_loss_without": 0.1964,
+          "auc_alone": 0.4965
+        },
+        "tone": {
+          "items_nonzero": 37,
+          "auc_without": 0.9739,
+          "log_loss_without": 0.192,
+          "auc_alone": 0.4965
+        },
+        "claim_support": {
+          "items_nonzero": 40,
+          "auc_without": 0.98,
+          "log_loss_without": 0.2003,
+          "auc_alone": 0.8064
+        },
+        "fact_checks": {
+          "items_nonzero": 55,
+          "auc_without": 0.8405,
+          "log_loss_without": 0.5249,
+          "auc_alone": 0.9426
+        },
+        "source_profile": {
+          "items_nonzero": 22,
+          "auc_without": 0.9696,
+          "log_loss_without": 0.2087,
+          "auc_alone": 0.7171
+        }
+      }
+    },
+    "coordinated": {
+      "n": 132,
+      "auc": 1.0,
+      "log_loss": 0.0996,
+      "brier": 0.0102,
+      "ablation": {
+        "text_reuse": {
+          "items_nonzero": 44,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0897,
+          "auc_alone": 0.4981
+        },
+        "timing": {
+          "items_nonzero": 24,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0972,
+          "auc_alone": 0.4981
+        },
+        "infrastructure": {
+          "items_nonzero": 2,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0994,
+          "auc_alone": 0.4891
+        },
+        "known_networks": {
+          "items_nonzero": 56,
+          "auc_without": 0.3751,
+          "log_loss_without": 0.7194,
+          "auc_alone": 1.0
+        }
+      }
+    }
+  },
+  "dimensions": {
+    "single": {
+      "overall": {
+        "tp": 55,
+        "fp": 1,
+        "fn": 4,
+        "tn": 38,
+        "positives": 120,
+        "negatives": 108,
+        "abstained_pos": 60,
+        "abstained_neg": 63,
+        "failed_pos": 1,
+        "failed_neg": 6,
+        "precision": 0.9821,
+        "precision_ci": [
+          0.9055,
+          0.9968
+        ],
+        "coverage": 0.4298,
+        "recall": 0.9322,
+        "recall_ci": [
+          0.8382,
+          0.9733
+        ],
+        "coverage_pos": 0.4917,
+        "recall_all": 0.4583,
+        "recall_all_ci": [
+          0.3719,
+          0.5474
+        ],
+        "f1": 0.9565,
+        "fpr": 0.0256,
+        "fpr_ci": [
+          0.0045,
+          0.1318
+        ],
+        "coverage_neg": 0.3611,
+        "abstain_rate": 0.5566,
+        "failure_rate": 0.0307
+      },
+      "missing": 0,
+      "per_set": {
+        "euvsDisinfo": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 4,
+          "tn": 0,
+          "positives": 29,
+          "negatives": 0,
+          "abstained_pos": 24,
+          "abstained_neg": 0,
+          "failed_pos": 1,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.1379,
+          "recall": 0.0,
+          "recall_ci": [
+            0.0,
+            0.4899
+          ],
+          "coverage_pos": 0.1379,
+          "recall_all": 0.0,
+          "recall_all_ci": [
+            0.0,
+            0.117
+          ],
+          "f1": null,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.8571,
+          "failure_rate": 0.0345
+        },
+        "fact_checker_debunk": {
+          "tp": 55,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 91,
+          "negatives": 0,
+          "abstained_pos": 36,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9347,
+            1.0
+          ],
+          "coverage": 0.6044,
+          "recall": 1.0,
+          "recall_ci": [
+            0.9347,
+            1.0
+          ],
+          "coverage_pos": 0.6044,
+          "recall_all": 0.6044,
+          "recall_all_ci": [
+            0.5017,
+            0.6987
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.3956,
+          "failure_rate": 0.0
+        },
+        "hard_emotional": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 5,
+          "positives": 0,
+          "negatives": 11,
+          "abstained_pos": 0,
+          "abstained_neg": 6,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.4545,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.4345
+          ],
+          "coverage_neg": 0.4545,
+          "abstain_rate": 0.5455,
+          "failure_rate": 0.0
+        },
+        "hard_fact_checks": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 2,
+          "positives": 0,
+          "negatives": 31,
+          "abstained_pos": 0,
+          "abstained_neg": 29,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.0645,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.6576
+          ],
+          "coverage_neg": 0.0645,
+          "abstain_rate": 0.9355,
+          "failure_rate": 0.0
+        },
+        "hard_op_eds": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 2,
+          "positives": 0,
+          "negatives": 10,
+          "abstained_pos": 0,
+          "abstained_neg": 5,
+          "failed_pos": 0,
+          "failed_neg": 3,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.2,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.6576
+          ],
+          "coverage_neg": 0.2,
+          "abstain_rate": 0.7143,
+          "failure_rate": 0.3
+        },
+        "hard_press_releases": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 6,
+          "positives": 0,
+          "negatives": 11,
+          "abstained_pos": 0,
+          "abstained_neg": 5,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.5455,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.3903
+          ],
+          "coverage_neg": 0.5455,
+          "abstain_rate": 0.4545,
+          "failure_rate": 0.0
+        },
+        "hard_satire": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "tn": 1,
+          "positives": 0,
+          "negatives": 10,
+          "abstained_pos": 0,
+          "abstained_neg": 8,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 0.0,
+          "precision_ci": [
+            0.0,
+            0.7935
+          ],
+          "coverage": 0.2,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.5,
+          "fpr_ci": [
+            0.0945,
+            0.9055
+          ],
+          "coverage_neg": 0.2,
+          "abstain_rate": 0.8,
+          "failure_rate": 0.0
+        },
+        "hard_wire_copy": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 11,
+          "positives": 0,
+          "negatives": 15,
+          "abstained_pos": 0,
+          "abstained_neg": 3,
+          "failed_pos": 0,
+          "failed_neg": 1,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.7333,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2588
+          ],
+          "coverage_neg": 0.7333,
+          "abstain_rate": 0.2143,
+          "failure_rate": 0.0667
+        },
+        "mainstream": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 11,
+          "positives": 0,
+          "negatives": 20,
+          "abstained_pos": 0,
+          "abstained_neg": 7,
+          "failed_pos": 0,
+          "failed_neg": 2,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.55,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2588
+          ],
+          "coverage_neg": 0.55,
+          "abstain_rate": 0.3889,
+          "failure_rate": 0.1
+        }
+      },
+      "per_language": {
+        "de": {
+          "tp": 11,
+          "fp": 0,
+          "fn": 0,
+          "tn": 10,
+          "positives": 22,
+          "negatives": 21,
+          "abstained_pos": 10,
+          "abstained_neg": 11,
+          "failed_pos": 1,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.7412,
+            1.0
+          ],
+          "coverage": 0.4884,
+          "recall": 1.0,
+          "recall_ci": [
+            0.7412,
+            1.0
+          ],
+          "coverage_pos": 0.5,
+          "recall_all": 0.5,
+          "recall_all_ci": [
+            0.3072,
+            0.6928
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2775
+          ],
+          "coverage_neg": 0.4762,
+          "abstain_rate": 0.5,
+          "failure_rate": 0.0233
+        },
+        "en": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 2,
+          "tn": 5,
+          "positives": 27,
+          "negatives": 22,
+          "abstained_pos": 18,
+          "abstained_neg": 17,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6457,
+            1.0
+          ],
+          "coverage": 0.2857,
+          "recall": 0.7778,
+          "recall_ci": [
+            0.4526,
+            0.9368
+          ],
+          "coverage_pos": 0.3333,
+          "recall_all": 0.2593,
+          "recall_all_ci": [
+            0.1317,
+            0.4468
+          ],
+          "f1": 0.875,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.4345
+          ],
+          "coverage_neg": 0.2273,
+          "abstain_rate": 0.7143,
+          "failure_rate": 0.0
+        },
+        "es": {
+          "tp": 14,
+          "fp": 1,
+          "fn": 0,
+          "tn": 9,
+          "positives": 25,
+          "negatives": 22,
+          "abstained_pos": 11,
+          "abstained_neg": 8,
+          "failed_pos": 0,
+          "failed_neg": 4,
+          "precision": 0.9333,
+          "precision_ci": [
+            0.7018,
+            0.9881
+          ],
+          "coverage": 0.5106,
+          "recall": 1.0,
+          "recall_ci": [
+            0.7847,
+            1.0
+          ],
+          "coverage_pos": 0.56,
+          "recall_all": 0.56,
+          "recall_all_ci": [
+            0.3707,
+            0.7333
+          ],
+          "f1": 0.9655,
+          "fpr": 0.1,
+          "fpr_ci": [
+            0.0179,
+            0.4042
+          ],
+          "coverage_neg": 0.4545,
+          "abstain_rate": 0.4419,
+          "failure_rate": 0.0851
+        },
+        "fr": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 0,
+          "tn": 8,
+          "positives": 18,
+          "negatives": 16,
+          "abstained_pos": 10,
+          "abstained_neg": 8,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage": 0.4706,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage_pos": 0.4444,
+          "recall_all": 0.4444,
+          "recall_all_ci": [
+            0.2456,
+            0.6628
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.3244
+          ],
+          "coverage_neg": 0.5,
+          "abstain_rate": 0.5294,
+          "failure_rate": 0.0
+        },
+        "it": {
+          "tp": 10,
+          "fp": 0,
+          "fn": 0,
+          "tn": 6,
+          "positives": 14,
+          "negatives": 23,
+          "abstained_pos": 4,
+          "abstained_neg": 15,
+          "failed_pos": 0,
+          "failed_neg": 2,
+          "precision": 1.0,
+          "precision_ci": [
+            0.7225,
+            1.0
+          ],
+          "coverage": 0.4324,
+          "recall": 1.0,
+          "recall_ci": [
+            0.7225,
+            1.0
+          ],
+          "coverage_pos": 0.7143,
+          "recall_all": 0.7143,
+          "recall_all_ci": [
+            0.4535,
+            0.8828
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.3903
+          ],
+          "coverage_neg": 0.2609,
+          "abstain_rate": 0.5429,
+          "failure_rate": 0.0541
+        },
+        "nl": {
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 8,
+          "negatives": 4,
+          "abstained_pos": 3,
+          "abstained_neg": 4,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.5655,
+            1.0
+          ],
+          "coverage": 0.4167,
+          "recall": 1.0,
+          "recall_ci": [
+            0.5655,
+            1.0
+          ],
+          "coverage_pos": 0.625,
+          "recall_all": 0.625,
+          "recall_all_ci": [
+            0.3057,
+            0.8632
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": 0.0,
+          "abstain_rate": 0.5833,
+          "failure_rate": 0.0
+        },
+        "pl": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 1,
+          "negatives": 0,
+          "abstained_pos": 1,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.0,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": 0.0,
+          "recall_all": 0.0,
+          "recall_all_ci": [
+            0.0,
+            0.7935
+          ],
+          "f1": null,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 1.0,
+          "failure_rate": 0.0
+        },
+        "ru": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "tn": 0,
+          "positives": 5,
+          "negatives": 0,
+          "abstained_pos": 3,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.4,
+          "recall": 0.0,
+          "recall_ci": [
+            0.0,
+            0.6576
+          ],
+          "coverage_pos": 0.4,
+          "recall_all": 0.0,
+          "recall_all_ci": [
+            0.0,
+            0.4345
+          ],
+          "f1": null,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.6,
+          "failure_rate": 0.0
+        }
+      },
+      "calibration": [
+        {
+          "bin": [
+            0.0,
+            0.2
+          ],
+          "mean_confidence": 0.1115,
+          "positive_rate": 0.0303,
+          "n": 33
+        },
+        {
+          "bin": [
+            0.2,
+            0.4
+          ],
+          "mean_confidence": 0.2821,
+          "positive_rate": 0.375,
+          "n": 8
+        },
+        {
+          "bin": [
+            0.4,
+            0.6000000000000001
+          ],
+          "mean_confidence": 0.467,
+          "positive_rate": 0.0,
+          "n": 2
+        },
+        {
+          "bin": [
+            0.8,
+            1.0
+          ],
+          "mean_confidence": 0.9278,
+          "positive_rate": 1.0,
+          "n": 55
+        }
+      ],
+      "ablation": {
+        "without_claim_support": {
+          "tp": 55,
+          "fp": 2,
+          "fn": 4,
+          "tn": 37,
+          "positives": 120,
+          "negatives": 108,
+          "abstained_pos": 60,
+          "abstained_neg": 63,
+          "failed_pos": 1,
+          "failed_neg": 6,
+          "precision": 0.9649,
+          "precision_ci": [
+            0.8808,
+            0.9903
+          ],
+          "coverage": 0.4298,
+          "recall": 0.9322,
+          "recall_ci": [
+            0.8382,
+            0.9733
+          ],
+          "coverage_pos": 0.4917,
+          "recall_all": 0.4583,
+          "recall_all_ci": [
+            0.3719,
+            0.5474
+          ],
+          "f1": 0.9483,
+          "fpr": 0.0513,
+          "fpr_ci": [
+            0.0142,
+            0.1689
+          ],
+          "coverage_neg": 0.3611,
+          "abstain_rate": 0.5566,
+          "failure_rate": 0.0307
+        },
+        "without_fact_checks": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 9,
+          "tn": 38,
+          "positives": 120,
+          "negatives": 108,
+          "abstained_pos": 110,
+          "abstained_neg": 63,
+          "failed_pos": 1,
+          "failed_neg": 6,
+          "precision": 0.0,
+          "precision_ci": [
+            0.0,
+            0.7935
+          ],
+          "coverage": 0.2105,
+          "recall": 0.0,
+          "recall_ci": [
+            0.0,
+            0.2992
+          ],
+          "coverage_pos": 0.075,
+          "recall_all": 0.0,
+          "recall_all_ci": [
+            0.0,
+            0.031
+          ],
+          "f1": 0.0,
+          "fpr": 0.0256,
+          "fpr_ci": [
+            0.0045,
+            0.1318
+          ],
+          "coverage_neg": 0.3611,
+          "abstain_rate": 0.7828,
+          "failure_rate": 0.0307
+        },
+        "without_source_profile": {
+          "tp": 55,
+          "fp": 1,
+          "fn": 4,
+          "tn": 38,
+          "positives": 120,
+          "negatives": 108,
+          "abstained_pos": 60,
+          "abstained_neg": 63,
+          "failed_pos": 1,
+          "failed_neg": 6,
+          "precision": 0.9821,
+          "precision_ci": [
+            0.9055,
+            0.9968
+          ],
+          "coverage": 0.4298,
+          "recall": 0.9322,
+          "recall_ci": [
+            0.8382,
+            0.9733
+          ],
+          "coverage_pos": 0.4917,
+          "recall_all": 0.4583,
+          "recall_all_ci": [
+            0.3719,
+            0.5474
+          ],
+          "f1": 0.9565,
+          "fpr": 0.0256,
+          "fpr_ci": [
+            0.0045,
+            0.1318
+          ],
+          "coverage_neg": 0.3611,
+          "abstain_rate": 0.5566,
+          "failure_rate": 0.0307
+        },
+        "without_techniques": {
+          "tp": 55,
+          "fp": 0,
+          "fn": 4,
+          "tn": 39,
+          "positives": 120,
+          "negatives": 108,
+          "abstained_pos": 60,
+          "abstained_neg": 63,
+          "failed_pos": 1,
+          "failed_neg": 6,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9347,
+            1.0
+          ],
+          "coverage": 0.4298,
+          "recall": 0.9322,
+          "recall_ci": [
+            0.8382,
+            0.9733
+          ],
+          "coverage_pos": 0.4917,
+          "recall_all": 0.4583,
+          "recall_all_ci": [
+            0.3719,
+            0.5474
+          ],
+          "f1": 0.9649,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.0897
+          ],
+          "coverage_neg": 0.3611,
+          "abstain_rate": 0.5566,
+          "failure_rate": 0.0307
+        },
+        "without_tone": {
+          "tp": 55,
+          "fp": 0,
+          "fn": 4,
+          "tn": 39,
+          "positives": 120,
+          "negatives": 108,
+          "abstained_pos": 60,
+          "abstained_neg": 63,
+          "failed_pos": 1,
+          "failed_neg": 6,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9347,
+            1.0
+          ],
+          "coverage": 0.4298,
+          "recall": 0.9322,
+          "recall_ci": [
+            0.8382,
+            0.9733
+          ],
+          "coverage_pos": 0.4917,
+          "recall_all": 0.4583,
+          "recall_all_ci": [
+            0.3719,
+            0.5474
+          ],
+          "f1": 0.9649,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.0897
+          ],
+          "coverage_neg": 0.3611,
+          "abstain_rate": 0.5566,
+          "failure_rate": 0.0307
+        }
+      }
+    },
+    "coordinated": {
+      "overall": {
+        "tp": 56,
+        "fp": 0,
+        "fn": 0,
+        "tn": 76,
+        "positives": 56,
+        "negatives": 108,
+        "abstained_pos": 0,
+        "abstained_neg": 26,
+        "failed_pos": 0,
+        "failed_neg": 6,
+        "precision": 1.0,
+        "precision_ci": [
+          0.9358,
+          1.0
+        ],
+        "coverage": 0.8049,
+        "recall": 1.0,
+        "recall_ci": [
+          0.9358,
+          1.0
+        ],
+        "coverage_pos": 1.0,
+        "recall_all": 1.0,
+        "recall_all_ci": [
+          0.9358,
+          1.0
+        ],
+        "f1": 1.0,
+        "fpr": 0.0,
+        "fpr_ci": [
+          0.0,
+          0.0481
+        ],
+        "coverage_neg": 0.7037,
+        "abstain_rate": 0.1646,
+        "failure_rate": 0.0366
+      },
+      "missing": 0,
+      "per_set": {
+        "hard_emotional": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 9,
+          "positives": 0,
+          "negatives": 11,
+          "abstained_pos": 0,
+          "abstained_neg": 2,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.8182,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2992
+          ],
+          "coverage_neg": 0.8182,
+          "abstain_rate": 0.1818,
+          "failure_rate": 0.0
+        },
+        "hard_fact_checks": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 13,
+          "positives": 0,
+          "negatives": 31,
+          "abstained_pos": 0,
+          "abstained_neg": 18,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.4194,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2281
+          ],
+          "coverage_neg": 0.4194,
+          "abstain_rate": 0.5806,
+          "failure_rate": 0.0
+        },
+        "hard_op_eds": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 7,
+          "positives": 0,
+          "negatives": 10,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 3,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.7,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.3543
+          ],
+          "coverage_neg": 0.7,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.3
+        },
+        "hard_press_releases": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 10,
+          "positives": 0,
+          "negatives": 11,
+          "abstained_pos": 0,
+          "abstained_neg": 1,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.9091,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2775
+          ],
+          "coverage_neg": 0.9091,
+          "abstain_rate": 0.0909,
+          "failure_rate": 0.0
+        },
+        "hard_satire": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 7,
+          "positives": 0,
+          "negatives": 10,
+          "abstained_pos": 0,
+          "abstained_neg": 3,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.7,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.3543
+          ],
+          "coverage_neg": 0.7,
+          "abstain_rate": 0.3,
+          "failure_rate": 0.0
+        },
+        "hard_wire_copy": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 13,
+          "positives": 0,
+          "negatives": 15,
+          "abstained_pos": 0,
+          "abstained_neg": 1,
+          "failed_pos": 0,
+          "failed_neg": 1,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.8667,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2281
+          ],
+          "coverage_neg": 0.8667,
+          "abstain_rate": 0.0714,
+          "failure_rate": 0.0667
+        },
+        "mainstream": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 17,
+          "positives": 0,
+          "negatives": 20,
+          "abstained_pos": 0,
+          "abstained_neg": 1,
+          "failed_pos": 0,
+          "failed_neg": 2,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.85,
+          "recall": null,
+          "recall_ci": null,
+          "coverage_pos": null,
+          "recall_all": null,
+          "recall_all_ci": null,
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.1843
+          ],
+          "coverage_neg": 0.85,
+          "abstain_rate": 0.0556,
+          "failure_rate": 0.1
+        },
+        "viginum_pravda": {
+          "tp": 56,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 56,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.9358,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        }
+      },
+      "per_language": {
+        "cs": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 1,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.2065,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.2065,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.2065,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        },
+        "de": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 0,
+          "tn": 17,
+          "positives": 8,
+          "negatives": 21,
+          "abstained_pos": 0,
+          "abstained_neg": 4,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage": 0.8621,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6756,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.1843
+          ],
+          "coverage_neg": 0.8095,
+          "abstain_rate": 0.1379,
+          "failure_rate": 0.0
+        },
+        "en": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 0,
+          "tn": 12,
+          "positives": 8,
+          "negatives": 22,
+          "abstained_pos": 0,
+          "abstained_neg": 10,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage": 0.6667,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6756,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6756,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2425
+          ],
+          "coverage_neg": 0.5455,
+          "abstain_rate": 0.3333,
+          "failure_rate": 0.0
+        },
+        "es": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "tn": 14,
+          "positives": 7,
+          "negatives": 22,
+          "abstained_pos": 0,
+          "abstained_neg": 4,
+          "failed_pos": 0,
+          "failed_neg": 4,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6457,
+            1.0
+          ],
+          "coverage": 0.7241,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6457,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6457,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2153
+          ],
+          "coverage_neg": 0.6364,
+          "abstain_rate": 0.16,
+          "failure_rate": 0.1379
+        },
+        "fr": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "tn": 16,
+          "positives": 7,
+          "negatives": 16,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6457,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6457,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6457,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.1936
+          ],
+          "coverage_neg": 1.0,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        },
+        "it": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "tn": 15,
+          "positives": 6,
+          "negatives": 23,
+          "abstained_pos": 0,
+          "abstained_neg": 6,
+          "failed_pos": 0,
+          "failed_neg": 2,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6097,
+            1.0
+          ],
+          "coverage": 0.7241,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6097,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6097,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.2039
+          ],
+          "coverage_neg": 0.6522,
+          "abstain_rate": 0.2222,
+          "failure_rate": 0.069
+        },
+        "nl": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "tn": 2,
+          "positives": 6,
+          "negatives": 4,
+          "abstained_pos": 0,
+          "abstained_neg": 2,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.6097,
+            1.0
+          ],
+          "coverage": 0.8,
+          "recall": 1.0,
+          "recall_ci": [
+            0.6097,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.6097,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.6576
+          ],
+          "coverage_neg": 0.5,
+          "abstain_rate": 0.2,
+          "failure_rate": 0.0
+        },
+        "pl": {
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 5,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.5655,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.5655,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.5655,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        },
+        "pt": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 4,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.5101,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.5101,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.5101,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        },
+        "ro": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 3,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.4385,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.4385,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.4385,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        },
+        "sv": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "positives": 1,
+          "negatives": 0,
+          "abstained_pos": 0,
+          "abstained_neg": 0,
+          "failed_pos": 0,
+          "failed_neg": 0,
+          "precision": 1.0,
+          "precision_ci": [
+            0.2065,
+            1.0
+          ],
+          "coverage": 1.0,
+          "recall": 1.0,
+          "recall_ci": [
+            0.2065,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.2065,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": null,
+          "fpr_ci": null,
+          "coverage_neg": null,
+          "abstain_rate": 0.0,
+          "failure_rate": 0.0
+        }
+      },
+      "calibration": [
+        {
+          "bin": [
+            0.0,
+            0.2
+          ],
+          "mean_confidence": 0.0796,
+          "positive_rate": 0.0,
+          "n": 76
+        },
+        {
+          "bin": [
+            0.8,
+            1.0
+          ],
+          "mean_confidence": 0.8903,
+          "positive_rate": 1.0,
+          "n": 56
+        }
+      ],
+      "ablation": {
+        "without_infrastructure": {
+          "tp": 56,
+          "fp": 0,
+          "fn": 0,
+          "tn": 76,
+          "positives": 56,
+          "negatives": 108,
+          "abstained_pos": 0,
+          "abstained_neg": 26,
+          "failed_pos": 0,
+          "failed_neg": 6,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage": 0.8049,
+          "recall": 1.0,
+          "recall_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.9358,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.0481
+          ],
+          "coverage_neg": 0.7037,
+          "abstain_rate": 0.1646,
+          "failure_rate": 0.0366
+        },
+        "without_known_networks": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 44,
+          "tn": 76,
+          "positives": 56,
+          "negatives": 108,
+          "abstained_pos": 12,
+          "abstained_neg": 26,
+          "failed_pos": 0,
+          "failed_neg": 6,
+          "precision": null,
+          "precision_ci": null,
+          "coverage": 0.7317,
+          "recall": 0.0,
+          "recall_ci": [
+            0.0,
+            0.0803
+          ],
+          "coverage_pos": 0.7857,
+          "recall_all": 0.0,
+          "recall_all_ci": [
+            0.0,
+            0.0642
+          ],
+          "f1": null,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.0481
+          ],
+          "coverage_neg": 0.7037,
+          "abstain_rate": 0.2405,
+          "failure_rate": 0.0366
+        },
+        "without_text_reuse": {
+          "tp": 56,
+          "fp": 0,
+          "fn": 0,
+          "tn": 73,
+          "positives": 56,
+          "negatives": 108,
+          "abstained_pos": 0,
+          "abstained_neg": 29,
+          "failed_pos": 0,
+          "failed_neg": 6,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage": 0.7866,
+          "recall": 1.0,
+          "recall_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.9358,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.05
+          ],
+          "coverage_neg": 0.6759,
+          "abstain_rate": 0.1835,
+          "failure_rate": 0.0366
+        },
+        "without_timing": {
+          "tp": 56,
+          "fp": 0,
+          "fn": 0,
+          "tn": 76,
+          "positives": 56,
+          "negatives": 108,
+          "abstained_pos": 0,
+          "abstained_neg": 26,
+          "failed_pos": 0,
+          "failed_neg": 6,
+          "precision": 1.0,
+          "precision_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage": 0.8049,
+          "recall": 1.0,
+          "recall_ci": [
+            0.9358,
+            1.0
+          ],
+          "coverage_pos": 1.0,
+          "recall_all": 1.0,
+          "recall_all_ci": [
+            0.9358,
+            1.0
+          ],
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_ci": [
+            0.0,
+            0.0481
+          ],
+          "coverage_neg": 0.7037,
+          "abstain_rate": 0.1646,
+          "failure_rate": 0.0366
+        }
+      }
+    }
+  }
+}

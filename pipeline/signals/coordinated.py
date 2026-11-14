@@ -16,9 +16,10 @@ Works from the record only: no models, no network I/O. Families and values:
   analytics or ad IDs of the document (or, without document IDs, of another copying site).
 - `infrastructure` / `young_copying_domains`: copying domains registered less than
   YOUNG_DAYS before the document.
-- `known_networks` / `listed_domain`: the document's outlet, a copying outlet or another
-  same-story outlet is on a documented list (`sources[].known_network`, e.g. VIGINUM Portal
-  Kombat). Value = listed domains.
+- `known_networks` / `listed_domain`: the document's outlet or a copying outlet is on a
+  documented list (`sources[].known_network`, e.g. VIGINUM Portal Kombat); also includes
+  same-story sister sites of the document's own network (or near-duplicate `>= 0.93` matches
+  for pasted text). Value = listed domains.
 """
 
 from collections import defaultdict
@@ -46,6 +47,7 @@ COPY_CONTAINMENT = 0.2
 MIN_SHARED_SHINGLES = 8
 WINDOW = timedelta(hours=6)
 YOUNG_DAYS = 180
+TRANSLATED_COPY_SIMILARITY = 0.93
 _NOT_COPIERS = {
     OutletType.wire_service,
     OutletType.fact_checker,
@@ -124,8 +126,9 @@ def text_reuse_evidence(
             family=Family.text_reuse,
             signal="copied_passages",
             value=float(n),
-            detail=f"The same text appears on {n} other site{'s' if n > 1 else ''} that are "
-            f"not news agencies ({sites}{', …' if n > 3 else ''}).",
+            detail=f"The same text appears on {n} other "
+            f"{'sites that are not news agencies' if n > 1 else 'site that is not a news agency'} "
+            f"({sites}{', …' if n > 3 else ''}).",
             source_refs=refs,
         )
     ]
@@ -234,11 +237,22 @@ def known_network_evidence(
 ) -> list[Evidence]:
     profiles = _profiles(analysis)
     own = _domain(analysis.document.outlet) if analysis.document else None
+    own_network = profiles[own].known_network if own and own in profiles else None
     copy_domains = {_domain(c.outlet) or "" for c in copies}
+    # `in_story` means same event, not same text: a mainstream report on an event a listed
+    # network also covers must never inherit the network's listing. Count non-copy in-story
+    # items only as sister editions of the document's own listed network, or at near-duplicate
+    # similarity when the input was pasted text (no document outlet).
     story_domains = [
-        _domain(c.outlet) or ""
+        d
         for c in analysis.context
-        if c.in_story is True and c.fact_check is None
+        if c.in_story is True
+        and c.fact_check is None
+        and (d := _domain(c.outlet) or "") in profiles
+        and (
+            (own_network is not None and profiles[d].known_network == own_network)
+            or (own is None and (c.similarity or 0.0) >= TRANSLATED_COPY_SIMILARITY)
+        )
     ]
     candidates = ([own] if own else []) + [_domain(c.outlet) or "" for c in copies] + story_domains
     domains = list(dict.fromkeys(d for d in candidates if d))

@@ -103,10 +103,19 @@ def _run_with(monkeypatch: pytest.MonkeyPatch, analysis, summary: str) -> str:
     return asyncio.run(explain.run(analysis)).explanation.summary
 
 
+def _uncalibrated_weights():
+    return explain.WEIGHTS.model_copy(
+        update={
+            "single": explain.WEIGHTS.single.model_copy(update={"n": 0, "cv": None}),
+            "coordinated": explain.WEIGHTS.coordinated.model_copy(update={"n": 0, "cv": None}),
+        }
+    )
+
+
 def test_prior_confidences_are_disclosed_whatever_the_model_writes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert not explain.WEIGHTS.single.calibrated  # committed weights are still priors
+    monkeypatch.setattr(explain, "WEIGHTS", _uncalibrated_weights())
     payload = json.loads(digest(example_analysis()))
     assert payload["scores"]["single"]["calibrated"] is False
     summary = _run_with(monkeypatch, example_analysis(), "Single-actor signs: 86%.")
@@ -119,6 +128,12 @@ def test_prior_confidences_are_disclosed_whatever_the_model_writes(
 
 
 def test_no_note_when_nothing_uncalibrated_is_shown(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Committed weights are calibrated on the labelled set: no priors note is emitted.
+    assert explain.WEIGHTS.single.calibrated and explain.WEIGHTS.coordinated.calibrated
+    assert _run_with(monkeypatch, example_analysis(), "Signs: 86%.") == "Signs: 86%."
+
+    # Even with uncalibrated weights, two abstentions show no percentage and emit no note.
+    monkeypatch.setattr(explain, "WEIGHTS", _uncalibrated_weights())
     analysis = example_analysis()
     assert analysis.scores is not None
     for score in (analysis.scores.single, analysis.scores.coordinated):
@@ -126,14 +141,6 @@ def test_no_note_when_nothing_uncalibrated_is_shown(monkeypatch: pytest.MonkeyPa
     assert _run_with(monkeypatch, analysis, "Both dimensions abstained.") == (
         "Both dimensions abstained."
     )
-    fitted = explain.WEIGHTS.single.model_copy(update={"n": 120})
-    coordinated = explain.WEIGHTS.coordinated.model_copy(update={"n": 60})
-    monkeypatch.setattr(
-        explain,
-        "WEIGHTS",
-        explain.WEIGHTS.model_copy(update={"single": fitted, "coordinated": coordinated}),
-    )
-    assert _run_with(monkeypatch, example_analysis(), "Signs: 86%.") == "Signs: 86%."
 
 
 @pytest.mark.parametrize(
@@ -167,6 +174,7 @@ def test_explanation_in_the_readers_language(monkeypatch: pytest.MonkeyPatch) ->
             "Segnali nel contenuto: 86%.", ("Un fact-checker l'ha giudicata falsa.", ["s4"])
         )
 
+    monkeypatch.setattr(explain, "WEIGHTS", _uncalibrated_weights())
     monkeypatch.setattr(explain, "explanation_language", lambda _: "it")
     monkeypatch.setattr(explain.llm, "ask_json_async", fake_ask)
     summary = asyncio.run(explain.run(example_analysis())).explanation.summary

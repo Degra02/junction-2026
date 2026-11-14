@@ -106,6 +106,20 @@ def test_fit_recovers_the_direction_of_the_signal() -> None:
     assert intercept == pytest.approx(0.5, abs=0.4)
 
 
+def test_nonnegative_map_fit_preserves_unobserved_family_and_sign() -> None:
+    # Feature 0 separates positives perfectly (like known_networks); Feature 1 fires on some
+    # negatives (untyped syndication); Feature 2 never fires in the sample (infrastructure).
+    x = np.array(
+        [[1.0, 0.0, 0.0]] * 20 + [[0.0, 0.5, 0.0]] * 8 + [[0.0, 0.0, 0.0]] * 20,
+        dtype=float,
+    )
+    y = np.array([1.0] * 20 + [0.0] * 28)
+    prior = np.array([-2.5, 3.0, 2.0, 2.0])
+    _, coefs = fit_logistic(x, y, prior=prior, nonneg=True)
+    assert all(c >= 0.0 for c in coefs)
+    assert coefs[2] == pytest.approx(2.0)
+
+
 def test_ablation_shows_which_family_carries_the_signal() -> None:
     rng = np.random.default_rng(2)
     x = rng.uniform(-1, 1, size=(300, 3))

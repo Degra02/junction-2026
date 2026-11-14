@@ -11,11 +11,14 @@ Input: JSON Lines, one labelled item per line:
 `null` (or a missing key) leaves the item out of that dimension. Labels come from third
 parties (plan §8), never from our own opinion.
 
-Model: L2-regularised logistic regression on the family values (`families.family_values`),
-fitted by Newton's method; the intercept is not regularised. The report gives out-of-fold
-(k-fold cross-validated) log loss, Brier score, ROC AUC and a reliability table, which are
-also stored in `weights.json` under `cv` for the metrics page.
-
+Model: non-negative MAP logistic regression on the signed family values (`families.family_values`
+already encodes direction in `[-1, 1]`, so a negative family weight would invert both positive
+and negative evidence), regularised toward `PRIORS` (`N(w_prior, 1 / L2)`). Where the dataset
+has variance (`fact_checks`, `claim_support`, `techniques`, `tone`, `source_profile`,
+`known_networks`), the likelihood dominates; where a family never fires on the positive set
+(`infrastructure` when positives come only from VIGINUM), it stays near its prior instead of
+collapsing to zero. The report gives out-of-fold (k-fold cross-validated) log loss, Brier
+score, ROC AUC and a reliability table, stored in `weights.json` under `cv` for `/api/metrics`.
 Only analyses whose score is shown are used: when a dimension abstains (too little coverage,
 unsupported language, evidence both ways) no confidence reaches the reader, so those items
 say nothing about calibration, and their empty comparison families would teach the combiner
@@ -42,31 +45,81 @@ from pipeline.score import WEIGHTS, DimensionWeights, Weights, save_weights
 from pipeline.score import run as score
 from pipeline.score.families import COORDINATED, SINGLE, family_values
 
-L2 = 1.0
+L2 = 2.5
 FOLDS = 5
 BINS = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 # A family that reaches this out-of-fold AUC by itself is flagged in the report.
 SEPARATES_ALONE = 0.98
+# Domain priors (intercept, *family coefficients): fixed here so re-running `fit` is idempotent.
+PRIORS: dict[tuple[Family, ...], np.ndarray] = {
+    SINGLE: np.array([-2.0, 1.5, 1.0, 1.5, 2.5, 1.0]),
+    COORDINATED: np.array([-2.5, 2.0, 1.0, 2.0, 3.0]),
+}
 
 
 def features(analysis: Analysis, families: tuple[Family, ...]) -> list[float]:
     return [v.value for v in family_values(analysis.evidence, families)]
 
 
-def fit_logistic(x: np.ndarray, y: np.ndarray, l2: float = L2) -> tuple[float, np.ndarray]:
-    """`(intercept, coefficients)` of an L2-regularised logistic regression."""
+def fit_logistic(
+    x: np.ndarray,
+    y: np.ndarray,
+    l2: float = L2,
+    *,
+    prior: np.ndarray | None = None,
+    nonneg: bool = False,
+) -> tuple[float, np.ndarray]:
+    """`(intercept, coefficients)` of an L2 / Gaussian-MAP logistic regression.
+
+    When `nonneg` is True, family coefficients are constrained to `>= 0` via active-set
+    projected Newton with backtracking line search.
+    """
     design = np.hstack([np.ones((len(x), 1)), x])
-    w = np.zeros(design.shape[1])
-    penalty = np.eye(design.shape[1]) * l2
-    penalty[0, 0] = 0.0
-    for _ in range(100):
-        p = 1.0 / (1.0 + np.exp(-design @ w))
-        gradient = design.T @ (p - y) + penalty @ w
-        hessian = design.T @ (design * (p * (1 - p))[:, None]) + penalty + 1e-9 * np.eye(len(w))
-        step = np.linalg.solve(hessian, gradient)
-        w -= step
-        if np.abs(step).max() < 1e-8:
+    d = design.shape[1]
+    prior_vec = np.zeros(d) if prior is None else np.asarray(prior, dtype=float)
+    pen = np.full(d, l2, dtype=float)
+    if prior is None:
+        pen[0] = 0.0
+    w = prior_vec.copy()
+    if nonneg:
+        w[1:] = np.maximum(w[1:], 0.0)
+
+    def objective(wv: np.ndarray) -> float:
+        pv = 1.0 / (1.0 + np.exp(-np.clip(design @ wv, -30.0, 30.0)))
+        nll = -float(np.sum(y * np.log(pv + 1e-12) + (1.0 - y) * np.log(1.0 - pv + 1e-12)))
+        return nll + 0.5 * float(np.sum(pen * (wv - prior_vec) ** 2))
+
+    for _ in range(200):
+        p = 1.0 / (1.0 + np.exp(-np.clip(design @ w, -30.0, 30.0)))
+        gradient = design.T @ (p - y) + pen * (w - prior_vec)
+        free = np.ones(d, dtype=bool)
+        if nonneg:
+            for j in range(1, d):
+                if w[j] <= 1e-12 and gradient[j] > 0.0:
+                    free[j] = False
+                    w[j] = 0.0
+        if not free.any():
             break
+        df = design[:, free]
+        hess = (
+            df.T @ (df * (p * (1.0 - p))[:, None]) + np.diag(pen[free]) + 1e-9 * np.eye(free.sum())
+        )
+        step = np.zeros(d)
+        step[free] = np.linalg.solve(hess, gradient[free])
+        cur = objective(w)
+        alpha = 1.0
+        cand = w
+        for _ in range(20):
+            cand = w - alpha * step
+            if nonneg:
+                cand[1:] = np.maximum(cand[1:], 0.0)
+            if objective(cand) <= cur + 1e-12:
+                break
+            alpha *= 0.5
+        if np.abs(cand - w).max() < 1e-8:
+            w = cand
+            break
+        w = cand
     return float(w[0]), w[1:]
 
 
@@ -74,7 +127,14 @@ def predict(x: np.ndarray, intercept: float, coefficients: np.ndarray) -> np.nda
     return 1.0 / (1.0 + np.exp(-(intercept + x @ coefficients)))
 
 
-def cross_validate(x: np.ndarray, y: np.ndarray, folds: int = FOLDS) -> dict[str, object]:
+def cross_validate(
+    x: np.ndarray,
+    y: np.ndarray,
+    folds: int = FOLDS,
+    *,
+    prior: np.ndarray | None = None,
+    nonneg: bool = False,
+) -> dict[str, object]:
     """Out-of-fold metrics; folds keep both classes' proportions (round-robin per class)."""
     rng = np.random.default_rng(0)
     fold_of = np.zeros(len(y), dtype=int)
@@ -86,13 +146,18 @@ def cross_validate(x: np.ndarray, y: np.ndarray, folds: int = FOLDS) -> dict[str
         test = fold_of == k
         if not test.any():
             continue
-        intercept, coefficients = fit_logistic(x[~test], y[~test])
+        intercept, coefficients = fit_logistic(x[~test], y[~test], prior=prior, nonneg=nonneg)
         oof[test] = predict(x[test], intercept, coefficients)
     return {"folds": folds, **metrics(oof, y)}
 
 
 def ablation(
-    x: np.ndarray, y: np.ndarray, families: tuple[Family, ...], folds: int
+    x: np.ndarray,
+    y: np.ndarray,
+    families: tuple[Family, ...],
+    folds: int,
+    *,
+    prior: np.ndarray | None = None,
 ) -> dict[str, dict[str, object]]:
     """Per family with a non-zero value somewhere: on how many items, the out-of-fold AUC and
     log loss of the combiner refitted without it, and the AUC with it alone."""
@@ -101,8 +166,15 @@ def ablation(
         fired = int(np.count_nonzero(x[:, column]))
         if not fired:
             continue
-        without = cross_validate(np.delete(x, column, axis=1), y, folds)
-        alone = cross_validate(x[:, [column]], y, folds)
+        prior_without = np.delete(prior, column + 1) if prior is not None else None
+        without = cross_validate(
+            np.delete(x, column, axis=1),
+            y,
+            folds,
+            prior=prior_without,
+            nonneg=prior is not None,
+        )
+        alone = cross_validate(x[:, [column]], y, folds, nonneg=True)
         out[family.value] = {
             "items_nonzero": fired,
             "auc_without": without["auc"],
@@ -153,12 +225,16 @@ def fit_dimension(
     x = np.array([features(analysis, families) for analysis, _ in rows])
     y = np.array(labels, dtype=float)
     folds = min(FOLDS, labels.count(0), labels.count(1))
-    intercept, coefficients = fit_logistic(x, y)
+    prior = PRIORS.get(families)
+    intercept, coefficients = fit_logistic(x, y, prior=prior, nonneg=True)
     return DimensionWeights(
         intercept=round(intercept, 4),
         coefficients={f: round(float(c), 4) for f, c in zip(families, coefficients, strict=True)},
         n=len(rows),
-        cv={**cross_validate(x, y, folds), "ablation": ablation(x, y, families, folds)},
+        cv={
+            **cross_validate(x, y, folds, prior=prior, nonneg=True),
+            "ablation": ablation(x, y, families, folds, prior=prior),
+        },
     )
 
 

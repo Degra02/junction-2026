@@ -144,3 +144,29 @@ def test_sister_language_edition_in_story_counts_toward_known_network() -> None:
     analysis.document.outlet = None
     pasted_listed = by_signal(analysis)["listed_domain"]
     assert pasted_listed.value == 1.0 and "Another site covering the story" in pasted_listed.detail
+
+
+def test_mainstream_article_is_not_flagged_by_listed_outlet_in_same_story() -> None:
+    analysis = example_analysis()
+    assert analysis.document is not None
+    analysis.document.outlet = "newswire.example"
+    # ctx2 is a Pravda-listed site covering the same news event, not copying the wire text.
+    next(
+        s for s in analysis.sources if s.domain == "patriot-voice.example"
+    ).known_network = "portal_kombat"
+    for item in analysis.context:
+        if item.id == "ctx2":
+            item.text = "Un autre article sur le même événement diplomatique sans copie."
+            item.in_story = True
+            item.similarity = 0.88
+        elif item.id == "ctx3":
+            item.text = "Unrelated."
+            item.in_story = False
+    assert find_copies(analysis) == []
+    assert "listed_domain" not in by_signal(analysis)
+
+    # Same for an untyped outlet and for pasted text below near-duplicate similarity (0.93).
+    analysis.document.outlet = "untyped-blog.example"
+    assert "listed_domain" not in by_signal(analysis)
+    analysis.document.outlet = None
+    assert "listed_domain" not in by_signal(analysis)
