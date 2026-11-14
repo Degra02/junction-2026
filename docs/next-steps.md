@@ -1,19 +1,29 @@
-# Next steps (Sat 16:30 round)
+# Next steps (Sat 17:30 round)
 
-Living task list per person, kept by the integrator. Agents: read your section, `AGENTS.md` and `DECISIONS.md` first; do only what is listed for your owner; ask the integrator before touching a folder you do not own.
+Living task list per person, kept by the integrator. Agents: read your section, `AGENTS.md` and `DECISIONS.md` first; do only what is listed for your owner; ask the integrator before touching a folder you do not own. Lyreplus's detailed requests per person are in `docs/ai-core.md` → "Requests to the team".
 
-## State of `main` (Sat 16:30)
+## State of `main` (Sat 17:30)
 - Live at <https://the4thlover.tech> (API docs: `/api/docs`). Every merge to `main` deploys; the deploy goes red if a stage fails to import.
-- Stages on `main`: `extract`, `understand`, `signals_single`, `signals_coordinated`, `score`, `explain`. **`retrieve` and `story` are written but not merged**: `ck-lithium/retrieve` (14 commits, no PR yet, 5 behind `main`). Until they land every analysis has no context, `score` abstains and coordinated signals stay empty. **Merging that branch is the critical path.**
-- Merged this round: #8 explain discloses uncalibrated confidences and writes in the reader's language; #9 `SPEC.md` rewrite, eval runner, harness failures and `--json`; #11 + #13 real labelled set (260 items, 12 languages, incl. 25 EUvsDisinfo cases); #12 `Input.explanation_language` in the contract and the cache key.
-- `/api/metrics` reads the committed `evals/metrics.json` (404 until mosearc commits it). `web/` is not built yet: `/` has no UI.
-- Confidences are still priors (`pipeline/score/weights.json`, `n = 0`): the explanation says so until the fit lands.
+- **All stages are on `main`**: `extract`, `understand`, `retrieve`, `story`, `signals_single`, `signals_coordinated`, `score`, `explain`.
+- Merged this round: #15 signals on real coverage (techniques = share of paragraphs, two-way NLI, one-fact claims) and the fit ablation; #16 `retrieve` + `story`; #17 AI-core status and requests; #18 retrieve recall: Google Fact Check Tools adapter (D8), exact-phrase search for copies (GDELT, Oxylabs), ~300 more typed outlets, story threshold 0.90 same-language / 0.845 across languages.
+- Still missing on `main`: **no `web/`** (`/` has no UI); **no `evals/metrics.json`** (`/api/metrics` is 404); `pipeline/score/weights.json` is still priors (`n = 0`, `cv = null`), so the explanation says the confidences are uncalibrated.
+- Not yet confirmed on the VPS: retrieve output on real texts, worker memory with every model loaded, the fact-check and Oxylabs keys in the VPS `.env`.
+
+## Critical path
+```mermaid
+flowchart LR
+  ENV[VPS .env keys] --> RUN[VPS eval run]
+  RUN -->|fit.jsonl| FIT[Lyreplus: fit weights.json]
+  RUN -->|predictions.jsonl| MET[mosearc: metrics.json]
+  FIT --> MET
+  FE[ck-lithium: web/ v1] --> DEMO[demo script IDs]
+  MET --> DEMO
+```
 
 ## Deadlines
 | When | What |
 |---|---|
-| ~~Sat 16:00~~ missed | Real pasted text through the full pipeline on the VPS, with context: now as soon as `retrieve` is merged |
-| Sat 18:00 | MVP green: retrieve + story live, frontend v1, first real metrics, demo script final |
+| Sat 18:00 | MVP green: retrieve + story live (done), frontend v1, first real metrics, demo script final |
 | Sun 03:00 | Feature freeze |
 | Sun 09:00 | Submission: video, description, repo public under MIT |
 
@@ -24,30 +34,38 @@ Living task list per person, kept by the integrator. Agents: read your section, 
 - Test a stage alone with `pipeline.common.fixtures.example_analysis()`; iterate on a finished analysis with `POST /api/analyses/{id}/rerun?from=<stage>`.
 - Never commit secrets, scraped article text or downloaded datasets (`evals/data/` is gitignored).
 
-## ck-lithium — land retrieve and story, then the frontend
-1. **PR `ck-lithium/retrieve` now**, as it is: rebase on `main` (it applies without conflicts as of 16:30), `mise run check`, open the PR. Say in it: the new `tld` dependency, the e5 model size, and that VIGINUM is downloaded at run time when `VIGINUM_CSV` is unset. Further adapters go in later PRs.
-2. **On the VPS after the deploy**: a pasted Italian or English news text gets ≥ 3 context items with full bodies and a `sources[]` entry per outlet, inside the 120 s stage budget. Post the analysis ID in the PR thread.
-3. **Memory check**: worker RSS on the VPS (Hostinger Docker stats or `docker stats`) with lingua, e5, the AI-core models and Chromium loaded together; limit 6 GB.
-4. **Frontend** (`web/`): `bun run build` → `web/dist`; relative `/api/...` URLs; types from `contracts/ts/api.d.ts`; progress with `EventSource("/api/analyses/{id}/events")` (`?replay=true` for the demo); highlights with `Array.from(paragraph).slice(start, end)` (code points). Result page per `docs/plan.md` §9: score per dimension with evidence count, three reasons with links, coverage view, "Show how we calculated this". No "propaganda / not" label (D4).
-   - Explanation language (D14): send `explanation_language` (e.g. `it`) with the input; default English; offer the content language (`language.code` of an earlier analysis of the same input). Invalid codes get a 422 `invalid_input`.
+## ck-lithium — frontend first, then prove retrieve on the VPS
+Retrieve and story are merged (#16, #18). `EVALUATED_LANGUAGES` already lists en, de, fr, it, es, nl: done.
+1. **Frontend (`web/`), the biggest gap for 18:00.** `bun run build` → `web/dist`; relative `/api/...` URLs; types from `contracts/ts/api.d.ts`; progress with `EventSource("/api/analyses/{id}/events")` (`?replay=true` for the demo); highlights with `Array.from(paragraph).slice(start, end)` (code points). Result page per `docs/plan.md` §9: score per dimension with evidence count, three reasons with links, coverage view, "Show how we calculated this". No "propaganda / not" label (D4).
+   - Explanation language (D14): a selector sending `explanation_language` in `POST /api/analyses`; default English; offer the content language (`analysis.language.code`). Invalid codes get a 422 `invalid_input`.
+   - Show `scores.<dimension>.reason` when a dimension abstains, the failed-step message when a step fails, and the explanation summary as written (it carries the "preliminary estimates" sentence).
    - Metrics page from `GET /api/metrics` (404 = not published yet: show "metrics coming").
-   - Show the abstention reason when a dimension abstains, and the failed-step message when a step fails.
-5. `EVALUATED_LANGUAGES` in `pipeline/extract/language.py`: the labelled set has real items in en 57, de 48, fr 41, es 41, it 37, nl 17 (ru, pl, pt, ro, sv, cs: under 6 each). Add the first six once the metrics are published.
+2. **VPS check**: a pasted Italian or English news text gets ≥ 3 context items with full bodies and a `sources[]` entry per outlet, inside the 120 s stage budget. Post the analysis ID in your next PR.
+3. **Memory check**: worker RSS on the VPS (`docker stats` or Hostinger Docker stats) with lingua, e5, the AI-core models and Chromium loaded together; limit 6 GB. Post the number: the integrator decides on Chromium with it.
+4. **Confirm #18 on real data** (code is merged, output unverified):
+   - `fcd_*` items in `evals/labelled.jsonl` get a context item with `fact_check` set, and a `fact_checks / rated_false` evidence item.
+   - A `pk_*` item gets ≥ 1 context item on another `*.news-pravda.com` or listed domain.
+   - `registered_at` is filled for big outlets (ansa.it, tagesschau.de, rte.ie were null).
 
 ## Lyreplus — AI core on real data
-1. As soon as `retrieve` is live: run real texts on the VPS and read `/api/stats` (p50/p95 per stage) and worker memory. If `signals_single` is too slow on 2 vCPU, cut paragraphs/peers or switch to a smaller model; the analysis budget is 300 s in total.
-2. Check the signals against real `retrieve` output with ck-lithium: full bodies, `wire_service` outlets, `in_story`, fact-check items. Fix mismatches on your side or ask ck-lithium; contract questions go to the integrator.
-3. **Fit the combiner** when the integrator hands over `evals/results/fit.jsonl` from the VPS run (after retrieve is deployed): `python -m pipeline.score.fit`, commit `weights.json` with its `cv` block. The priors note in the explanation disappears by itself once `n > 0`.
+All AI-core stages are done on `main`.
+1. **Fit the combiner** as soon as the integrator hands over `evals/results/fit.jsonl` (blocked on the VPS run): `python -m pipeline.score.fit evals/results/fit.jsonl`, commit `weights.json` with its `cv` block. The priors note in the explanation disappears by itself once `n > 0`. Tell mosearc when it is merged so the metrics are recomputed.
+2. **Speed on the VPS**: run real texts and read `/api/stats` (p50/p95 per stage). Laptop: `signals_single` p50 14 s, max 44 s with 4 at once; stage timeout 120 s, analysis budget 300 s. If it is too slow on 2 vCPU, cut paragraphs/peers or switch to a smaller model.
+3. **Signals vs real retrieve output** (possible since #16), with ck-lithium: full bodies, `wire_service` outlets, `in_story` under the new 0.90 / 0.845 story threshold, fact-check items from #18. Fix mismatches on your side or ask ck-lithium; contract questions go to the integrator.
 4. Re-run the demo items with `rerun?from=signals_single` after each signal or weight change and compare with mosearc.
 
 ## mosearc — evaluation, metrics, pitch
-1. **Metrics**: after the integrator's VPS run, `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). The API image serves it at `/api/metrics` on the next deploy.
-2. **Demo inputs** (`docs/pitch/demo-script.md`): once retrieve and story are live, submit each item on the VPS (`?force=true`), keep the clean runs and fill in the analysis IDs; swap in backups that score without evidence.
-3. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
+1. **Fix `metrics.py` now (not blocked)**: an abstained positive must not leave the recall denominator silently. Publish coverage (scored / labelled) next to recall, precision and FPR, and `n/a` for an empty denominator instead of `0.000`.
+2. **Demo inputs** (`docs/pitch/demo-script.md`, not blocked): retrieve and story are live. Submit each item on the VPS (`POST /api/analyses?force=true`), keep the clean runs and replace every "after deploy" with the analysis ID; swap in backups that abstain or score without evidence.
+3. **Metrics** (blocked on the integrator's VPS run, then on Lyreplus's fit): `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). Recompute after the fit lands. The API serves it at `/api/metrics` on the next deploy.
+4. **Honest coordinated number**: the VIGINUM list both labels `viginum_pravda` and is the `known_networks` signal, so the coordinated AUC is about 1 by construction. Report it without that family next to the headline (`weights.json → cv.ablation.known_networks.auc_without`, after the fit). Same caution for `fact_checks` on `fact_checker_debunk` and `outlet_fact_checker` on `hard_fact_checks`.
+5. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
+6. `mosearc/labelled-set` is stale: its `evals/labelled.jsonl` is identical to `main` (merged in #13). Delete it if you no longer need it.
 
 ## Integrator (Degra02)
-- Review and merge `ck-lithium/retrieve` as soon as the PR is up; watch the worker image build (e5 model) and the deploy.
-- Then the eval run on the VPS host, limits off for the run and restored after: `PYTHONPATH=evals/src uv run --frozen python -m propaganda_eval.cli run --api http://127.0.0.1:8080 --concurrency 2`. `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc.
-- Confirm the VPS `.env`: `LLM_*` (`gemini-3.1-flash-lite`), `GOOGLE_FACTCHECK_API_KEY`, `GEMINI_API_KEY`, Oxylabs.
-- Decide on Chromium for the extract browser fallback (memory vs readable sites) after ck-lithium's memory check.
-- Keep `main` deployable; update this file after every round.
+1. **VPS `.env`**: confirm `LLM_*` (`gemini-3.1-flash-lite`), `GEMINI_API_KEY`, `GOOGLE_FACTCHECK_API_KEY`, `OXYLABS_USERNAME`, `OXYLABS_PASSWORD`. Without the last three the #18 adapters do not run on the VPS.
+2. **VPS eval run** (blocks Lyreplus and mosearc), limits off for the run and restored after: `PYTHONPATH=evals/src uv run --frozen python -m propaganda_eval.cli run --api http://127.0.0.1:8080 --concurrency 2`. `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc.
+3. **Contract**: add `satire` to `OutletType` (retrieve can mark satire sites, score can stop them); fix the fixture `techniques / manipulative_wording` from `0.87` to `0.25` (now a share of paragraphs). Regenerate with `mise run contracts`.
+4. **Decisions**: Chromium for the extract fallback (after ck-lithium's memory check); whether `claim_support` gets an LLM verifier per (claim, passage) for false NLI contradictions (network I/O in a signal stage, beyond D5) or the fit decides its weight.
+5. `k8s` branch: 2 commits ahead of `main`, no PR; merge or drop.
+6. Keep `main` deployable; update this file after every round.
