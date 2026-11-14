@@ -60,6 +60,9 @@ class Hit:
     item: FeedItem
     score: float  # best weighted share of one query's words found in the item, in (0, 1]
     retrieved_by: str = FEEDS  # the adapter that found it
+    # A phrase hit that a word-matching adapter also found: what it counts as if the page does
+    # not repeat the phrase after all.
+    fallback: str | None = None
 
 
 @dataclass(frozen=True)

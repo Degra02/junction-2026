@@ -54,3 +54,9 @@ def distinctive_phrases(document: Document | None) -> list[str]:
         if len(phrases) == MAX_PHRASES:
             break
     return phrases
+
+
+def contains(text: str, phrase: str) -> bool:
+    """Whether `text` holds `phrase` verbatim, ignoring case, spacing and punctuation."""
+    flat = " " + " ".join(_words(text)).casefold() + " "
+    return " " + " ".join(_words(phrase)).casefold() + " " in flat
