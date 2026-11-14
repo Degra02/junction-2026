@@ -4,6 +4,10 @@ Signals compare full bodies (claim support, copy detection), so an item enters t
 when its article body was extracted; a paywalled teaser or an RSS summary never does. A page that
 publishes `ClaimReview` data becomes a fact-check item: `fact_check` is set and its text is the
 reviewed claim followed by the article (the verdict text).
+
+An item's `language` is the language its text is written in (`text_language`), not what the page,
+the feed or the query says: sites mislabel pages (an English edition under `lang="it"`) and the
+language of a query says nothing about a hit. `story` picks its threshold from this field.
 """
 
 import asyncio
@@ -16,6 +20,7 @@ from pipeline.extract import scraper
 from pipeline.extract.article import Article, extract_article
 from pipeline.extract.document import published_utc
 from pipeline.extract.fetch import FetchFailed, Page, ensure_html, html_text
+from pipeline.extract.language import detect_language
 from pipeline.extract.urls import canonical_url, outlet_host
 from pipeline.retrieve.cache import Cache, NoCache
 from pipeline.retrieve.web import Web
@@ -24,6 +29,13 @@ log = logging.getLogger(__name__)
 
 ARTICLE_MAX_AGE = timedelta(days=1)
 _NS = "article"
+# Detection reads this much of an item: an article's language is settled well before.
+LANGUAGE_CHARS = 2_000
+# Below this confidence the detection does not overrule the tag. Measured Sun 15.11: an article
+# body scores 1.0; a one-line claim scores 0.15 to 0.99 and is sometimes wrong ("La NASA
+# manipuló los datos del clima / Rating: Falso" reads as Tagalog at 0.17). A wrong language
+# would move the item to story's looser cross-language threshold.
+LANGUAGE_MIN_CONFIDENCE = 0.5
 
 
 @dataclass
@@ -115,7 +127,20 @@ class Reader:
         return page
 
 
+def text_language(text: str, tagged: str | None) -> str | None:
+    """ISO 639-1 code of the language `text` is written in. `tagged` (what the page, the feed or
+    the query said) is kept only when the text has no language detected with confidence.
+
+    CPU-bound: call it from a thread in async code.
+    """
+    found = detect_language([text[:LANGUAGE_CHARS]])
+    if found is not None and found.confidence >= LANGUAGE_MIN_CONFIDENCE:
+        return found.code
+    return (tagged or "").split("-")[0].strip().lower() or None
+
+
 def context_item(item_id: str, record: Record, retrieved_by: str, language: str) -> ContextItem:
+    """CPU-bound (`text_language`): call it from a thread in async code."""
     return ContextItem(
         id=item_id,
         url=record.url,
@@ -123,7 +148,7 @@ def context_item(item_id: str, record: Record, retrieved_by: str, language: str)
         published_at=published_utc(record.published_at),
         title=record.title,
         text=record.text,
-        language=record.language or language,
+        language=text_language(record.text, record.language or language),
         retrieved_by=retrieved_by,
         tracking_ids=record.tracking_ids,
         fact_check=FactCheck(**record.fact_check) if record.fact_check else None,

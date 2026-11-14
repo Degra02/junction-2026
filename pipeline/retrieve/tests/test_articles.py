@@ -8,7 +8,7 @@ import pytest
 from pipeline.extract import scraper
 from pipeline.extract.fetch import FetchFailed, Page
 from pipeline.extract.urls import canonical_url
-from pipeline.retrieve.articles import Reader, Record, context_item
+from pipeline.retrieve.articles import Reader, Record, context_item, text_language
 from pipeline.retrieve.cache import Cache, NoCache
 from pipeline.retrieve.tests.conftest import article_page
 
@@ -147,3 +147,61 @@ def test_context_item_maps_the_record():
     assert item.published_at.isoformat() == "2026-11-14T09:30:00+00:00"
     assert item.fact_check.claim == "C" and item.fact_check.publisher is None
     assert item.retrieved_by == "feeds"
+
+
+# --- the language of an item is the language of its text ---------------------------------------
+
+ENGLISH = (
+    "The city council approved the new tram line on Tuesday after a debate that lasted six "
+    "hours. Opponents said the cost estimate had doubled since the first proposal two years ago."
+)
+ITALIAN = (
+    "Il consiglio comunale ha approvato martedì la nuova linea del tram dopo un dibattito durato "
+    "sei ore. Gli oppositori hanno detto che la stima dei costi è raddoppiata in due anni."
+)
+
+
+def record(text: str, language: str | None = None) -> Record:
+    return Record(
+        url="https://www.paper.example/story",
+        title="Tram",
+        text=text,
+        published_at=None,
+        language=language,
+    )
+
+
+def test_an_english_text_under_a_feed_tagged_italian_is_english():
+    assert context_item("ctx1", record(ENGLISH), "feeds", "it").language == "en"
+    # The page's own tag is no better than the feed's when the text says otherwise.
+    assert context_item("ctx1", record(ENGLISH, language="it"), "feeds", "it").language == "en"
+    assert (
+        context_item("ctx1", record(ITALIAN, language="en"), "oxylabs_news", "en").language == "it"
+    )
+
+
+def test_a_text_in_the_tagged_language_keeps_it():
+    assert context_item("ctx1", record(ITALIAN), "feeds", "it").language == "it"
+
+
+@pytest.mark.parametrize(
+    ("text", "tagged", "language"),
+    [
+        ("12 345 — 67%", "it", "it"),  # no language at all
+        ("12 345 — 67%", None, None),
+        ("Trump Biden Zelensky Putin 2026", "en", "en"),  # names: a guess, not a detection
+        # A one-line claim reads as Tagalog with confidence 0.17: the tag stands.
+        ("La NASA manipuló los datos del clima\n\nRating: Falso", "es", "es"),
+        ("La NASA manipuló los datos del clima\n\nRating: Falso", None, None),
+        ("Body.", "pt-BR", "pt"),  # a kept tag is the bare language code
+        ("Body.", " EN ", "en"),
+        ("", "", None),
+    ],
+)
+def test_the_tag_is_kept_only_when_the_text_has_no_confident_language(text, tagged, language):
+    assert text_language(text, tagged) == language
+
+
+def test_only_the_start_of_a_long_text_is_read():
+    # A long article that turns to another language far down is the language it opens in.
+    assert text_language(ENGLISH * 20 + ITALIAN * 20, "it") == "en"
