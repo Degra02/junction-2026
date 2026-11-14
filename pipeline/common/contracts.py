@@ -307,6 +307,12 @@ class ContextItem(BaseModel):
     outlet: str | None = None
     published_at: AwareDatetime | None = None
     title: str | None = None
+    author: Annotated[
+        str | None,
+        Field(
+            description="Account that published the item when it is a social media post, as the platform shows it\n(e.g. `@name.bsky.social`); null for articles. Copies are counted per account on a\nplatform, so many accounts posting the same text count as many copies, not one site."
+        ),
+    ] = None
     text: Annotated[
         str,
         Field(
@@ -317,7 +323,7 @@ class ContextItem(BaseModel):
     retrieved_by: Annotated[
         str,
         Field(
-            description="Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`."
+            description="Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`, or the\nsocial platform (`x`, `reddit`, `bluesky`, `mastodon`, `telegram`)."
         ),
     ]
     tracking_ids: Annotated[

@@ -11,7 +11,7 @@ import type {
 } from "../lib/contracts";
 import { cleanDomain } from "../lib/evidence";
 import { formatShortDate } from "../lib/format";
-import { FAMILY_LABELS, signalLabel } from "../lib/labels";
+import { FAMILY_LABELS, TECHNIQUE_GUIDE, signalLabel } from "../lib/labels";
 import { collectDocumentAnnotations, segmentParagraph } from "../lib/spans";
 import { tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
@@ -244,6 +244,12 @@ export function DocumentReader({
                               <p className="text-xs text-[var(--fg-secondary)] leading-relaxed">
                                 {ev.detail}
                               </p>
+                              {ev.family === "techniques" && TECHNIQUE_GUIDE[ev.signal] && (
+                                <p className="text-xs text-[var(--fg-secondary)] leading-relaxed">
+                                  <span className="font-medium text-[var(--fg-primary)]">Spot it: </span>
+                                  {TECHNIQUE_GUIDE[ev.signal]?.spot}
+                                </p>
+                              )}
                               <CitationChip
                                 evidence={ev}
                                 document={document}

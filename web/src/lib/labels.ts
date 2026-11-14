@@ -166,6 +166,55 @@ export const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   listed_domain: "Listed in documented network registry",
 };
 
+/**
+ * Reader's guide to the six technique categories of `pipeline/signals/techniques.py`
+ * (SemEval-2023 persuasion techniques): what the category does, and one question that helps a
+ * reader spot it without us.
+ */
+export const TECHNIQUE_GUIDE: Readonly<
+  Record<string, { readonly name: string; readonly what: string; readonly spot: string }>
+> = {
+  manipulative_wording: {
+    name: "Loaded wording",
+    what: "Charged, exaggerated, vague or repeated words that push a feeling instead of informing.",
+    spot: "Swap the charged words for neutral ones. Does the sentence still say the same thing?",
+  },
+  attack_on_reputation: {
+    name: "Attacks on people",
+    what: "Labels, doubt, hypocrisy or guilt by association aimed at a person or group instead of their argument.",
+    spot: "Is the argument answered, or only the person behind it?",
+  },
+  justification: {
+    name: "Appeals instead of evidence",
+    what: "Fear, patriotism, values, authority or “everyone agrees” used to make the point.",
+    spot: "Look past the appeal: who says so, and what evidence is given?",
+  },
+  simplification: {
+    name: "Oversimplification",
+    what: "One cause for a complex event, a chain of consequences taken for granted, or only two options.",
+    spot: "Which other causes or options are left out?",
+  },
+  distraction: {
+    name: "Distraction",
+    what: "Misrepresenting the other side, changing the subject, or answering with “what about…”.",
+    spot: "Does the original question ever get answered?",
+  },
+  call: {
+    name: "Slogans and conversation stoppers",
+    what: "Catchy phrases, deadlines or “nothing more to discuss” lines that replace reasoning.",
+    spot: "Rewrite the slogan as a plain claim. Is it still supported?",
+  },
+};
+
+/** Social platforms searched by `pipeline/retrieve/social.py` (`retrieved_by` = platform). */
+export const SOCIAL_PLATFORMS: Readonly<Record<string, string>> = {
+  x: "X",
+  reddit: "Reddit",
+  bluesky: "Bluesky",
+  mastodon: "Mastodon",
+  telegram: "Telegram",
+};
+
 export const OUTLET_TYPE_LABELS: Readonly<
   Record<OutletType, { readonly label: string; readonly tone: "neutral" | "teal" | "caution" }>
 > = {
@@ -209,6 +258,7 @@ export const ADAPTER_LABELS: Readonly<Record<string, string>> = {
   fact_check_api: "Fact-check index",
   oxylabs: "Web search",
   oxylabs_news: "News search",
+  ...SOCIAL_PLATFORMS,
 };
 
 export const SET_LABELS: Readonly<

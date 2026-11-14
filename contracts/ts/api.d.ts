@@ -267,13 +267,22 @@ export interface components {
             published_at?: string | null;
             title?: string | null;
             /**
+             * @description Account that published the item when it is a social media post, as the platform shows it
+             *     (e.g. `@name.bsky.social`); null for articles. Copies are counted per account on a
+             *     platform, so many accounts posting the same text count as many copies, not one site.
+             */
+            author?: string | null;
+            /**
              * @description Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the
              *     reviewed claim followed by the verdict text.
              */
             text: string;
             /** @description ISO 639-1 code. */
             language?: string | null;
-            /** @description Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`. */
+            /**
+             * @description Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`, or the
+             *     social platform (`x`, `reddit`, `bluesky`, `mastodon`, `telegram`).
+             */
             retrieved_by: string;
             /**
              * @description Analytics and ad IDs found in the page (GA, GTM, `AdSense`); compared across outlets by

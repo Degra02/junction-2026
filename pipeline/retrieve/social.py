@@ -12,10 +12,10 @@ loosen quoted queries), once per account, at most `PER_PLATFORM` per platform an
 all. Posts about the same topic in other words are not collected: a post is not a news report,
 and `story` keeps every post out of the coverage that claims and tone are compared with.
 
-What the signals see: `outlet` is the platform's domain (`x.com`, `reddit.com`), `retrieved_by`
-the platform, `title` names the account, `text` is the post, `published_at` its exact time.
-Copy detection counts outlets by domain, so many accounts on one platform count as one copying
-site until the contract carries the account.
+What the signals see: `outlet` is the platform's domain (`x.com`, `reddit.com`), `author` the
+account, `retrieved_by` the platform, `title` names the account for people, `text` is the post,
+`published_at` its exact time. Copy detection counts one copy per account on a platform, so many
+accounts posting the same text are many copies, not one site.
 
 `SOCIAL_SEARCH=0` turns the adapters off. Search answers and posts are cached (each Oxylabs
 search costs credit). The whole lane has one budget and never fails the stage.
@@ -250,8 +250,8 @@ async def find_posts(
 
 
 def post_item(item_id: str, post: Post) -> ContextItem:
-    """A post as a context item. The title names the account (the contract has no author
-    field); the text is everything the author wrote."""
+    """A post as a context item: `author` is the account (copies are counted per account), the
+    title names it for people, the text is everything the author wrote."""
     where = f" in {post.community}" if post.platform == social.REDDIT and post.community else ""
     who = f" by {post.author}" if post.author else ""
     return ContextItem(
@@ -260,6 +260,7 @@ def post_item(item_id: str, post: Post) -> ContextItem:
         outlet=outlet_host(post.url) or None,
         published_at=published_utc(post.published_at),
         title=f"Post{who} on {social.PLATFORMS[post.platform]}{where}",
+        author=post.author,
         text=social.post_text(post),
         language=post.language,
         retrieved_by=post.platform,

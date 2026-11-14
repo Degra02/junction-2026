@@ -408,6 +408,7 @@ mod tests {
             outlet: Some("example.com".into()),
             published_at: None,
             title: None,
+            author: None,
             text: text.into(),
             language: Some("en".into()),
             retrieved_by: "google_news".into(),

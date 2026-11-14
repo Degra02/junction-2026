@@ -87,7 +87,7 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 
 | Family | Signal | Value | When emitted | Source refs |
 |---|---|---|---|---|
-| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | **share of the analysed paragraphs** with a detected technique of that SemEval-2023 category, `(0, 1]`; a text shorter than 4 paragraphs counts as 4 | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 document paragraphs, strongest first |
+| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | **share of the analysed paragraphs** with a detected technique of that SemEval-2023 category, `(0, 1]`; a text shorter than 4 paragraphs counts as 4 | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 flagged paragraphs, strongest first, each narrowed to its highest-scoring sentence (whole paragraph when no sentence reaches half the threshold) |
 | tone | `tone_vs_peers` | z-score of the document's emotional charge vs story peers, `[-5, 5]` (positive = more charged) | ≥3 story peers | most charged paragraph + up to 3 peers |
 | claim_support | `contradicted` | (contradicting + 1) / (addressing + 2): the contradicting share, smoothed so one source moves it little, `(0, 1)` | ≥1 peer supports the claim (entailment ≥ 0.6) or contradicts it (contradiction ≥ 0.9 in **both** directions) | claim span + contradicting passages (quoted) + supporting peers |
 | claim_support | `unaddressed` | 1.0 | ≥3 peers judged, none addresses the claim | claim span |
@@ -107,13 +107,13 @@ Details:
 
 | Family | Signal | Value | When emitted | Source refs |
 |---|---|---|---|---|
-| text_reuse | `copied_passages` | number of distinct other outlets copying the document | ≥1 copy | most-copied document sentence + up to 4 copies (quoted when verbatim) |
+| text_reuse | `copied_passages` | number of distinct other copiers: outlets, and accounts for social media posts | ≥1 copy | most-copied document sentence + up to 4 copies (quoted when verbatim) |
 | timing | `copies_within_window` | copies published within 6 h of the document (or of the earliest copy when the document has no date) | ≥1 (≥2 without document date) | the copies |
 | infrastructure | `shared_tracking_id` | largest number of other domains carrying one of the document's GA/GTM/AdSense IDs (without document IDs: an ID shared by ≥2 copying sites) | ≥1 such domain | carrying items |
 | infrastructure | `young_copying_domains` | copying domains registered < 180 days before the article | ≥1 | RDAP URLs |
 | known_networks | `listed_domain` | listed domains among the document outlet, the copies, and same-story sister sites of `own`'s network (or `similarity ≥ 0.93` when `own` is null) | `sources[].known_network` set | outlet URLs |
 
-- **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped).
+- **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped), or one per account on a social platform (`context[].author` set): 5 accounts posting the text on `bsky.app` are 5 copies. A post by the document's own account is not a copy.
 - **Syndication & satire guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `satire`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream and satire outlets; untyped outlets still count as copiers.
 - **Quotations** are removed from the document before shingling: a fact-check quoting a hoax is not a copy of it.
 - Exact 5-gram sets instead of MinHash: with ≤30 context items exact is cheap and has no false matches.
