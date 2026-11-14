@@ -396,6 +396,20 @@
   }
 }
 
+/* Highlighter sweep: a flagged passage fills in when its paragraph reaches the reading line. */
+.mark-sweep {
+  background-image: linear-gradient(var(--mark-strong), var(--mark-strong));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  transition:
+    background-size 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 150ms ease;
+}
+
+.mark-sweep[data-focus="true"] {
+  background-size: 100% 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

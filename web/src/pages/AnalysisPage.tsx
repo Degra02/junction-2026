@@ -21,11 +21,12 @@ import { LANGUAGE_SUPPORT_LABELS, OUTLET_TYPE_LABELS, languageName, networkLabel
 import { GENTLE_SPRING } from "../lib/motion";
 import { rememberAnalysis } from "../lib/recent";
 import { buttonClass, tagClass } from "../lib/ui";
+import { cn } from "../lib/utils";
 
 export type AnalysisPageProps = Record<string, never>;
 
-type TabId = "coverage" | "text" | "score" | "run";
-const TAB_IDS: readonly string[] = ["coverage", "text", "score", "run"];
+type TabId = "coverage" | "score" | "run";
+const TAB_IDS: readonly string[] = ["coverage", "score", "run"];
 
 const SINGLE_FAMILIES: Partial<Record<Family, true>> = {
   techniques: true,
@@ -55,6 +56,8 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   const tab: TabId = TAB_IDS.includes(tabParam) ? (tabParam as TabId) : "coverage";
   const [mathDimension, setMathDimension] = useState<DimensionKey>("single");
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+  // The article paragraph at the reading line, shared by the article and the techniques rail.
+  const [focusParagraph, setFocusParagraph] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [forcingRun, setForcingRun] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -99,6 +102,34 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
     });
   }
 
+  /** Scrolls the article to an item's passage, in `paragraph` when given. */
+  function showInArticle(annotationId: string, paragraph?: number) {
+    setActiveAnnotationId(annotationId);
+    requestAnimationFrame(() => {
+      const article = document.getElementById("article");
+      if (!article) return;
+      const selector = `[data-annotation-ids~="${CSS.escape(annotationId)}"]`;
+      const target =
+        (paragraph === undefined
+          ? null
+          : article.querySelector<HTMLElement>(`[data-paragraph="${paragraph}"] ${selector}`)) ??
+        article.querySelector<HTMLElement>(selector);
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      (target ?? article).scrollIntoView({
+        behavior: reduced ? "auto" : "smooth",
+        block: target ? "center" : "start",
+      });
+    });
+  }
+
+  // Links from before the article left the tabs (?tab=text) land on the article.
+  useEffect(() => {
+    if (tabParam !== "text" || !analysis?.document) return;
+    setTab("coverage");
+    requestAnimationFrame(() => document.getElementById("article")?.scrollIntoView({ block: "start" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam, analysis?.document]);
+
   function handleInspectCalculation(dim: DimensionKey) {
     setMathDimension(dim);
     openTab("score");
@@ -112,8 +143,8 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
       openTab("score", `evidence-${ev.id}`);
       return;
     }
-    // Claims and evidence quoted from the article open the annotated text.
-    openTab("text");
+    // Claims and evidence quoted from the article scroll to the annotated text.
+    showInArticle(targetId);
   }
 
   async function handleCopyLink() {
@@ -236,6 +267,8 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         ? cleanDomain(analysis.input.context_url)
         : "";
   const shownOutlet = docOutlet || inputDomain;
+  const techniquesState = analysis.steps.find((s) => s.name === "signals_single")?.state;
+  const hasTechniques = techniquesState === "done";
   const externalHref =
     analysis.document?.url ??
     analysis.input.context_url ??
@@ -444,22 +477,6 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                 />
               </div>
 
-              {/* What the wording does and who repeats it: shown even when a score abstains. */}
-              <TechniquesPanel
-                evidence={analysis.evidence}
-                document={analysis.document}
-                checked={analysis.steps.find((s) => s.name === "signals_single")?.state}
-                onOpenPassage={handleInspectEvidenceOrClaim}
-              />
-              <SocialSwarm
-                context={analysis.context}
-                document={analysis.document}
-                evidence={analysis.evidence}
-                documentLabel={
-                  analysis.input.kind === "text" ? "This text" : analysis.document.outlet ? "This article" : "This post"
-                }
-              />
-
               <ExplanationPanel
                 explanation={analysis.explanation}
                 evidence={analysis.evidence}
@@ -470,6 +487,52 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                 detectedLanguage={analysis.language}
                 activeEvidenceId={activeAnnotationId}
                 onInspectEvidence={handleInspectEvidenceOrClaim}
+              />
+
+              {/* The text with what its wording does beside it, shown even when a score abstains.
+                  On wide screens the techniques ride along in a sticky rail and follow the
+                  paragraph being read; on narrow ones they sit above the text. */}
+              <div
+                id="article"
+                className={cn(
+                  "scroll-mt-20",
+                  hasTechniques &&
+                    "grid grid-cols-1 items-start gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px] xl:-mx-14",
+                )}
+              >
+                {hasTechniques && (
+                  <div className="lg:order-2 lg:sticky lg:top-20">
+                    <TechniquesPanel
+                      evidence={analysis.evidence}
+                      document={analysis.document}
+                      checked={techniquesState}
+                      focusParagraph={focusParagraph}
+                      onOpenPassage={showInArticle}
+                      className="lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain"
+                    />
+                  </div>
+                )}
+                <DocumentReader
+                  document={analysis.document}
+                  topic={analysis.topic}
+                  claims={analysis.claims}
+                  evidence={analysis.evidence}
+                  context={analysis.context}
+                  sources={analysis.sources}
+                  activeAnnotationId={activeAnnotationId}
+                  onSelectAnnotation={setActiveAnnotationId}
+                  focusParagraph={focusParagraph}
+                  onFocusParagraph={setFocusParagraph}
+                />
+              </div>
+
+              <SocialSwarm
+                context={analysis.context}
+                document={analysis.document}
+                evidence={analysis.evidence}
+                documentLabel={
+                  analysis.input.kind === "text" ? "This text" : analysis.document.outlet ? "This article" : "This post"
+                }
               />
 
               <Tabs.Root
@@ -485,9 +548,6 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                   <Tabs.Trigger value="coverage" className={TAB_TRIGGER}>
                     Coverage{" "}
                     <span className="font-mono-num text-xs text-[var(--fg-muted)]">{analysis.context.length}</span>
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="text" className={TAB_TRIGGER}>
-                    Article
                   </Tabs.Trigger>
                   <Tabs.Trigger value="score" className={TAB_TRIGGER}>
                     Scoring
@@ -509,18 +569,6 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                     documentPublishedAt={analysis.document.published_at}
                     activeEvidenceId={activeAnnotationId}
                     onSelectAnnotation={handleInspectEvidenceOrClaim}
-                  />
-                </Tabs.Content>
-                <Tabs.Content value="text" className="outline-none">
-                  <DocumentReader
-                    document={analysis.document}
-                    topic={analysis.topic}
-                    claims={analysis.claims}
-                    evidence={analysis.evidence}
-                    context={analysis.context}
-                    sources={analysis.sources}
-                    activeAnnotationId={activeAnnotationId}
-                    onSelectAnnotation={setActiveAnnotationId}
                   />
                 </Tabs.Content>
                 <Tabs.Content value="score" className="outline-none">

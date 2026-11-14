@@ -27,7 +27,18 @@ export interface DocumentReaderProps {
   readonly sources: readonly SourceProfile[];
   readonly activeAnnotationId: string | null;
   readonly onSelectAnnotation: (id: string) => void;
+  /** The paragraph at the reading line: its flagged passages are filled in. */
+  readonly focusParagraph?: number | null;
+  /** Called as the reader scrolls, with the paragraph crossing the reading line (null above the text). */
+  readonly onFocusParagraph?: (paragraph: number | null) => void;
 }
+
+/**
+ * The reading line: a band between 38% and 48% of the viewport height. The topmost paragraph
+ * inside it is the one being read.
+ */
+const READING_BAND = "-38% 0px -52% 0px";
+const READING_LINE = 0.48;
 
 export function DocumentReader({
   document,
@@ -38,6 +49,8 @@ export function DocumentReader({
   sources,
   activeAnnotationId,
   onSelectAnnotation,
+  focusParagraph = null,
+  onFocusParagraph,
 }: Readonly<DocumentReaderProps>) {
   const containerRef = useRef<HTMLElement | null>(null);
 
@@ -49,21 +62,59 @@ export function DocumentReader({
   const claimMap = useMemo(() => new Map(claims.map((c) => [c.id, c])), [claims]);
   const evidenceMap = useMemo(() => new Map(evidence.map((e) => [e.id, e])), [evidence]);
 
+  // Scrolling to a passage is the page's job (it knows which paragraph was asked for); the
+  // reader only flashes the marks of the selected item.
   useEffect(() => {
     if (!activeAnnotationId || !containerRef.current) return;
-    const target = containerRef.current.querySelector<HTMLElement>(
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const targets = containerRef.current.querySelectorAll<HTMLElement>(
       `[data-annotation-ids~="${CSS.escape(activeAnnotationId)}"]`,
     );
-    if (!target) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
-    if (!reduced) {
+    for (const target of targets) {
       target.animate(
         [{ boxShadow: "0 0 0 4px var(--mark-strong)" }, { boxShadow: "0 0 0 0 transparent" }],
         { duration: 900, easing: "ease-out" },
       );
     }
   }, [activeAnnotationId]);
+
+  const paragraphCount = document?.paragraphs.length ?? 0;
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !onFocusParagraph || paragraphCount === 0) return;
+    const paragraphs = Array.from(root.querySelectorAll<HTMLElement>("[data-paragraph]"));
+    const inBand = new Set<number>();
+
+    const band = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const index = Number((entry.target as HTMLElement).dataset.paragraph);
+          if (entry.isIntersecting) inBand.add(index);
+          else inBand.delete(index);
+        }
+        if (inBand.size > 0) {
+          onFocusParagraph(Math.min(...inBand));
+          return;
+        }
+        // Between two paragraphs the last one stays; above the first one nothing is being read.
+        const first = paragraphs[0]?.getBoundingClientRect().top ?? 0;
+        if (first > window.innerHeight * READING_LINE) onFocusParagraph(null);
+      },
+      { rootMargin: READING_BAND },
+    );
+    for (const p of paragraphs) band.observe(p);
+
+    const whole = new IntersectionObserver(([entry]) => {
+      if (entry && !entry.isIntersecting) onFocusParagraph(null);
+    });
+    whole.observe(root);
+
+    return () => {
+      band.disconnect();
+      whole.disconnect();
+      onFocusParagraph(null);
+    };
+  }, [paragraphCount, onFocusParagraph]);
 
   if (!document || document.paragraphs.length === 0) {
     return (
@@ -80,19 +131,14 @@ export function DocumentReader({
   return (
     <section
       ref={containerRef}
-      aria-labelledby={document.title ? "reader-heading" : undefined}
-      aria-label={document.title ? undefined : "Article text"}
-      className="editorial-card rounded-xl p-4 sm:p-8"
+      aria-labelledby="reader-heading"
+      className="editorial-card rounded-xl p-4 sm:p-8 min-w-0"
     >
       <header className="max-w-[calc(68ch+2.75rem)] sm:pl-11 space-y-2">
-        {document.title && (
-          <h3
-            id="reader-heading"
-            className="display text-2xl leading-tight text-[var(--fg-primary)]"
-          >
-            {document.title}
-          </h3>
-        )}
+        {/* The page title above is the document's title: the reader does not repeat it. */}
+        <h2 id="reader-heading" className="text-sm font-medium text-[var(--fg-primary)]">
+          {outlet ? "Article" : "Text"}
+        </h2>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--fg-secondary)]">
           {outlet && (
             <span className="inline-flex items-center gap-1.5">
@@ -158,16 +204,20 @@ export function DocumentReader({
       <div className="mt-6 grid grid-cols-[1.75rem_minmax(0,68ch)] sm:grid-cols-[2rem_minmax(0,68ch)] gap-x-2 sm:gap-x-3 gap-y-5">
         {document.paragraphs.map((para, pIdx) => {
           const segments = segmentParagraph(para, pIdx, annotations);
+          const isFocus = pIdx === focusParagraph;
 
           return (
             <Fragment key={pIdx}>
               <span
                 aria-hidden="true"
-                className="font-mono-num text-[11px] leading-[1.7] pt-[0.3em] text-right text-[var(--fg-muted)] select-none"
+                className={cn(
+                  "font-mono-num text-[11px] leading-[1.7] pt-[0.3em] text-right select-none transition-colors",
+                  isFocus ? "text-[var(--fg-primary)]" : "text-[var(--fg-muted)]",
+                )}
               >
                 {pIdx + 1}
               </span>
-              <p className="font-serif text-[17px] leading-[1.7] text-[var(--fg-primary)]">
+              <p data-paragraph={pIdx} className="font-serif text-[17px] leading-[1.7] text-[var(--fg-primary)]">
                 {segments.map((seg) => {
                   if (seg.annotations.length === 0) {
                     return <span key={`${seg.start}-${seg.end}`}>{seg.text}</span>;
@@ -191,11 +241,13 @@ export function DocumentReader({
                       <Popover.Trigger asChild>
                         <mark
                           data-annotation-ids={uniqueIds.join(" ")}
+                          data-focus={hasEvidence && isFocus && !isActive ? "true" : undefined}
                           onClick={() => {
                             if (uniqueIds[0]) onSelectAnnotation(uniqueIds[0]);
                           }}
                           className={cn(
                             "text-inherit rounded-[2px] box-decoration-clone cursor-pointer transition-colors underline-offset-[5px]",
+                            hasEvidence && "mark-sweep",
                             hasEvidence
                               ? isActive
                                 ? "bg-[var(--mark-strong)]"

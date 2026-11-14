@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Lightbulb } from "lucide-react";
 import type { DocumentData, Evidence, StepState } from "../lib/contracts";
 import { TECHNIQUE_GUIDE, signalLabel } from "../lib/labels";
 import { sliceCodePoints } from "../lib/spans";
 import { SECTION_LABEL, tagClass } from "../lib/ui";
+import { cn } from "../lib/utils";
 import { InfoHint } from "./ui/Hint";
 
 export interface TechniquesPanelProps {
@@ -11,8 +12,11 @@ export interface TechniquesPanelProps {
   readonly document: DocumentData;
   /** State of `signals_single`: the panel only speaks once the techniques were checked. */
   readonly checked: StepState | undefined;
-  /** Opens the article at the passages of this evidence item. */
-  readonly onOpenPassage: (evidenceId: string) => void;
+  /** Scrolls the article to this evidence item's passage in `paragraph`. */
+  readonly onOpenPassage: (evidenceId: string, paragraph: number) => void;
+  /** The article paragraph being read: the techniques flagged in it come forward. */
+  readonly focusParagraph?: number | null;
+  readonly className?: string;
 }
 
 interface Passage {
@@ -71,7 +75,15 @@ function clip(text: string): string {
  * and how to spot it. Shown whether or not the score abstains: it describes the text, it does
  * not need other coverage, and it is not a verdict (D4).
  */
-export function TechniquesPanel({ evidence, document, checked, onOpenPassage }: Readonly<TechniquesPanelProps>) {
+export function TechniquesPanel({
+  evidence,
+  document,
+  checked,
+  onOpenPassage,
+  focusParagraph = null,
+  className,
+}: Readonly<TechniquesPanelProps>) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const rows = useMemo(
     () =>
       evidence
@@ -82,10 +94,38 @@ export function TechniquesPanel({ evidence, document, checked, onOpenPassage }: 
     [evidence, document],
   );
 
+  const focusIds = useMemo(
+    () =>
+      new Set(
+        focusParagraph === null
+          ? []
+          : rows.filter((r) => r.passages.some((p) => p.paragraph === focusParagraph)).map((r) => r.evidence.id),
+      ),
+    [rows, focusParagraph],
+  );
+  const firstFocusId = rows.find((r) => focusIds.has(r.evidence.id))?.evidence.id ?? null;
+
+  // When the panel scrolls on its own (the sticky rail beside the article), keep the technique
+  // of the paragraph being read in view. The page itself never moves.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || !firstFocusId || section.scrollHeight <= section.clientHeight + 1) return;
+    const row = section.querySelector<HTMLElement>(`[data-technique="${CSS.escape(firstFocusId)}"]`);
+    if (!row) return;
+    const top = row.getBoundingClientRect().top - section.getBoundingClientRect().top;
+    if (top >= 0 && top + row.offsetHeight <= section.clientHeight) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollBy({ top: top - 48, behavior: reduced ? "auto" : "smooth" });
+  }, [firstFocusId]);
+
   if (checked !== "done") return null;
 
   return (
-    <section aria-labelledby="techniques-heading" className="editorial-card rounded-xl p-4 sm:p-5 space-y-4">
+    <section
+      ref={sectionRef}
+      aria-labelledby="techniques-heading"
+      className={cn("editorial-card rounded-xl p-4 sm:p-5 space-y-4", className)}
+    >
       <div className="flex items-center gap-2">
         <h2 id="techniques-heading" className="text-sm font-medium text-[var(--fg-primary)]">
           What the text does
@@ -106,9 +146,20 @@ export function TechniquesPanel({ evidence, document, checked, onOpenPassage }: 
       ) : (
         <ul className="divide-y divide-[var(--border-subtle)]">
           {rows.map((row) => {
-            const [first, ...rest] = row.passages;
+            const inFocus = focusIds.has(row.evidence.id);
+            // The quoted passage follows the reader: the one in the paragraph being read.
+            const shown = (inFocus && row.passages.find((p) => p.paragraph === focusParagraph)) || row.passages[0];
+            const rest = row.passages.filter((p) => p !== shown);
             return (
-              <li key={row.evidence.id} className="py-4 first:pt-0 last:pb-0 space-y-2">
+              <li
+                key={row.evidence.id}
+                data-technique={row.evidence.id}
+                aria-current={inFocus ? "true" : undefined}
+                className={cn(
+                  "py-4 first:pt-0 last:pb-0 space-y-2 transition-opacity duration-300",
+                  focusIds.size > 0 && !inFocus && "opacity-50 hover:opacity-100 focus-within:opacity-100",
+                )}
+              >
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <h3 className="text-sm font-medium text-[var(--fg-primary)]">{row.name}</h3>
                   {row.extent && <span className="font-mono-num text-xs text-[var(--fg-muted)]">{row.extent}</span>}
@@ -123,16 +174,19 @@ export function TechniquesPanel({ evidence, document, checked, onOpenPassage }: 
                     ))}
                   </div>
                 )}
-                {first && (
+                {shown && (
                   <button
                     type="button"
-                    onClick={() => onOpenPassage(row.evidence.id)}
+                    onClick={() => onOpenPassage(row.evidence.id, shown.paragraph)}
                     title="Show this passage in the article"
-                    className="group block w-full text-left rounded-lg border-l-2 border-[var(--mark-strong)] bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] px-3 py-2 cursor-pointer"
+                    className={cn(
+                      "group block w-full text-left rounded-lg border-l-2 bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] px-3 py-2 cursor-pointer transition-colors",
+                      inFocus ? "border-[var(--caution)]" : "border-[var(--mark-strong)]",
+                    )}
                   >
-                    <span className="font-mono-num text-[11px] text-[var(--fg-muted)] mr-2">¶{first.paragraph + 1}</span>
+                    <span className="font-mono-num text-[11px] text-[var(--fg-muted)] mr-2">¶{shown.paragraph + 1}</span>
                     <span className="font-serif text-[15px] leading-relaxed text-[var(--fg-primary)] line-clamp-3">
-                      {clip(first.text)}
+                      {clip(shown.text)}
                     </span>
                   </button>
                 )}
@@ -143,7 +197,7 @@ export function TechniquesPanel({ evidence, document, checked, onOpenPassage }: 
                       <button
                         key={p.paragraph}
                         type="button"
-                        onClick={() => onOpenPassage(row.evidence.id)}
+                        onClick={() => onOpenPassage(row.evidence.id, p.paragraph)}
                         title={clip(p.text)}
                         className={tagClass("neutral", { mono: true }, "cursor-pointer hover:border-[var(--border-strong)]")}
                       >
