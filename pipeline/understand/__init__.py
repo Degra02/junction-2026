@@ -48,7 +48,9 @@ another claim instead of rewriting it. Choose checkable statements of fact (who 
 numbers, dates, causes), not opinions, insults or questions. Leave out \
 statements the content only quotes, attributes to someone it disagrees with, reports as a \
 rumour, debunks or mocks: for a fact-check, take its own findings, not the claim it reviews; for \
-satire, return no claims.
+satire or a `[Satire/humour meme]` note, return no claims. Paragraphs starting with \
+`[Visual context]` describe an uploaded image to help you name the event and write search \
+queries: never copy a claim from a `[Visual context]` paragraph.
 - queries: news search queries that would find other coverage of the same event: up to \
 {MAX_QUERIES_PER_LANGUAGE} in the content's language and up to {MAX_QUERIES_PER_LANGUAGE} in \
 English (only the English ones when the content is in English). Each query is 3 to 8 \
@@ -125,10 +127,12 @@ def _claims(document: Document, passages: list[str]) -> list[Claim]:
         if found is None:
             continue
         key = (found.span.paragraph, found.span.start, found.span.end)
+        paragraph = document.paragraphs[found.span.paragraph]
         if (
             key in seen
             or found.span.end - found.span.start < 10
             or found.text.rstrip().endswith(("?", "？"))
+            or paragraph.startswith(("[Visual context] ", "[Satire/humour meme] "))
         ):
             continue
         seen.add(key)

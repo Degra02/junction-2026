@@ -393,8 +393,13 @@ export interface components {
         };
         Input: {
             kind: components["schemas"]["InputKind"];
-            /** @description The pasted text, or the article URL. */
+            /** @description The pasted text, the article/image URL, or a `data:image/...;base64,...` payload. */
             value: string;
+            /**
+             * @description Optional link to the comment, social post or article where the image/content was shared,
+             *     giving the pipeline outlet, timestamp, author and surrounding caption context.
+             */
+            context_url?: string | null;
             /**
              * @description Language the reader wants the explanation in (D14): ISO 639-1 code, e.g. `it`; null
              *     means English. The API lowercases it and drops a region (`pt-BR` → `pt`). Quotations
@@ -403,7 +408,7 @@ export interface components {
             explanation_language?: string | null;
         };
         /** @enum {string} */
-        InputKind: "text" | "url";
+        InputKind: "text" | "url" | "image";
         Language: {
             /** @description ISO 639-1 code, e.g. `it`. */
             code: string;

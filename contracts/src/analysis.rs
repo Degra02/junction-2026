@@ -141,8 +141,12 @@ pub enum StepState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Input {
     pub kind: InputKind,
-    /// The pasted text, or the article URL.
+    /// The pasted text, the article/image URL, or a `data:image/...;base64,...` payload.
     pub value: String,
+    /// Optional link to the comment, social post or article where the image/content was shared,
+    /// giving the pipeline outlet, timestamp, author and surrounding caption context.
+    #[serde(default)]
+    pub context_url: Option<String>,
     /// Language the reader wants the explanation in (D14): ISO 639-1 code, e.g. `it`; null
     /// means English. The API lowercases it and drops a region (`pt-BR` → `pt`). Quotations
     /// stay in their original language.
@@ -155,6 +159,7 @@ pub struct Input {
 pub enum InputKind {
     Text,
     Url,
+    Image,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]

@@ -1031,7 +1031,14 @@
           },
           "value": {
             "type": "string",
-            "description": "The pasted text, or the article URL."
+            "description": "The pasted text, the article/image URL, or a `data:image/...;base64,...` payload."
+          },
+          "context_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional link to the comment, social post or article where the image/content was shared,\ngiving the pipeline outlet, timestamp, author and surrounding caption context."
           },
           "explanation_language": {
             "type": [
@@ -1046,7 +1053,8 @@
         "type": "string",
         "enum": [
           "text",
-          "url"
+          "url",
+          "image"
         ]
       },
       "Language": {

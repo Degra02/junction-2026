@@ -304,6 +304,8 @@ async fn invalid_input_is_rejected_with_a_json_error() {
         json!({ "kind": "text", "value": "x", "explanation_language": "Italiano!" }),
         json!({ "kind": "text", "value": "x", "explanation_language": "ignore the rules" }),
         json!({ "kind": "image", "value": "x" }),
+        json!({ "kind": "image", "value": "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" }),
+        json!({ "kind": "image", "value": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==", "context_url": "http://127.0.0.1/" }),
         json!({ "value": "missing kind" }),
     ];
     for body in cases {
@@ -340,6 +342,38 @@ async fn url_input_is_accepted_and_passed_to_extract() {
         &Input {
             kind: InputKind::Url,
             value: "https://news.example/a?b=1".into(),
+            context_url: None,
+            explanation_language: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn image_input_with_context_url_is_accepted_and_passed_to_extract() {
+    let app = TestApp::spawn().await;
+    mount_pipeline(&app.worker, &[]).await;
+    let data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    let response = app
+        .http
+        .post(app.url("/api/analyses"))
+        .json(&json!({
+            "kind": "image",
+            "value": data_uri,
+            "context_url": " https://x.com/user/status/1234567890 ",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 202);
+    let id = response.json::<Created>().await.unwrap().id;
+    app.wait_finished(id).await;
+    let sent = &app.stage_requests(StageName::Extract).await[0].input;
+    assert_eq!(
+        sent,
+        &Input {
+            kind: InputKind::Image,
+            value: data_uri.into(),
+            context_url: Some("https://x.com/user/status/1234567890".into()),
             explanation_language: None,
         }
     );
@@ -517,6 +551,7 @@ async fn analyses_interrupted_by_a_restart_are_marked_failed() {
         Input {
             kind: InputKind::Text,
             value: "x".into(),
+            context_url: None,
             explanation_language: None,
         },
         "test".into(),

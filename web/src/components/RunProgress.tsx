@@ -294,7 +294,9 @@ function LedgerRow({
       ? `${meta.active} failed`
       : step.name === "extract" && analysis.input.kind === "text"
         ? "Read the text"
-        : meta.label;
+        : step.name === "extract" && analysis.input.kind === "image"
+          ? "Read the image"
+          : meta.label;
   // The latest note is the headline while running; earlier ones stay as a short trail.
   const current = running ? notes[notes.length - 1] : undefined;
   const trail = running ? notes.slice(-4, -1) : [];
@@ -549,12 +551,22 @@ export function RunProgress({
     : mountedAt;
 
   const doc = analysis.document;
-  const inputDomain = analysis.input.kind === "url" ? cleanDomain(analysis.input.value) : "";
+  const inputDomain =
+    analysis.input.kind === "url"
+      ? cleanDomain(analysis.input.value)
+      : analysis.input.context_url
+        ? cleanDomain(analysis.input.context_url)
+        : "";
+  const firstParagraph = doc?.paragraphs.find((p) => !p.startsWith("[")) ?? "";
   const title =
     doc?.title ||
-    (analysis.input.kind === "url"
-      ? analysis.input.value.replace(/^https?:\/\/(www\.)?/, "")
-      : `${Array.from(analysis.input.value).slice(0, 140).join("")}${analysis.input.value.length > 140 ? "…" : ""}`);
+    (analysis.input.kind === "image"
+      ? firstParagraph
+        ? `${Array.from(firstParagraph).slice(0, 120).join("")}${firstParagraph.length > 120 ? "…" : ""}`
+        : "Reading uploaded image / meme…"
+      : analysis.input.kind === "url"
+        ? analysis.input.value.replace(/^https?:\/\/(www\.)?/, "")
+        : `${Array.from(analysis.input.value).slice(0, 140).join("")}${analysis.input.value.length > 140 ? "…" : ""}`);
 
   return (
     <motion.section
@@ -589,13 +601,25 @@ export function RunProgress({
         </div>
 
         <div className="flex items-start gap-3">
-          {(cleanDomain(doc?.outlet ?? doc?.url) || inputDomain) && (
-            <Favicon domain={cleanDomain(doc?.outlet ?? doc?.url) || inputDomain} size={22} className="mt-1.5" />
+          {analysis.input.kind === "image" ? (
+            <img
+              src={analysis.input.value}
+              alt="Submitted image"
+              className="h-12 w-12 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] object-cover shrink-0 mt-0.5"
+            />
+          ) : (
+            (cleanDomain(doc?.outlet ?? doc?.url) || inputDomain) && (
+              <Favicon
+                domain={cleanDomain(doc?.outlet ?? doc?.url) || inputDomain}
+                size={22}
+                className="mt-1.5"
+              />
+            )
           )}
           <h1
             className={cn(
               "min-w-0 break-words",
-              doc?.title || analysis.input.kind === "text"
+              doc?.title || analysis.input.kind !== "url"
                 ? "display text-[26px] sm:text-[30px] leading-tight"
                 : "font-mono-num text-base sm:text-lg text-[var(--fg-secondary)] leading-snug",
             )}

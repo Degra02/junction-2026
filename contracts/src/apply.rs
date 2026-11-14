@@ -378,6 +378,7 @@ mod tests {
             Input {
                 kind: InputKind::Text,
                 value: "x".into(),
+                context_url: None,
                 explanation_language: None,
             },
             "test".into(),

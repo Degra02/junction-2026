@@ -30,7 +30,8 @@ use crate::{
 
 /// Longest accepted URL.
 const MAX_URL_CHARS: usize = 2048;
-/// Replay: pause before a step starts, and the bounds of the time it then appears to run.
+/// Longest accepted `data:image/...;base64,...` string (fits inside `MAX_BODY_BYTES = 512 KiB`).
+const MAX_IMAGE_DATA_URI_CHARS: usize = 450_000;
 const REPLAY_GAP: Duration = Duration::from_millis(100);
 const REPLAY_STEP_MS: (u64, u64) = (200, 1500);
 
@@ -297,6 +298,65 @@ fn not_found(id: Uuid) -> ApiError {
     ApiError::NotFound(format!("no analysis with id {id}"))
 }
 
+fn validate_public_url(value: &str) -> Result<(), ApiError> {
+    if value.chars().count() > MAX_URL_CHARS {
+        return Err(ApiError::InvalidInput("the URL is too long".into()));
+    }
+    let url = url::Url::parse(value)
+        .map_err(|e| ApiError::InvalidInput(format!("not a valid URL: {e}")))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(ApiError::InvalidInput(
+            "only http(s) URLs can be analysed".into(),
+        ));
+    }
+    // The worker fetches this URL from inside our network: never let it reach the
+    // worker itself, the VPS or a private network. The fetcher repeats the check on
+    // the resolved address (`pipeline.common.net`).
+    if !is_public_host(&url) || url.port().is_some() {
+        return Err(ApiError::InvalidInput(
+            "the URL must point to a public website on the default port".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_image(value: &str) -> Result<(), ApiError> {
+    if value.is_empty() {
+        return Err(ApiError::InvalidInput("the image is empty".into()));
+    }
+    if let Some(rest) = value.strip_prefix("data:image/") {
+        if value.len() > MAX_IMAGE_DATA_URI_CHARS {
+            return Err(ApiError::InvalidInput(
+                "the image is too large; use an image under 320 KB".into(),
+            ));
+        }
+        let Some((subtype, b64)) = rest.split_once(";base64,") else {
+            return Err(ApiError::InvalidInput(
+                "expected a base64 image data URI or a public http(s) image URL".into(),
+            ));
+        };
+        if !matches!(
+            subtype.to_ascii_lowercase().as_str(),
+            "png" | "jpeg" | "jpg" | "webp" | "gif"
+        ) {
+            return Err(ApiError::InvalidInput(
+                "unsupported image format; use PNG, JPEG, WebP or GIF".into(),
+            ));
+        }
+        if b64.len() < 16
+            || !b64
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+        {
+            return Err(ApiError::InvalidInput(
+                "the image base64 payload is invalid".into(),
+            ));
+        }
+        return Ok(());
+    }
+    validate_public_url(value)
+}
+
 fn validate(input: &Input, max_chars: usize) -> Result<Input, ApiError> {
     let value = input.value.trim().to_owned();
     match input.kind {
@@ -311,30 +371,25 @@ fn validate(input: &Input, max_chars: usize) -> Result<Input, ApiError> {
                 )));
             }
         }
-        InputKind::Url => {
-            if value.chars().count() > MAX_URL_CHARS {
-                return Err(ApiError::InvalidInput("the URL is too long".into()));
-            }
-            let url = url::Url::parse(&value)
-                .map_err(|e| ApiError::InvalidInput(format!("not a valid URL: {e}")))?;
-            if !matches!(url.scheme(), "http" | "https") {
-                return Err(ApiError::InvalidInput(
-                    "only http(s) URLs can be analysed".into(),
-                ));
-            }
-            // The worker fetches this URL from inside our network: never let it reach the
-            // worker itself, the VPS or a private network. The fetcher repeats the check on
-            // the resolved address (`pipeline.common.net`).
-            if !is_public_host(&url) || url.port().is_some() {
-                return Err(ApiError::InvalidInput(
-                    "the URL must point to a public website on the default port".into(),
-                ));
-            }
-        }
+        InputKind::Url => validate_public_url(&value)?,
+        InputKind::Image => validate_image(&value)?,
     }
+    let context_url = match input
+        .context_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(raw) => {
+            validate_public_url(raw)?;
+            Some(raw.to_owned())
+        }
+        None => None,
+    };
     Ok(Input {
         kind: input.kind,
         value,
+        context_url,
         explanation_language: explanation_language(input.explanation_language.as_deref())?,
     })
 }
@@ -400,7 +455,9 @@ fn input_hash(input: &Input, pipeline_version: &str) -> String {
     let kind = match input.kind {
         InputKind::Text => "text",
         InputKind::Url => "url",
+        InputKind::Image => "image",
     };
+    let context_url = input.context_url.as_deref().unwrap_or("");
     let language = input.explanation_language.as_deref().unwrap_or("en");
     let digest = Sha256::new()
         .chain_update(pipeline_version)
@@ -408,6 +465,8 @@ fn input_hash(input: &Input, pipeline_version: &str) -> String {
         .chain_update(kind)
         .chain_update([0])
         .chain_update(normalized)
+        .chain_update([0])
+        .chain_update(context_url)
         .chain_update([0])
         .chain_update(language)
         .finalize();
