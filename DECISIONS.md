@@ -27,3 +27,9 @@ Format: `- <day HH:MM> — <decision> — <owner>`
 - Sat 00:58 — D14 English UI; content analysis in any language; LLM explanation in the user's language as an option — team
 - Sat 00:58 — D15 Tech challenges kept: Oxylabs and Google MLH "Best Use of Gemini API" (Gemini with Google Search grounding as a retrieval adapter, other uses possible); the rest of the Fri 20:30 tier list is dropped — team
 - Sat 00:58 — D16 Roles: Integrator Degra02; AI core Lyreplus (understanding, signals, scoring, explanation); Product ck-lithium (extraction, retrieval, story clustering until the Sat 12:00 freeze, then `web/`); Problem mosearc (`evals/`, `SPEC.md`, pitch) — team
+- Sat 03:20 — Backend: Rust (axum) API owns jobs, SQLite, SSE progress and contract validation; it calls one Python FastAPI worker per stage (`POST /stages/{name}`). Replaces "API (FastAPI)" in `docs/plan.md` §7; rationale in `plans/backend-approaches.md` — Degra02
+- Sat 03:20 — Contract: Rust types in `contracts/` are the source of truth; `mise run contracts` generates `contracts/openapi.json`, `pipeline/common/contracts.py` (pydantic) and `contracts/ts/api.d.ts`; CI fails on drift — Degra02
+- Sat 03:20 — Stage interface: `pipeline/<owner pkg>/__init__.py: run(analysis) -> <Stage>Patch` (signals: `run_single` / `run_coordinated`); missing stages are skipped, not faked (`AGENTS.md` "Pipeline stages") — Degra02
+- Sat 03:20 — Rust tests run with cargo-nextest; pre-commit runs rustfmt + clippy `-D warnings` when Rust files are staged — Degra02
+- Sat 03:20 — Deploy: images built in GitHub Actions, pushed to GHCR, pulled on the VPS over SSH (`deploy/`); Caddy terminates TLS; nothing compiles on the VPS — Degra02
+- Sat 03:20 — Ownership: `worker/` and `pipeline/common/` (generated contracts, shared clients) belong to the integrator — Degra02

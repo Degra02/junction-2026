@@ -108,19 +108,24 @@ No component may assume one language:
 - **Cross-language coverage**: retrieved articles in other languages count for claim support (NLI is cross-lingual) and are listed separately in the coverage view.
 
 ### Data contract (owned by the integrator, `contracts/`)
-Every stage reads and writes one analysis record, so each workstream can be built and tested alone with fixtures:
+Every stage reads and writes one analysis record, so each workstream can be built and tested alone with fixtures. The source of truth is the Rust crate `contracts/` (field docs included); `mise run contracts` generates `contracts/openapi.json`, the pydantic models in `pipeline/common/contracts.py` and the TypeScript types in `contracts/ts/api.d.ts`. Overview:
 ```text
 Analysis
-  id, created_at, status, steps[] (name, state, duration_ms)
-  input        { kind: url|text|image, value, language }
-  document     { url, outlet, published_at, title, paragraphs[], html_meta }
-  claims[]     { id, text, sentence_ref }
-  context[]    { id, url, outlet, published_at, title, text, retrieved_by, similarity, in_story }
-  evidence[]   { id, family, signal, value, detail, source_refs[] }
-  scores       { single: Score, coordinated: Score }
-  Score        { confidence, tier, breakdown[] { family, contribution, evidence_ids[] }, abstained, reason }
-  explanation  { summary, reasons[] { text, evidence_ids[] } }
+  id, schema_version, pipeline_version, created_at, updated_at, status, error, steps[] (name, state, duration_ms, detail, error)
+  input        { kind: text|url, value }
+  language     { code, confidence, support: evaluated|supported|unsupported }          ← extract
+  document     { url, outlet, published_at, title, author, paragraphs[], outbound_links[], tracking_ids[] }  ← extract
+  topic        { summary, entities[], date, place }                                     ← understand
+  claims[]     { id, text, span { paragraph, start, end } }  (verbatim, code points)    ← understand
+  queries[]    { text, language }                                                       ← understand
+  context[]    { id, url, outlet, published_at, title, text, language, retrieved_by,    ← retrieve
+                 similarity, in_story, story_reason }                                   ← story
+  evidence[]   { id, family, signal, value, detail, source_refs[] (document span | context id + quote | url) }  ← signals_*
+  scores       { single: Score, coordinated: Score }                                    ← score
+  Score        { confidence, abstained, reason, breakdown[] { family, contribution, evidence_ids[] } }
+  explanation  { summary, reasons[] { text, evidence_ids[] } }                          ← explain
 ```
+Each stage returns a patch of only its own fields; the API validates it before merging (duplicate IDs, wrong dimension or an invalid score fail the step; non-verbatim claims, dangling sources and reasons without evidence are dropped and reported in the step's `detail`).
 
 ## 5. Confidence score (what the judges asked for)
 - **Families**, scored separately for the two dimensions:
@@ -146,7 +151,7 @@ CPU check before relying on it: XLM-R large on 2 vCPU across ~20 paragraphs may 
 ## 7. Hosting on Hostinger
 | Component | Where | Notes |
 |---|---|---|
-| API (FastAPI) + pipeline workers + job queue | VPS KVM 2 (2 vCPU, 8 GB) | Docker Compose; Caddy for TLS on the free domain |
+| API (Rust, axum: jobs, SQLite, SSE progress) + Python stage worker (FastAPI, one process, models loaded once) | VPS KVM 2 (2 vCPU, 8 GB) | Docker Compose (`deploy/`); Caddy for TLS on the free domain; images built in CI and pulled from GHCR. Rationale: `plans/backend-approaches.md` |
 | Database | VPS, SQLite (D11) | Postgres only if a need appears |
 | Text models (embeddings, NLI, techniques) | VPS CPU first | Measure latency; cache per URL |
 | LLM steps (claims, queries, explanation, OCR) | Hostinger AI Router via `LLM_BASE_URL` | Per-key spend limit; exact model IDs from hPanel |
@@ -191,7 +196,7 @@ Split by folder, one owner per folder, contracts first (`docs/playbook.md`). Nam
 
 | Role | Person | Owns (folders) | Delivers |
 |---|---|---|---|
-| **P1 Integrator + platform** | Degra02 | `contracts/`, `api/`, `deploy/`, CI, `DECISIONS.md` | Data contract and OpenAPI in hour one; walking skeleton live on the VPS; job queue, cache, DB; AI Router client; URL and image input wiring; n8n setup (phase 2); merges every round; keeps `main` deployable |
+| **P1 Integrator + platform** | Degra02 | `contracts/`, `api/`, `worker/`, `pipeline/common/`, `deploy/`, CI, `DECISIONS.md` | Data contract and OpenAPI in hour one; walking skeleton live on the VPS; job queue, cache, DB; stage worker; AI Router client; URL and image input wiring; n8n setup (phase 2); merges every round; keeps `main` deployable |
 | **P2 Product: retrieval, then UI** | ck-lithium | `pipeline/extract/`, `pipeline/retrieve/`, `pipeline/story/`; `web/` after the spec freeze | Extraction, source adapters (Google News, GDELT, Gemini grounded search, Fact Check API, fact-checkers, Oxylabs, RDAP/CT, VIGINUM list), rate limiting and caching, story clustering, all by the Sat 12:00 freeze; wireframes before it; frontend, metrics page and demo path after it |
 | **P3 AI core: understanding, signals, scoring** | Lyreplus | `pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/` | Claim and query generation (stage 3a); technique model, tone vs peers, NLI claim support, text reuse, timing, infrastructure; combiner, calibration, abstain; constrained explanation |
 | **P4 Problem: evaluation and pitch** | mosearc | `evals/`, `SPEC.md`, `docs/pitch/` | `SPEC.md` rewrite from this plan; labelled sets and labelling guide; eval harness and the metrics behind the metrics page; demo script, video, submission text |

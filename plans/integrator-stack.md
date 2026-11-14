@@ -1,6 +1,12 @@
 # Integrator stack — platform, API, contracts, deploy
 
-Owner: Degra02 (integrator). Status: **proposal**, Sat 14.11. Replaces "API (FastAPI)" in `docs/plan.md` §7 once recorded in `DECISIONS.md`. Comparison with other approaches: `plans/backend-approaches.md`.
+Owner: Degra02 (integrator). Status: **implemented** on `degra/platform` (Sat 14.11, recorded in `DECISIONS.md`). Comparison with other approaches: `plans/backend-approaches.md`; practices behind the implementation: `plans/implementation-practices.md`.
+
+Deviations from the proposal below, decided while building:
+- Stage name `signals_coordinated` (not `signals_coord`); no separate `worker.openapi.json`: the stage patch schemas are components of `contracts/openapi.json`.
+- Rate limiting uses `governor` directly in a 30-line middleware (JSON 429 body, last `X-Forwarded-For` hop when `TRUST_PROXY=true`) instead of `tower_governor`.
+- Images: `cargo-chef` → `distroless/cc-debian13:nonroot`; worker on `uv:python3.14-trixie-slim`; Caddy 2.11.
+- Language ID in Rust (`lingua`) not built: `language` is set by `extract` until the team agrees.
 
 ## Shape
 The pipeline (models, retrieval, LLM stages) is Python and owned by teammates. Rust is a thin, typed orchestrator: HTTP, job lifecycle, persistence, progress streaming, guards. It drives one long-running Python worker **per stage** over HTTP/JSON.

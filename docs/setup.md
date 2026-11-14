@@ -2,7 +2,7 @@
 
 ## Every teammate
 1. Install [mise](https://mise.jdx.dev/getting-started.html) and activate it in your shell.
-2. In the repo: `mise trust && mise run setup` — installs the pinned tools from `mise.toml` and sets `core.hooksPath=.githooks`.
+2. In the repo: `mise trust && mise run setup` — installs the pinned tools from `mise.toml` (including Rust 1.100 via rustup and cargo-nextest), sets `core.hooksPath=.githooks` and runs `uv sync`.
 3. `cp .env.example .env` and fill it from the team password manager. mise loads `.env` automatically.
 4. `mise run check` must pass.
 
@@ -15,7 +15,8 @@
 ## Sandboxed agents (`jomp` = omp under nono)
 - `jomp` picks `~/.config/nono/profiles/omp-<repo-dirname>.json` when it exists; for this repo that is `omp-junction-2026.json`.
 - It extends `omp` (read/write the repo + `~/.omp`) with the `mise_manager`, `node_runtime`, `bun_runtime`, `python_runtime`, `user_caches_linux` groups and write access to `~/.npm`, `~/.bun`, `~/.local/share/uv`.
-- Those directories must exist before launch (nono skips grants for missing paths): `mkdir -p ~/.npm ~/.bun ~/.local/share/uv`.
+- Those directories must exist before launch (nono skips grants for missing paths): `mkdir -p ~/.npm ~/.bun ~/.local/share/uv ~/.cargo/registry ~/.cargo/git`.
+- Rust: the profile also needs write access to `~/.cargo/registry` and `~/.cargo/git` (crate downloads) and read access to `~/.rustup` (toolchains). Install the toolchain outside the sandbox first (`mise install`); `target/` lives in the repo.
 - Verified inside the sandbox: pinned node/python/bun/uv/gitleaks run, `uv add`, `bun add`, `npm i`, `mise run check`.
 - Inside the sandbox the agent **cannot**: install new mise tools (`~/.local/share/mise` is read-only → run `mise install` outside), read `gh` credentials or keyrings (agents commit, humans push), run podman.
 - Parallel agents on one machine: use separate `git clone`s. A sibling `git worktree` fails inside the sandbox (`fatal: gitfile does not point to a valid repository`) because its `.git` points outside the granted directory.

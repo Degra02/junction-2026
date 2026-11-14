@@ -24,7 +24,7 @@
 ## Working with agents
 - Split by folder, not by feature. Shared files go through the integrator (see `AGENTS.md`).
 - One branch per person; parallel agents on one machine use **separate `git clone`s**, not worktrees (sibling worktrees break inside `jomp`, see `setup.md`).
-- Contract first: commit `contracts/openapi.yaml` (or shared types) in hour one; frontend runs against a Prism mock until the backend is ready. Only the integrator changes contracts.
+- Contract first: the Rust types in `contracts/` generate `contracts/openapi.json` (plus pydantic and TS types) in hour one; frontend runs against a Prism mock (`mise run mock`) until the backend is ready. Only the integrator changes contracts.
 - Before merging, check overlap: `git merge-tree --write-tree --name-only main <branch>`. If `main` breaks, fixing it is everyone's only job.
 - Enforce rules with hooks/CI, not prose. Pre-commit blocks commits to `main` and scans for secrets.
 - Write tests first; a different person or agent reviews. "Done" means it was run (see `AGENTS.md`).
