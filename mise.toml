@@ -4,8 +4,11 @@ python = "3.14.10"
 bun = "1.4.4"
 uv = "0.13.7"
 gitleaks = "8.30.1"
-# Version also in rust-toolchain.toml (components); keep both in sync.
-rust = "1.100.0"
+# clippy and rustfmt must be listed here: mise sets RUSTUP_TOOLCHAIN, which makes rustup ignore
+# rust-toolchain.toml, and CI runners install with rustup's minimal profile (neither included).
+# rust-toolchain.toml repeats version and components for builds without mise (the API image);
+# keep both in sync.
+rust = { version = "1.100.0", components = ["clippy", "rustfmt"] }
 "github:nextest-rs/nextest" = "cargo-nextest-0.9.151"
 
 [env]
