@@ -49,6 +49,10 @@ def test_the_shipped_registry_is_well_formed():
     assert reg.lookup("ansa.it").outlet_type == OutletType.wire_service
     assert reg.lookup("tass.ru").outlet_type == OutletType.state_affiliated
     assert reg.lookup("fullfact.org").outlet_type == OutletType.fact_checker
+    # Reported untyped on the VPS (they counted as possible copiers).
+    assert reg.lookup("www.rte.ie").outlet_type == OutletType.national
+    assert reg.lookup("wtop.com").outlet_type == OutletType.local
+    assert reg.lookup("corrieredelmezzogiorno.corriere.it").outlet_type == OutletType.local
 
 
 def test_a_domain_listed_twice_is_an_error():
