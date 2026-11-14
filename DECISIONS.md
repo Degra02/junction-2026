@@ -40,3 +40,7 @@ Format: `- <day HH:MM> — <decision> — <owner>`
 - Sat 12:20 — Limits: 30 new analyses/min per client (IPv4 address or IPv6 /64) and 600/h in total, cached results free; 4 analyses at once, 1 model stage at a time; 300 s budget per analysis; `STAGES_DISABLED` kill switch — Degra02
 - Sat 12:20 — Shared Python helpers in `pipeline/common/`: `llm` (the one client, `openai` SDK), `spans`, `errors`, `progress`, `net`, `fixtures`; torch resolves from the CPU wheel index — Degra02
 - Sat 12:20 — Web: `web/` builds with `bun run build` into `web/dist`, served by Caddy at `/`; the UI calls `/api/...` on the same origin — Degra02
+- Sat 14:45 — LLM model: `LLM_MODEL=gemini-3.1-flash-lite` on AI Router (~0.15 credits per analysis vs ~1.2 for `claude-sonnet-5`; measurements in `docs/ai-core.md`) — team
+- Sat 14:45 — Hosting: VPS `srv2159508` at `the4thlover.tech`; the template's Traefik stays stopped and Caddy terminates TLS; the Hostinger firewall `junction` allows only TCP 22/80/443 and UDP 443 (ufw does not filter Docker-published ports) — Degra02
+- Sat 14:45 — Language ID runs in `extract` (lingua), not in the API — Degra02
+- Sat 14:45 — Scoring: each family's value is a strength in [-1, 1] from its strongest signal only; prior weights in `pipeline/score/weights.json` until fitted on the labelled set; copies of the document are excluded from claim support and tone peers — Lyreplus

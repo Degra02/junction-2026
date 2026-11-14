@@ -1,0 +1,26 @@
+{
+  "source": "prior: hand-set before the labelled set exists; replace with `python -m pipeline.score.fit`",
+  "single": {
+    "intercept": -2.0,
+    "coefficients": {
+      "techniques": 1.5,
+      "tone": 1.0,
+      "claim_support": 1.5,
+      "fact_checks": 2.5,
+      "source_profile": 1.0
+    },
+    "n": 0,
+    "cv": null
+  },
+  "coordinated": {
+    "intercept": -2.5,
+    "coefficients": {
+      "text_reuse": 2.0,
+      "timing": 1.0,
+      "infrastructure": 2.0,
+      "known_networks": 3.0
+    },
+    "n": 0,
+    "cv": null
+  }
+}
