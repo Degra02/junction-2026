@@ -7,7 +7,8 @@
 - `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` is the product spec derived from it.
 - `DECISIONS.md` — decisions already made. Do not relitigate them; ask the integrator.
 - `docs/ai-core.md` — signal catalogue with value scales, scoring formula, models, and what `extract`, `retrieve` and `story` must provide for the signals.
-- `plans/source-graph.md` — the source graph (`pipeline/graph/`, `GET /api/graph`): what is built, the model, the phases. Its tasks and rules are in `docs/next-steps.md` → "Source graph".
+- `plans/persuasion-analysis.md` — **the priority from Sun 01:00**: memes and short posts (the `rhetoric` family, implied claims, scoring without coverage). Its tasks and rules are in `docs/next-steps.md` → "Persuasion in memes and posts"; do them before any source-graph task.
+- `plans/source-graph.md` — the source graph (`pipeline/graph/`, `GET /api/graph`): what is built, the model, the phases. Its tasks and rules are in `docs/next-steps.md` → "Source graph"; they come after the persuasion plan.
 - `docs/` — event facts, sponsors, setup. `docs/[DEPRECATED]playbook.md` is superseded by this file and `docs/next-steps.md`.
 
 ## Commands

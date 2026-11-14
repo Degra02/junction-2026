@@ -1,6 +1,6 @@
 # Source graph: research and implementation plan
 
-Status: **phase 0 is on `main`** (Sun 15.11, 00:25): the offline build, `evals/graph.json` and `GET /api/graph`; results in section 3, decisions in section 10 and `DECISIONS.md`. The later phases go beyond `docs/plan.md`: each contract change goes through the integrator, and the per-outlet track record is not decided. Tasks and rules per person: `docs/next-steps.md` → "Source graph".
+Status: **phase 0 is on `main`** (Sun 15.11, 00:25): the offline build, `evals/graph.json` and `GET /api/graph`; results in section 3, decisions in section 10 and `DECISIONS.md`. The later phases go beyond `docs/plan.md`: each contract change goes through the integrator, and the per-outlet track record is not decided. Tasks and rules per person: `docs/next-steps.md` → "Source graph". **Second priority since Sun 01:00**: `plans/persuasion-analysis.md` comes first (`DECISIONS.md`).
 
 Idea under review: every analysis also feeds a persistent graph of outlets, linked by measured similarity. Over time the graph becomes (a) a map of which sites act together, (b) a per-source track record, and (c) a signal whose weight in the score grows as the graph learns more.
 

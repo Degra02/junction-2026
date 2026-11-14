@@ -1,6 +1,8 @@
-# Next steps (Sat 20:30 round)
+# Next steps (Sun 01:00 round)
 
 Living task list per person, kept by the integrator. Agents: read your section, `AGENTS.md` and `DECISIONS.md` first; do only what is listed for your owner; ask the integrator before touching a folder you do not own. Lyreplus's detailed requests per person are in `docs/ai-core.md` → "Requests to the team".
+
+**Priority from Sun 01:00: "Persuasion in memes and posts" (below) comes first for everyone.** Do its phase 1 and phase 2 tasks before any "Source graph" task; after submission, its phase 3 comes before the graph's after-submission tasks. The older per-person lists further up still apply where they are not done.
 
 ## State of `main` (Sat 20:30)
 - Live at <https://the4thlover.tech> (API docs: `/api/docs`). Every merge to `main` deploys; the deploy goes red if a stage fails to import.
@@ -70,16 +72,64 @@ All AI-core stages are done on `main`. #27 closed the 18:30 items on the zero-ev
 1. **Google Fact Check key** (blocks the eval run): Google Cloud → enable "Fact Check Tools API" → Credentials → API key, restricted to that API. Put `GOOGLE_FACTCHECK_API_KEY` in the VPS `.env`, `docker compose --env-file .env --env-file release.env up -d --force-recreate worker`, check with a `claims:search` call from the container, then re-run the Tylenol test.
 2. **Eval run** (284 items; blocks Lyreplus and mosearc) after the key. The API has no host port on the VPS and the VPS has no checkout, so the runner runs from a laptop: against a local API with the limits off (`deploy/README.md`, "Local"), or `--api https://the4thlover.tech --concurrency 2` (stays under 30/min and 600/h, but the site is busy for hours). `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc.
 3. **Memory**: `docker stats --no-stream` on the VPS during an analysis; post the worker number (limit 6 GB). ck-lithium cannot reach the VPS shell.
-4. **Decision still open**: whether `claim_support` gets an LLM verifier per (claim, passage) for false NLI contradictions (network I/O in a signal stage, beyond D5) or the fit decides its weight.
+4. ~~Decision still open: an LLM verifier in `claim_support`~~ decided Sun 01:00: signal stages may call an LLM through `pipeline/common/llm` (`judge.verify_pairs` already does); D5 is amended for the `rhetoric` family (`plans/persuasion-analysis.md`).
 5. `k8s` branch: 3 commits ahead of `main` (latest: "build docker images on k8s branch"), no PR; Kubernetes is not in `docs/plan.md`. Merge or drop.
 6. Keep `main` deployable; update this file after every round.
+
+## Persuasion in memes and posts (Sun 01:00): the priority
+**Why.** A political meme from r/Conservative (image + Reddit post) came back "Not enough evidence" on both dimensions. The single-actor score abstains without 3 related reports whatever the techniques found, the technique model sees nothing in 3 short text blocks, and memes argue by implication, so understand finds no claim. Even with the abstention removed, a meme without a checkable claim cannot score above 0.52 with today's weights. Trace, measurements, design and gates: `plans/persuasion-analysis.md`. Read its sections 4 and 5 before a task.
+
+**Decided** (`DECISIONS.md`, Sun 01:00): new single-actor family `rhetoric`, rated by a multimodal LLM (`gemini-4-hydrogen` candidate) through `pipeline/common/llm`; `Topic.implied_claims` for fact-check search and matching only; single-actor is scored on its intrinsic families when coverage is missing (phase 2, after the refit). D4 holds: no "propaganda / not" label.
+
+### Rules for every task of this plan
+1. **Phase 1 moves no calibrated number.** `rhetoric` gets `STRENGTH` entries but stays out of `families.SINGLE` and `weights.json` until P-L5; `_disagreement` must not see it. The 284-item metrics stay as they are.
+2. **Phase 2 is one PR with `weights.json` and `evals/metrics.json` together**, cut-off Sun 06:00. Past it, phase 2 waits for after submission and the demo shows phase 1.
+3. **Evidence stays verbatim**: a rater item whose quote `spans.locate` cannot find is dropped; a visual-only item points at the `[Visual context]` paragraph and says it is our description.
+4. **Judge the move, never the side**: the same rules whatever party or person is the target; no truth judgement and no outside knowledge in the rater. Content goes in `user`, never in `system`.
+5. **Implied claims never enter `claim_support`** and are never quoted in the explanation.
+6. **No tuning to one example.** The r/Conservative meme is an acceptance check, not a training item.
+7. Contract changes (`Family::Rhetoric`, `Topic.implied_claims`) are Degra02's: P-D1 lands first; build against it, do not edit `contracts/`.
+
+### Degra02
+| ID | Phase | Files | Do | Done when |
+|---|---|---|---|---|
+| P-D1 | 1, first | `contracts/src/analysis.rs` | `Family::Rhetoric` (single dimension in `Family::dimension`); `Topic.implied_claims: Vec<String>` (`#[serde(default)]`, documented: English sentences, not verbatim, never shown as a quotation). `mise run contracts`. | Generated files committed; `mise run check` passes; merged before the other phase 1 PRs. |
+| P-D2 | 1 | `pipeline/common/llm.py`, `deploy/compose.yaml`, VPS `.env` | A per-call model setting (`LLM_RATER_MODEL`, default `LLM_MODEL`) and image parts (`data:` URIs) in `ask_json` / `ask_json_async`, still one OpenAI-compatible client. Check whether `gemini-4-hydrogen` is on AI Router; if not, point the rater at Gemini's OpenAI-compatible endpoint with `GEMINI_API_KEY`. Set the variables on the VPS. | A call with an image and `LLM_RATER_MODEL` returns a typed answer from the worker container. |
+| P-D3 | 1 | this file | Post the ID of the r/Conservative meme run, with its input (image + `context_url`), in this row, so P-L1, P-C1 and P-C2 can `rerun` it. | The ID is in this row. |
+| P-D4 | 2 | — | Eval run: the 284 stored analyses `rerun?from=signals_single` (the rater needs no new retrieve), the meme set (P-M1) as full runs. `fit.jsonl` → Lyreplus, `predictions.jsonl` → mosearc. | Both files handed over. |
+| P-D5 | 2 | — | Merge the phase 2 PR only with `weights.json` and `metrics.json` together and the gates of plan section 5 reported; deploy; re-run the meme. | Live meme run scored on single-actor, ID in this file. |
+
+### Lyreplus
+| ID | Phase | Files | Do | Done when |
+|---|---|---|---|---|
+| P-L1 | 1, needs P-D1, P-D2 | new `pipeline/signals/rhetoric.py`, `pipeline/signals/single.py`, `pipeline/score/families.py` | The rater (plan section 4): one typed call per analysis with the text and, for a data-URI image input, the image; one `rhetoric` evidence item per category, value 1.0 `clear` / 0.5 `weak`, refs located with `spans.locate`, visual-only items on the `[Visual context]` paragraph, items found only in quotations dropped. Model unavailable → no evidence, a log warning. `STRENGTH` entries; **not** in `SINGLE` yet. Tests with a fake rater answer (no network): a non-verbatim quote is dropped, a quoted-only technique is dropped, a visual-only item cites the visual paragraph. | `rerun?from=signals_single` on the meme run gives `rhetoric` evidence citing its words or the juxtaposition; scores of the 284-item set unchanged. |
+| P-L2 | 1, needs P-D1 | `pipeline/understand/__init__.py` | `implied_claims`: up to 3 English sentences for what the content asserts by implication (memes, sarcasm, rhetorical questions); none for plain reporting, satire or a fact-check's reviewed claim. | The meme run has an implied claim about affordability vs the Trump investigations; the ANSA fixture run has none. |
+| P-L3 | 2, needs P-L2 | `pipeline/signals/claims.py` | Fact-check matching also on `topic.implied_claims` (same NLI thresholds); the evidence refs the fact-check context item only (an implied claim has no span). | A test: an implied claim matched to a `fact_check` gives `fact_checks / rated_false` with a context ref. |
+| P-L4 | 2 | `pipeline/score/__init__.py`, `pipeline/explain/__init__.py` | Abstention split (plan section 4): fewer than 3 related reports and no fact-check → scored when `techniques`, `rhetoric` or `source_profile` has evidence, abstain otherwise. Explain says when no coverage was found to compare with. Add `rhetoric` to `SINGLE`. | Tests for both branches; the satire abstentions unchanged. |
+| P-L5 | 2, needs P-D4, P-M1 | `pipeline/score/weights.json`, `docs/ai-core.md` | Refit on 284 + memes; report `cv.ablation.rhetoric`, per-set FPR, the symmetry check (P-M2). | Plan section 5 gates met and written in the PR; `docs/ai-core.md` updated. |
+
+### ck-lithium
+| ID | Phase | Files | Do | Done when |
+|---|---|---|---|---|
+| P-C1 | 1 | `pipeline/extract/vision.py` | The `[Visual context]` note also states, neutrally, what the image implies ("The image implies that …"); still no verdict, still "never judge". | The meme's visual context names the affordability / investigations contrast. |
+| P-C2 | 1 | `pipeline/extract/__init__.py`, `pipeline/extract/social.py` | A Reddit or X post whose content is an image (`i.redd.it`, `preview.redd.it`, `pbs.twimg.com` in `Post.links`) is read through vision, with the post as companion. With a post as companion, `Document.outlet` stays `None` as in `document_from_post` (today `build_image_document` sets `reddit.com`). | Submitting the Reddit post URL alone gives the same document as image + `context_url`. |
+| P-C3 | 1, needs P-D1 | `web/src/lib/labels.ts`, `web/src/lib/evidence.ts` | Label and reader's guide for the `rhetoric` family ("Persuasion techniques, rated by a language model that sees the image"); a visual-only item reads as "in the image (our description)". | `mise run web:build` passes; the meme run shows the family. |
+| P-C4 | 2, needs P-L2 | `pipeline/retrieve/` | Fact-check search (`claims:search` and site search) also with `topic.implied_claims`. | A run with an implied claim sends it to the fact-check adapters (test with a fake client). |
+| P-C5 | 3, after submission | `pipeline/retrieve/social.py`, `pipeline/signals/coordinated.py` (with Lyreplus) | Image reuse: Reddit `/duplicates/<id>` and a perceptual hash of images in retrieved posts. A new coordinated signal, fitted with its ablation before it scores. | Plan section 5, phase 3. |
+
+### mosearc
+| ID | Phase | Files | Do | Done when |
+|---|---|---|---|---|
+| P-M1 | 1 → 2 | `evals/labelled.jsonl`, `evals/download_data.sh`, `evals/src/propaganda_eval/` | About 100 English memes from SemEval-2024 Task 4 subtask 2b (balanced; licence checked), downloaded into gitignored `evals/data/`; items carry an image path; the runner submits `kind: image` as a data URI; a new `set` so metrics report memes as their own rows. Nothing from the dataset committed. | `mise run eval -- validate` and `stats` show the meme set; a dry run submits one image item. |
+| P-M2 | 2 | new `evals/symmetry.jsonl`, `evals/src/propaganda_eval/` | 10 pasted-text pairs with the political target swapped (plan section 6); a command reporting the mean and maximum absolute difference in single-actor confidence within a pair. Not labels. | Numbers in the phase 2 PR. |
+| P-M3 | 2 | `SPEC.md`, `docs/pitch/` | After the phase 2 merge: the new abstention rule in `SPEC.md`; the meme as a demo beat (scored on wording, no claim to check, coordinated honestly abstains). Past the cut-off: show phase 1 (the `rhetoric` evidence) instead. | Demo script updated with the live ID. |
 
 ## Source graph (Sun 00:25): phase 0 is on `main`
 **What it is.** The analyses we store also show which outlets are tied to each other, and by what evidence. `pipeline/graph/` (owner: Lyreplus) builds that graph offline from stored analyses; `evals/graph.json` is its output on the 277 eval records and `GET /api/graph` serves it. Research, model and results: `plans/source-graph.md`. Read its sections 3 to 5 before a graph task.
 
 **Decided** (`DECISIONS.md`, Sun 00:25): phase 0 is merged; Lyreplus owns `pipeline/graph/`; one shared analytics ID is enough to join a cluster, for now. **Not decided**: a per-outlet track record (D4, D9). Do not build or show one.
 
-**Priority.** Your tasks in the sections above come first. A task marked *now* is small, changes no contract and is safe before the Sun 03:00 freeze. A task marked *after submission* waits for Sun 09:00; *needs X* also waits for task X.
+**Priority.** "Persuasion in memes and posts" (above) comes first: start a graph task only when your phase 1 and phase 2 tasks there are merged (or the Sun 06:00 cut-off has passed), and after submission do its phase 3 before the graph's after-submission tasks. Within the graph, a task marked *now* is small, changes no contract and is safe before the Sun 03:00 freeze. A task marked *after submission* waits for Sun 09:00; *needs X* also waits for task X.
 
 ### Rules for every graph task
 1. **No graph value in the score.** Do not add a graph signal to `pipeline/score/families.py` or `weights.json` before task L4 delivers a fit with its ablation. The calibrated numbers on the 284-item set must not move.
