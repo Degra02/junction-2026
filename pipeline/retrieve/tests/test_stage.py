@@ -3,7 +3,6 @@
 import asyncio
 import json
 
-import pytest
 from fastapi.testclient import TestClient
 
 import pipeline.retrieve as retrieve
@@ -19,82 +18,19 @@ from pipeline.common.contracts import (
     Span,
 )
 from pipeline.common.fixtures import example_analysis
-from pipeline.retrieve.cache import NoCache
-from pipeline.retrieve.registry import parse
-from pipeline.retrieve.tests.conftest import article_page, rss
+from pipeline.retrieve.tests.conftest import (
+    AGENCY_FEED,
+    AGENCY_ITEM,
+    CHECKER_FEED,
+    CLAIM_REVIEW,
+    HEADER,
+    PAPER_FEED,
+    PAPER_ITEM,
+    PAYWALL,
+    article_page,
+    rss,
+)
 from pipeline.retrieve.viginum import parse as parse_viginum
-
-AGENCY_FEED = "https://agency.example/rss"
-PAPER_FEED = "https://paper.example/rss"
-CHECKER_FEED = "https://checker.example/rss"
-AGENCY_ITEM = "https://agency.example/meta"
-PAPER_ITEM = "https://paper.example/meta?utm_source=rss"
-
-CLAIM_REVIEW = json.dumps(
-    {
-        "@context": "https://schema.org",
-        "@type": "ClaimReview",
-        "claimReviewed": "Meta was fined 805 billion euros",
-        "reviewRating": {"@type": "Rating", "alternateName": "False"},
-        "author": {"@type": "Organization", "name": "Checker"},
-    }
-)
-HEADER = "domain,create date,first seen,type\n"
-PAYWALL = (
-    '<script type="application/ld+json">'
-    '{"@type": "NewsArticle", "isAccessibleForFree": false}</script>'
-)
-
-
-def _feed(url: str) -> dict:
-    return {"url": url, "language": "it"}
-
-
-@pytest.fixture
-def stage(server, monkeypatch):
-    """Three curated outlets (agency, newspaper, fact-checker); one matching item each for the
-    agency and the newspaper."""
-    monkeypatch.setattr(retrieve, "new_client", server.client)
-    monkeypatch.setattr(retrieve, "default_cache", NoCache)
-    registry = {
-        "wire_service": [{"domain": "agency.example", "feeds": [_feed(AGENCY_FEED)]}],
-        "national": [{"domain": "paper.example", "feeds": [_feed(PAPER_FEED)]}],
-        "fact_checker": [{"domain": "checker.example", "feeds": [_feed(CHECKER_FEED)]}],
-    }
-    for entries in registry.values():
-        entries[0]["country"] = "IT"
-    monkeypatch.setattr(retrieve, "_REGISTRY", parse(registry))
-    # A configured (non-empty) list, so no download is attempted; see test_viginum_download_*.
-    monkeypatch.setattr(
-        retrieve, "_LISTING", parse_viginum(HEADER + "unrelated[.]example,,,domain\n")
-    )
-    server.pages[AGENCY_FEED] = (
-        200,
-        rss(
-            ("Garante privacy, multa da 805 milioni a Meta", AGENCY_ITEM),
-            ("Calcio, vince la Roma", "https://agency.example/calcio"),
-        ),
-    )
-    server.pages[PAPER_FEED] = (
-        200,
-        rss(
-            ("Multa del Garante privacy a Meta", PAPER_ITEM),
-            ("Il documento analizzato", "https://paper.example/own-article"),
-        ),
-    )
-    server.pages[CHECKER_FEED] = (200, rss())
-    server.pages[AGENCY_ITEM] = (
-        200,
-        article_page(
-            "Garante privacy, multa a Meta", "Il Garante ha multato Meta.", "G-AGENCY0001"
-        ),
-    )
-    server.pages[PAPER_ITEM] = (
-        200,
-        article_page("Multa a Meta", "Meta dovrà pagare 805 milioni al Garante.", "G-PAPER00001"),
-    )
-    server.pages["https://paper.example/own-article"] = (200, article_page("x", "y"))
-    return server
 
 
 def analysis():

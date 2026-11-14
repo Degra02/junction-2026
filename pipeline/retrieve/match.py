@@ -14,6 +14,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
+from pipeline.retrieve.feeds import NAME as FEEDS
 from pipeline.retrieve.feeds import FeedItem
 
 MIN_SHARED = 2
@@ -58,6 +59,7 @@ def terms(text: str) -> frozenset[str]:
 class Hit:
     item: FeedItem
     score: float  # best weighted share of one query's words found in the item, in (0, 1]
+    retrieved_by: str = FEEDS  # the adapter that found it
 
 
 @dataclass(frozen=True)
