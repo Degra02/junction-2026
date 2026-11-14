@@ -4,8 +4,8 @@
   the claim + 2), in `(0, 1)`: the contradicting share, pulled toward 0.5 by one imaginary source
   each way so that a single source moves it little (1 of 1 → 0.67, 8 of 8 → 0.9, 0 of 4 → 0.17).
   One item per claim that at least one source addresses. Peers come from `story_peers` (copies
-  of the document excluded); a peer that repeats the claim word for word is a quote, not
-  confirmation, and is skipped for that claim.
+  and duplicate outlet domains excluded); a peer that repeats the claim word for word is a
+  quote, not confirmation, and is skipped for that claim.
 - `claim_support` / `unaddressed`: value 1.0 when none of at least MIN_PEERS sources
   addresses the claim.
 - `fact_checks` / `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0): a
@@ -14,18 +14,15 @@
   debunking verdict contradicts the claim in both directions). Ratings outside the vocabulary
   below are skipped rather than guessed.
 
-NLI is cross-lingual: a claim in Italian is checked against English coverage and vice versa.
-
-A source contradicts a claim only when passage and claim contradict each other in both
-directions with probability >= CONTRADICTION. The NLI model assumes its two texts describe the
-same situation, so two reports of different moments of one story ("the envoys travelled to
-Dublin on Thursday" / "the envoys arrived in Moscow on Thursday") look contradictory to it.
-Measured on Sat 14.11 on 50 claim-source pairs from BBC, tagesschau and RTÉ reports and their
-story peers, where a contradiction is almost surely false: the one-direction rule at 0.6
-flagged 21, both directions at 0.9 flag 7, while the real contradictions among the controls
-(a denial of the claim, in the same or another language) score 0.96 or more both ways. The
-remaining false contradictions are why the combiner's weight for this family must come from
-labelled data.
+System-One + selective cascade (`systemone`, `judge.verify_pairs`):
+- Cross-lingual NLI (`mDeBERTa-v3-base-xnli`) runs locally on unquoted peer windows first,
+  producing calibrated `[supports, contradicts, not_addressed]` probabilities in milliseconds.
+- Confident `supports` (`>= DECISIVE`) and `not_addressed` pairs resolve locally in System 1
+  with zero network calls.
+- Candidate two-way contradictions (`>= S1_SUSPECT_CONTRA`) are the exact region where NLI
+  confuses two moments of one story ("travelled to Dublin" vs "arrived in Moscow", or "had not
+  been confirmed until now"): those pairs escalate in one batched typed call to `cascade`. When
+  `cascade` is `None` or offline, strict two-way NLI (`>= CONTRADICTION`) decides locally.
 """
 
 import re
@@ -34,17 +31,23 @@ from collections.abc import Callable, Sequence
 import numpy as np
 
 from pipeline.common.contracts import Claim, ContextItem, DocumentRef, Evidence, Family
-from pipeline.signals.text import contains, context_ref, overlap, sentence_windows
+from pipeline.signals.systemone import calibrate_choice
+from pipeline.signals.text import (
+    contains,
+    context_ref,
+    mask_quotations,
+    overlap,
+    sentence_windows,
+)
 
 type Nli = Callable[[list[tuple[str, str]]], np.ndarray]
+type Cascade = Callable[[Sequence[tuple[str, str]]], Sequence[str | None]]
 
 ENTAIL, CONTRADICT = 0, 2
-# A source supports a claim when one of its passages entails it this strongly.
+# System-1 thresholds on unquoted two-sentence windows (`mDeBERTa-v3-base-xnli`).
 DECISIVE = 0.6
-# A source contradicts a claim when a passage and the claim contradict each other this strongly
-# in both directions (see the module docstring).
+S1_SUSPECT_CONTRA = 0.75
 CONTRADICTION = 0.9
-# Two-sentence windows per (claim, peer) sent to NLI: the ones sharing most words with the claim.
 PASSAGES_PER_PEER = 4
 MIN_PEERS = 3
 # A fact-check matches a claim when either entails the other this strongly, or on word overlap.
@@ -144,32 +147,67 @@ def claim_support_evidence(
     peers: Sequence[ContextItem],
     nli: Nli,
     next_id: Callable[[], str],
+    cascade: Cascade | None = None,
 ) -> list[Evidence]:
     if not claims or not peers:
         return []
-    # (claim index, peer index, passage) for the passages most likely to talk about the claim.
-    jobs: list[tuple[int, int, str]] = []
+    # (claim index, peer index, raw passage, unquoted passage) for windows sharing claim words.
+    jobs: list[tuple[int, int, str, str]] = []
     for ci, claim in enumerate(claims):
         for pi, peer in enumerate(peers):
             if contains(peer.text, claim.text):
                 continue
             passages = sorted(sentence_windows(peer.text), key=lambda c: -overlap(claim.text, c))
-            jobs += [(ci, pi, passage) for passage in passages[:PASSAGES_PER_PEER]]
-    forward = nli([(passage, claims[ci].text) for ci, _, passage in jobs])
-    # The reverse direction only where it can matter: it doubles the cost of a pair.
-    suspects = [k for k, probs in enumerate(forward) if probs[CONTRADICT] >= CONTRADICTION]
-    backward = nli([(claims[jobs[k][0]].text, jobs[k][2]) for k in suspects])
+            for passage in passages[:PASSAGES_PER_PEER]:
+                unquoted = mask_quotations(passage)
+                jobs.append((ci, pi, passage, unquoted))
+    if not jobs:
+        return []
+
+    forward = nli([(unquoted, claims[ci].text) for ci, _, _, unquoted in jobs])
+    # Reverse NLI only where forward contradiction enters the System-1 suspect band.
+    rev_indices = [k for k, probs in enumerate(forward) if probs[CONTRADICT] >= S1_SUSPECT_CONTRA]
+    backward = (
+        nli([(claims[jobs[k][0]].text, jobs[k][3]) for k in rev_indices])
+        if rev_indices
+        else np.zeros((0, 3))
+    )
     contradiction = np.zeros(len(jobs))
-    for k, probs in zip(suspects, backward, strict=True):
+    for k, probs in zip(rev_indices, backward, strict=True):
         contradiction[k] = min(float(forward[k][CONTRADICT]), float(probs[CONTRADICT]))
 
-    # Best entailment and contradiction per (claim, peer), with the passage behind each.
+    # Best entailment and two-way contradiction per (claim, peer), with the raw passage.
     best: dict[tuple[int, int], dict[int, tuple[float, str]]] = {}
-    for k, (ci, pi, passage) in enumerate(jobs):
+    for k, (ci, pi, passage, _) in enumerate(jobs):
         slot = best.setdefault((ci, pi), {ENTAIL: (0.0, ""), CONTRADICT: (0.0, "")})
-        for label, p in ((ENTAIL, float(forward[k][ENTAIL])), (CONTRADICT, contradiction[k])):
+        for label, p in (
+            (ENTAIL, float(forward[k][ENTAIL])),
+            (CONTRADICT, float(contradiction[k])),
+        ):
             if p > slot[label][0]:
                 slot[label] = (p, passage)
+
+    # Escalate only candidate contradictions (where NLI confuses different moments of one story).
+    suspect_keys: list[tuple[int, int]] = []
+    suspect_pairs: list[tuple[str, str]] = []
+    for (ci, pi), slot in best.items():
+        entail, _ = slot[ENTAIL]
+        contra, passage = slot[CONTRADICT]
+        decision = calibrate_choice(
+            {
+                "supports": entail,
+                "contradicts": contra,
+                "not_addressed": max(0.0, 1.0 - max(entail, contra)),
+            }
+        )
+        if contra >= S1_SUSPECT_CONTRA and (decision.choice == "contradicts" or decision.abstain):
+            suspect_keys.append((ci, pi))
+            suspect_pairs.append((claims[ci].text, passage))
+
+    verified: dict[tuple[int, int], str | None] = {}
+    if suspect_pairs and cascade is not None:
+        for key, answer in zip(suspect_keys, cascade(suspect_pairs), strict=True):
+            verified[key] = answer
 
     evidence = []
     for ci, claim in enumerate(claims):
@@ -183,7 +221,15 @@ def claim_support_evidence(
             judged += 1
             entail, _ = slot[ENTAIL]
             contra, passage = slot[CONTRADICT]
-            if contra >= CONTRADICTION and contra > entail:
+            verdict = verified.get((ci, pi))
+            if verdict == "contradicts":
+                contradicting.append((pi, passage))
+            elif verdict == "supports":
+                supporting.append(pi)
+            elif verdict == "not_addressed":
+                if entail >= DECISIVE and entail > contra:
+                    supporting.append(pi)
+            elif contra >= CONTRADICTION and contra > entail:
                 contradicting.append((pi, passage))
             elif entail >= DECISIVE:
                 supporting.append(pi)

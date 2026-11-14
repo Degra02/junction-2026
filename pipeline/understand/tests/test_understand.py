@@ -81,20 +81,47 @@ def test_topic_is_cleaned() -> None:
     assert topic.place is None
 
 
-def test_run_sends_the_document_as_user_content(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent: dict[str, str] = {}
+def test_run_sends_the_document_as_user_content_and_drops_what_triage_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[tuple[str, str]] = []
+    opinion = "Only a traitor would defend this shameful plan"
+    fact = "The ministry said on Tuesday that the draft law requires well owners to register"
 
-    async def fake_ask(schema: type, *, system: str, user: str, **_: object) -> Understanding:
-        sent["system"], sent["user"] = system, user
-        return answer(claims=["Only a traitor would defend this shameful plan"])
+    async def fake_ask(schema: type, *, system: str, user: str, **_: object) -> object:
+        sent.append((system, user))
+        if schema is Understanding:
+            return answer(claims=[opinion, fact])
+        return schema.model_validate(
+            {"claims": [{"claim": 1, "kind": "opinion"}, {"claim": 2, "kind": "fact"}]}
+        )
 
     monkeypatch.setattr(understand.llm, "ask_json_async", fake_ask)
     analysis = example_analysis()
     patch = asyncio.run(understand.run(analysis))
     assert analysis.document is not None
-    assert analysis.document.paragraphs[1] in sent["user"]
-    assert analysis.document.paragraphs[1] not in sent["system"]
-    assert [c.text for c in patch.claims] == ["Only a traitor would defend this shameful plan"]
+    for system, user in sent:
+        assert analysis.document.paragraphs[1] in user
+        assert analysis.document.paragraphs[1] not in system
+    assert opinion in sent[1][1]  # the triage call sees the claims with the content
+    assert [(c.id, c.text) for c in patch.claims] == [("cl1", fact)]
+
+
+def test_claims_triage_could_not_label_are_kept() -> None:
+    document = example_analysis().document
+    assert document is not None
+    claims = build_patch(
+        document,
+        answer(
+            claims=[
+                "The government will ban private wells by January",
+                "The ministry said on Tuesday that the draft law requires well owners to register",
+            ]
+        ),
+        "en",
+    ).claims
+    kept = understand.keep_facts(claims, [None, "attributed"])
+    assert [(c.id, c.text) for c in kept] == [("cl1", claims[0].text)]
 
 
 def test_run_without_text_is_a_stage_error() -> None:
