@@ -2,7 +2,7 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branch: `lyreplus/ai-core`. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 14:00.
+Updated: Sat 15:00.
 
 ## Status
 
@@ -12,9 +12,9 @@ Updated: Sat 14:00.
 | signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done; tested with the real models |
 | signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done; no models |
 | score | `pipeline/score/__init__.py: run` | Done with **hand-set prior weights**; fit CLI ready, waiting for the labelled set |
-| explain | `pipeline/explain/__init__.py: run` | Not started |
+| explain | `pipeline/explain/__init__.py: run` (async) | Done; tested with the real LLM |
 
-Not yet merged to `main` (first PR once explain lands). Open items are at the end.
+All five stages are in the first PR to `main`. Open items are at the end.
 
 ```mermaid
 flowchart LR
@@ -44,6 +44,7 @@ pipeline/score/__init__.py        run: combiner, abstentions, breakdown; loads w
 pipeline/score/families.py        evidence → family value in [-1, 1] (the STRENGTH table)
 pipeline/score/weights.json       combiner weights (priors today)
 pipeline/score/fit.py             CLI: fit weights on labelled analyses, cross-validated report
+pipeline/explain/__init__.py      prompt, evidence digest, API rules applied before returning
 pipeline/*/tests/                 pytest, fixture-based, no network, no model downloads
 ```
 
@@ -128,6 +129,28 @@ uv run python -m pipeline.score.fit labelled.jsonl             # also writes wei
 
 One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analyses/{id}>, "single": 1|0|null, "coordinated": 1|0|null}`. Features are recomputed from `analysis.evidence`, so re-fitting after a signal change only needs `rerun?from=signals_single` on the stored analyses. L2 logistic regression (Newton, λ = 1, intercept unpenalised); stratified k-fold (k ≤ 5) out-of-fold log loss, Brier, AUC and reliability table, stored in `weights.json` under `cv` for the metrics page. A dimension with fewer than 2 labels of each class keeps its prior. Commit the new `weights.json`. The result cache is keyed on `PIPELINE_VERSION` (the image tag in deploys, `dev` locally): after changing weights locally, submit with `?force=true` or use `rerun?from=score`.
 
+## explain
+
+- One `llm.ask_json_async` call (max 800 output tokens). The `user` message is a JSON digest: both scores (confidence + non-zero contributions, or the abstention reason), the 20 strongest evidence items (`id`, family, signal, detail; ranked by `|strength|`), the title and the claims. The system prompt forbids outside knowledge, invented numbers, verdict labels (D4) and non-verbatim quotes.
+- Output: a 1–2 sentence summary and up to 3 reasons, each with evidence IDs.
+- The stage applies the API's rules itself (`check`): unknown evidence IDs are removed and a reason left with none is dropped; a reason whose quotation (≥12 chars inside `"…"`, `“…”`, `„…“`, `«…»`) is not verbatim in the document, context or an evidence detail is dropped; a misquoting summary is blanked. `quotations` mirrors `contracts/src/apply.rs`.
+- No evidence at all → no LLM call; the summary says nothing was found and repeats the abstention reasons.
+
+## LLM cost (AI Router)
+
+Prices from `GET $LLM_BASE_URL/models` (credits per token). Measured with the understand prompt on the example article (~700–900 input tokens):
+
+| Model | Credits / understand call | Latency | Result |
+|---|---|---|---|
+| `claude-sonnet-5` (current `.env`) | 0.58 | 0.8–4.8 s | valid, best wording |
+| `gemini-3.1-flash-lite` | 0.06–0.10 | 1.5–1.9 s | valid: all claims verbatim, queries in both languages; explain good |
+| `claude-haiku-5.5` | 0.04–0.08 | 3.5–7 s | valid |
+| `gpt-oss-120b` | 0.07–0.08 | 4 s | 1 of 2 invalid (missing field) |
+| `gemma-4-31b` | — | 17–27 s | invalid JSON |
+| `gpt-5-nano`, `nemotron-lightning-3.5-30b-a3b` | — | — | reasoning used all 2048 tokens, no answer |
+
+An analysis makes 2 calls (understand, explain). Recommended default: `LLM_MODEL=gemini-3.1-flash-lite` (~0.15 credits per analysis, ~15 for 100 analyses; sonnet ~1.2 per analysis). Evals that change signals or the combiner must use `rerun?from=signals_single` / `from=score`, which reuse the stored understand output and make no LLM call before explain. Self-hosting an LLM is not worth it: the VPS has 2 vCPU shared with the models above, and a Hostinger GPU costs 42+ credits per hour, more than ~280 analyses on flash-lite (D13).
+
 ## Models
 
 | Use | Model | Revision | Size | Licence |
@@ -183,7 +206,7 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Open items
 
-1. explain stage (next).
+1. Switch the team's `LLM_MODEL` to `gemini-3.1-flash-lite` (team decision; measured above).
 2. Latency on the VPS: 2 vCPU with XLM-R large; fallback is fewer paragraphs/peers or a smaller model.
 3. Fit the combiner on mosearc's labelled set; until then confidences are priors, not calibrated.
 4. Integrator: approve the new dependencies; consider pointing `AGENTS.md` "Read first" to this file; suggested `DECISIONS.md` lines: score family values in [-1, 1] with strongest-signal-only and prior weights in `pipeline/score/weights.json`; copies of the document are excluded from claim support and tone peers.
@@ -191,6 +214,7 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Changelog
 
+- Sat 15:00 — explain stage; LLM cost measurements.
 - Sat 14:00 — score stage, fit CLI, this document.
 - Sat 13:40 — signals_coordinated.
 - Sat 13:00 — understand, signals_single.
