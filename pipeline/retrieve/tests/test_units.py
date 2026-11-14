@@ -186,3 +186,61 @@ def test_registrable_domain():
     assert registrable("bologna.repubblica.it") == "repubblica.it"
     assert registrable("news.bbc.co.uk") == "bbc.co.uk"
     assert registrable("localhost") is None
+
+
+def test_rare_words_weigh_more_than_common_ones():
+    # "italia" is in every item, so sharing it and one more common word is not enough...
+    items = [_item(f"Italia notizie {i} oggi", "it", f"https://x.example/{i}") for i in range(20)]
+    items.append(_item("Italia notizie Garante multa", "it", "https://x.example/hit"))
+    items.append(_item("Italia notizie varie", "it", "https://x.example/common"))
+    hits = rank(items, [Query("Italia notizie Garante multa", "it")])
+    assert [h.item.url for h in hits] == ["https://x.example/hit"]
+
+
+def test_only_the_lead_of_a_long_summary_is_matched():
+    lead = "Calcio, vince la Roma. " * 20  # 460 characters about something else
+    item = FeedItem("https://x.example/1", "Sport", lead + "Garante privacy multa", None, "x", "it")
+    assert rank([item], [Query("Garante privacy multa", "it")]) == []
+
+
+def test_a_query_without_language_matches_every_language():
+    items = [
+        _item("Garante privacy multa", "it", "https://a.example/1"),
+        _item("Garante privacy multa", "es", "https://b.example/2"),
+    ]
+    assert len(rank(items, [Query("Garante privacy multa", None)])) == 2
+
+
+def test_one_word_queries_are_ignored():
+    assert rank([_item("Meta", "it")], [Query("Meta", "it")]) == []
+
+
+def test_lookup_ignores_case_and_trailing_dot():
+    reg = parse({"national": [{"domain": "paper.example", "country": None}]})
+    assert reg.lookup("WWW.Paper.Example.").domain == "paper.example"
+
+
+def test_viginum_list_comes_from_the_env_path(tmp_path, monkeypatch):
+    from pipeline.retrieve.viginum import load_listing
+
+    csv_path = tmp_path / "pk.csv"
+    csv_path.write_text("domain,create date,first seen,type\npravda-fr[.]com,01/01/2024,,domain\n")
+    load_listing.cache_clear()
+    try:
+        monkeypatch.setenv("VIGINUM_CSV", str(csv_path))
+        assert load_listing().match("pravda-fr.com") == "pravda-fr.com"
+        load_listing.cache_clear()
+        monkeypatch.setenv("VIGINUM_CSV", str(tmp_path / "missing.csv"))
+        assert len(load_listing()) == 0  # missing file: no known networks, no crash
+    finally:
+        load_listing.cache_clear()
+
+
+def test_the_real_viginum_list_parses_when_present():
+    from pipeline.retrieve.viginum import DEFAULT_PATH
+
+    if not DEFAULT_PATH.exists():
+        pytest.skip("run `bash evals/download_data.sh` to fetch the VIGINUM list")
+    listing = parse_viginum(DEFAULT_PATH.read_text(encoding="utf-8"))
+    assert len(listing) > 300
+    assert listing.match("pravda-de.com") == "pravda-de.com"

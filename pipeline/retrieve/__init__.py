@@ -54,7 +54,11 @@ def search_queries(analysis: Analysis) -> list[Query]:
 
 
 def _site(host: str | None) -> str:
-    return (registrable(host) or host or "") if host else ""
+    """The outlet a host belongs to: its registrable domain (`bologna.repubblica.it` ->
+    `repubblica.it`), or the host without `www.` when it has no public suffix."""
+    if not host:
+        return ""
+    return registrable(host) or host.lower().removeprefix("www.")
 
 
 def select(hits: list[Hit], analysis: Analysis, reg: Registry) -> list[Hit]:

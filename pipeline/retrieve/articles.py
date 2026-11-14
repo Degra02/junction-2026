@@ -86,28 +86,31 @@ class Reader:
         try:
             page = await self._web.get(url)
             ensure_html(page)
-            article = await _extract(page)
         except FetchFailed as e:
-            if not (e.browser_may_help and self._renders_left > 0):
+            # Not cached: a refusal or an outage may be over by the next analysis.
+            rendered = await self._render(url) if e.browser_may_help else None
+            if rendered is None:
                 log.info("hit not readable (%s)", e.reason)
                 return None
-            page, article = await self._render(url)
-        if article is None:
-            return None
-        record = record_from(article, page.url, fallback_published)
-        # A page without a full body is remembered too, so it is not fetched again today.
+            page = rendered
+        article = await _extract(page)
+        record = record_from(article, page.url, fallback_published) if article else None
+        # A page that loaded without a full body is remembered too, so it is not fetched again
+        # today.
         self._cache.put(_NS, key, asdict(record) if record else {})
         return record
 
-    async def _render(self, url: str) -> tuple[Page, Article | None]:
+    async def _render(self, url: str) -> Page | None:
+        if self._renders_left <= 0:
+            return None
         self._renders_left -= 1
         try:
             page = await browser.render_page(url)
             ensure_html(page)
         except FetchFailed as e:
             log.info("hit not readable in the browser either (%s)", e.reason)
-            return Page(url, 0, "", b"", False), None
-        return page, await _extract(page)
+            return None
+        return page
 
 
 def context_item(item_id: str, record: Record, retrieved_by: str, language: str) -> ContextItem:

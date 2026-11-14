@@ -1,113 +1,96 @@
-"""The stage as the worker calls it, offline: fake feeds and pages, permissive URL guard."""
+"""The stage as the worker calls it, offline: fake feeds and pages (conftest `server`)."""
 
 import asyncio
 import json
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 import pipeline.retrieve as retrieve
-from pipeline.common import net
+from pipeline.common import progress
 from pipeline.common.contracts import (
+    Claim,
     Document,
     Language,
     LanguageSupport,
     OutletType,
     RetrievePatch,
     SearchQuery,
+    Span,
 )
 from pipeline.common.fixtures import example_analysis
-from pipeline.extract import browser
-from pipeline.extract.fetch import new_client
 from pipeline.retrieve.cache import NoCache
 from pipeline.retrieve.registry import parse
+from pipeline.retrieve.tests.conftest import article_page, rss
 from pipeline.retrieve.viginum import parse as parse_viginum
 
 AGENCY_FEED = "https://agency.example/rss"
 PAPER_FEED = "https://paper.example/rss"
+CHECKER_FEED = "https://checker.example/rss"
+AGENCY_ITEM = "https://agency.example/meta"
+PAPER_ITEM = "https://paper.example/meta?utm_source=rss"
+
+CLAIM_REVIEW = json.dumps(
+    {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "claimReviewed": "Meta was fined 805 billion euros",
+        "reviewRating": {"@type": "Rating", "alternateName": "False"},
+        "author": {"@type": "Organization", "name": "Checker"},
+    }
+)
+PAYWALL = (
+    '<script type="application/ld+json">'
+    '{"@type": "NewsArticle", "isAccessibleForFree": false}</script>'
+)
 
 
-def rss(*items: tuple[str, str]) -> str:
-    body = "".join(
-        f"<item><title>{title}</title><link>{link}</link>"
-        "<pubDate>Sat, 14 Nov 2026 10:00:00 +0000</pubDate></item>"
-        for title, link in items
-    )
-    return f'<?xml version="1.0"?><rss version="2.0"><channel>{body}</channel></rss>'
-
-
-def page(title: str, sentence: str, ga: str) -> str:
-    paragraphs = "".join(f"<p>{sentence} Paragraph {i} adds detail on it.</p>" for i in range(4))
-    return f"""<html lang="it"><head><title>{title}</title>
-<meta property="article:published_time" content="2026-11-14T09:30:00+00:00">
-<script>gtag('config', '{ga}');</script></head>
-<body><article><h1>{title}</h1>{paragraphs}</article></body></html>"""
+def _feed(url: str) -> dict:
+    return {"url": url, "language": "it"}
 
 
 @pytest.fixture
-def web(monkeypatch):
-    """Serve `pages[url] = (status, body)`; unknown URLs answer 404."""
-    pages: dict[str, tuple[int, str]] = {}
-    seen: list[str] = []
-
-    def handler(request):
-        seen.append(str(request.url))
-        status, body = pages.get(str(request.url), (404, ""))
-        kind = "application/rss+xml" if request.url.path == "/rss" else "text/html"
-        return httpx.Response(status, headers={"content-type": kind}, text=body)
-
-    monkeypatch.setattr(net, "assert_public_url", lambda url: None)
-    monkeypatch.setattr(browser, "enabled", lambda: False)
-    monkeypatch.setattr(retrieve, "new_client", lambda: new_client(httpx.MockTransport(handler)))
+def stage(server, monkeypatch):
+    """Three curated outlets (agency, newspaper, fact-checker); one matching item each for the
+    agency and the newspaper."""
+    monkeypatch.setattr(retrieve, "new_client", server.client)
     monkeypatch.setattr(retrieve, "default_cache", NoCache)
-    monkeypatch.setattr(
-        retrieve,
-        "_REGISTRY",
-        parse(
-            {
-                "wire_service": [
-                    {
-                        "domain": "agency.example",
-                        "country": "IT",
-                        "feeds": [{"url": AGENCY_FEED, "language": "it"}],
-                    }
-                ],
-                "national": [
-                    {
-                        "domain": "paper.example",
-                        "country": "IT",
-                        "feeds": [{"url": PAPER_FEED, "language": "it"}],
-                    }
-                ],
-            }
-        ),
-    )
+    registry = {
+        "wire_service": [{"domain": "agency.example", "feeds": [_feed(AGENCY_FEED)]}],
+        "national": [{"domain": "paper.example", "feeds": [_feed(PAPER_FEED)]}],
+        "fact_checker": [{"domain": "checker.example", "feeds": [_feed(CHECKER_FEED)]}],
+    }
+    for entries in registry.values():
+        entries[0]["country"] = "IT"
+    monkeypatch.setattr(retrieve, "_REGISTRY", parse(registry))
     monkeypatch.setattr(retrieve, "_LISTING", parse_viginum("domain,create date,first seen,type\n"))
-    pages[AGENCY_FEED] = (
+    server.pages[AGENCY_FEED] = (
         200,
         rss(
-            ("Garante privacy, multa da 805 milioni a Meta", "https://agency.example/meta"),
+            ("Garante privacy, multa da 805 milioni a Meta", AGENCY_ITEM),
             ("Calcio, vince la Roma", "https://agency.example/calcio"),
         ),
     )
-    pages[PAPER_FEED] = (
+    server.pages[PAPER_FEED] = (
         200,
         rss(
-            ("Multa del Garante privacy a Meta", "https://paper.example/meta?utm_source=rss"),
+            ("Multa del Garante privacy a Meta", PAPER_ITEM),
             ("Il documento analizzato", "https://paper.example/own-article"),
         ),
     )
-    pages["https://agency.example/meta"] = (
+    server.pages[CHECKER_FEED] = (200, rss())
+    server.pages[AGENCY_ITEM] = (
         200,
-        page("Garante privacy, multa a Meta", "Il Garante ha multato Meta.", "G-AGENCY0001"),
+        article_page(
+            "Garante privacy, multa a Meta", "Il Garante ha multato Meta.", "G-AGENCY0001"
+        ),
     )
-    pages["https://paper.example/meta?utm_source=rss"] = (
+    server.pages[PAPER_ITEM] = (
         200,
-        page("Multa a Meta", "Meta dovrà pagare 805 milioni al Garante.", "G-PAPER00001"),
+        article_page("Multa a Meta", "Meta dovrà pagare 805 milioni al Garante.", "G-PAPER00001"),
     )
-    pages["https://paper.example/own-article"] = (200, page("x", "y", "G-OWN0000001"))
-    return pages, seen
+    server.pages["https://paper.example/own-article"] = (200, article_page("x", "y"))
+    return server
 
 
 def analysis():
@@ -128,63 +111,178 @@ def analysis():
     return a
 
 
-def test_related_reports_come_with_full_bodies_and_typed_outlets(web):
-    patch = asyncio.run(retrieve.run(analysis()))
+def run(a=None) -> RetrievePatch:
+    return asyncio.run(retrieve.run(a or analysis()))
+
+
+def test_related_reports_come_with_full_bodies_and_typed_outlets(stage):
+    patch = run()
 
     assert [c.id for c in patch.context] == ["ctx1", "ctx2"]
     agency, paper = patch.context
     # The agency original comes first: the syndication guard needs it.
     assert agency.outlet == "agency.example"
+    assert agency.url == AGENCY_ITEM
     assert agency.retrieved_by == "feeds"
     assert agency.tracking_ids == ["G-AGENCY0001"]
     assert "Il Garante ha multato Meta." in agency.text
     assert agency.text.count("Paragraph") == 4  # the whole body, not a summary
-    assert agency.published_at is not None and agency.published_at.isoformat().startswith(
-        "2026-11-14T09:30"
-    )
+    assert agency.published_at.isoformat() == "2026-11-14T09:30:00+00:00"
     assert agency.language == "it"
-    assert agency.fact_check is None and agency.in_story is None  # in_story is story's job
+    assert agency.fact_check is None
+    # Story's fields stay empty.
+    assert (agency.similarity, agency.in_story, agency.story_reason) == (None, None, None)
     assert paper.outlet == "paper.example"
 
     sources = {s.domain: s for s in patch.sources}
     assert list(sources) == ["blog.example", "agency.example", "paper.example"]
     assert sources["agency.example"].outlet_type == OutletType.wire_service
+    assert sources["agency.example"].country == "IT"
     assert sources["paper.example"].outlet_type == OutletType.national
     assert sources["blog.example"].outlet_type is None  # unknown: not guessed
     assert patch.detail == "2 related reports from 2 outlets (2 feeds read)"
 
 
-def test_the_document_itself_and_unrelated_items_are_not_fetched(web):
-    _, seen = web
+def test_the_document_itself_its_outlet_and_unrelated_items_are_not_fetched(stage):
     a = analysis()
     a.document.url = "https://paper.example/own-article"
-    a.document.outlet = "paper.example"
-    patch = asyncio.run(retrieve.run(a))
+    a.document.outlet = "www.paper.example"
+    patch = run(a)
     assert [c.outlet for c in patch.context] == ["agency.example"]
-    assert "https://paper.example/own-article" not in seen
-    assert "https://agency.example/calcio" not in seen
+    assert "https://paper.example/own-article" not in stage.seen
+    assert PAPER_ITEM not in stage.seen  # same outlet as the document
+    assert "https://agency.example/calcio" not in stage.seen
 
 
-def test_a_dead_source_does_not_fail_the_stage(web):
-    pages, _ = web
-    pages[AGENCY_FEED] = (503, "")
-    pages["https://paper.example/meta?utm_source=rss"] = (500, "")
-    patch = asyncio.run(retrieve.run(analysis()))
+def test_a_fact_check_page_becomes_a_fact_check_item(stage):
+    item = "https://checker.example/meta-fine"
+    stage.pages[CHECKER_FEED] = (200, rss(("Multa Garante privacy a Meta da 805 miliardi?", item)))
+    head = f'<script type="application/ld+json">{CLAIM_REVIEW}</script>'
+    stage.pages[item] = (
+        200,
+        article_page("Verifica", "La multa è di 805 milioni, non miliardi.", head=head),
+    )
+    checks = [c for c in run().context if c.fact_check is not None]
+    assert len(checks) == 1
+    check = checks[0]
+    assert check.fact_check.model_dump() == {
+        "claim": "Meta was fined 805 billion euros",
+        "rating": "False",
+        "publisher": "Checker",
+    }
+    # The contract: the reviewed claim, then the verdict text.
+    assert check.text.startswith("Meta was fined 805 billion euros\n\nLa multa è di 805 milioni")
+
+
+def test_a_paywalled_page_is_left_out(stage):
+    stage.pages[PAPER_ITEM] = (200, article_page("Multa a Meta", "Solo abbonati.", head=PAYWALL))
+    assert [c.outlet for c in run().context] == ["agency.example"]
+
+
+def test_two_links_to_the_same_article_give_one_item(stage):
+    final = "https://www.paper.example/meta"
+    stage.pages[PAPER_FEED] = (
+        200,
+        rss(
+            ("Multa del Garante privacy a Meta", PAPER_ITEM),
+            ("Garante privacy: multa a Meta", "https://paper.example/short-link"),
+        ),
+    )
+    stage.pages[final] = stage.pages[PAPER_ITEM]
+    stage.pages[PAPER_ITEM] = (301, "", {"location": final})
+    stage.pages["https://paper.example/short-link"] = (301, "", {"location": final})
+    patch = run()
+    assert [c.url for c in patch.context] == [AGENCY_ITEM, final]
+    assert [c.id for c in patch.context] == ["ctx1", "ctx2"]
+
+
+def test_at_most_three_hits_per_outlet_and_max_hits_overall(stage, monkeypatch):
+    links = [f"https://paper.example/meta-{i}" for i in range(5)]
+    stage.pages[PAPER_FEED] = (
+        200,
+        rss(*[(f"Garante privacy multa Meta {i}", link) for i, link in enumerate(links)]),
+    )
+    for i, link in enumerate(links):
+        stage.pages[link] = (200, article_page(f"Multa {i}", f"Versione {i} della notizia."))
+    patch = run()
+    assert sum(c.outlet == "paper.example" for c in patch.context) == retrieve.PER_OUTLET
+    monkeypatch.setattr(retrieve, "MAX_HITS", 2)
+    assert len(run().context) == 2
+
+
+def test_slow_pages_are_dropped_at_the_budget(stage, monkeypatch):
+    monkeypatch.setattr(retrieve, "ARTICLES_TIMEOUT_S", 0.5)
+    stage.delays[PAPER_ITEM] = 5
+    patch = run()
+    assert [c.outlet for c in patch.context] == ["agency.example"]
+
+
+def test_slow_feeds_are_dropped_at_the_budget(stage, monkeypatch):
+    monkeypatch.setattr(retrieve, "FEEDS_TIMEOUT_S", 0.5)
+    stage.delays[AGENCY_FEED] = 5
+    patch = run()
+    assert [c.outlet for c in patch.context] == ["paper.example"]
+    assert patch.detail == "1 related reports from 1 outlets (1 feeds read)"
+
+
+def test_a_dead_source_does_not_fail_the_stage(stage):
+    stage.pages[AGENCY_FEED] = (503, "")
+    stage.pages[PAPER_ITEM] = (500, "")
+    patch = run()
     assert patch.context == []
     assert [s.domain for s in patch.sources] == ["blog.example"]
 
 
-def test_no_queries_means_no_search(web):
-    _, seen = web
+def test_a_crashing_reader_does_not_fail_the_stage(stage, monkeypatch):
+    from pipeline.retrieve import articles
+
+    async def broken(self, url, fallback_published=None):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(articles.Reader, "read", broken)
+    assert run().context == []
+
+
+def test_no_queries_means_no_search(stage):
     a = analysis()
     a.queries = []
-    patch = asyncio.run(retrieve.run(a))
-    assert patch.context == [] and seen == []
+    patch = run(a)
+    assert patch.context == [] and stage.seen == []
     assert patch.detail == "No search queries, so no related coverage was looked up"
 
 
-def test_rdap_fills_the_registration_date(web, monkeypatch):
-    pages, _ = web
+def test_pasted_text_without_outlet_still_searches(stage):
+    a = analysis()
+    a.document = Document(
+        paragraphs=["Il Garante della privacy ha multato Meta."], outbound_links=[], tracking_ids=[]
+    )
+    patch = run(a)
+    assert len(patch.context) == 2
+    assert [s.domain for s in patch.sources] == ["agency.example", "paper.example"]
+
+
+def test_claims_and_title_also_find_coverage(stage):
+    a = analysis()
+    a.queries = []
+    a.document.title = "Garante privacy, multa a Meta"
+    a.claims = [
+        Claim(id="cl1", text="Meta multa Garante privacy", span=Span(paragraph=0, start=0, end=1))
+    ]
+    assert len(run(a).context) == 2
+
+
+def test_progress_notes(stage, monkeypatch):
+    notes: list[str] = []
+    monkeypatch.setattr(progress, "report", notes.append)
+    run()
+    assert notes[0] == "Reading news feeds"
+    assert "2 possibly related reports in 2 feeds" in notes
+    assert "Reading related reports: 2 of 2" in notes
+    assert notes[-1] == "2 related reports; checking the outlets"
+    assert not any("http" in n for n in notes)  # notes are public: no URLs
+
+
+def test_rdap_crtsh_and_viginum_fill_the_document_outlet(stage, monkeypatch):
     monkeypatch.setattr(
         retrieve,
         "_LISTING",
@@ -195,19 +293,20 @@ def test_rdap_fills_the_registration_date(web, monkeypatch):
     a.document.url = "https://news.pravda-it.com/post"
     a.document.outlet = "news.pravda-it.com"
     rdap = {"events": [{"eventAction": "registration", "eventDate": "2024-02-29T10:00:00Z"}]}
-    pages["https://rdap.org/domain/pravda-it.com"] = (200, json.dumps(rdap))
-    [profile] = asyncio.run(retrieve.run(a)).sources
-    assert profile.domain == "news.pravda-it.com"
+    stage.pages["https://rdap.org/domain/pravda-it.com"] = (200, json.dumps(rdap))
+    certs = [{"not_before": "2024-03-01T08:00:00"}]
+    stage.pages["https://crt.sh/?q=pravda-it.com&output=json"] = (200, json.dumps(certs))
+    [profile] = run(a).sources
+    assert profile.domain == "news.pravda-it.com"  # as the document writes it
     assert profile.known_network == "portal_kombat"
     assert profile.registered_at.isoformat() == "2024-02-29T10:00:00+00:00"
-    assert profile.first_cert_at is None  # crt.sh answered 404
+    assert profile.first_cert_at.isoformat() == "2024-03-01T08:00:00+00:00"
 
 
-def test_through_the_worker_endpoint(web):
+def test_through_the_worker_endpoint(stage):
     from worker.app import app
 
-    body = analysis().model_dump(mode="json")
-    response = TestClient(app).post("/stages/retrieve", json=body)
+    response = TestClient(app).post("/stages/retrieve", json=analysis().model_dump(mode="json"))
     assert response.status_code == 200, response.text
     patch = RetrievePatch.model_validate(response.json())
     assert len(patch.context) == 2
