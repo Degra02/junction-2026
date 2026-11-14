@@ -40,8 +40,8 @@ def test_example_scores_both_dimensions_with_valid_breakdown() -> None:
 
 def test_only_the_strongest_signal_of_a_family_counts() -> None:
     items = [
-        evidence("s1", Family.techniques, "manipulative_wording", 0.9),
-        evidence("s2", Family.techniques, "attack_on_reputation", 0.6),
+        evidence("s1", Family.techniques, "manipulative_wording", 0.45),
+        evidence("s2", Family.techniques, "attack_on_reputation", 0.3),
         evidence("s3", Family.source_profile, "domain_age_days", 4000),
         evidence("s4", Family.source_profile, "outlet_wire_service", 1.0),
         evidence("s5", Family.techniques, "a_signal_nobody_mapped", 1.0),

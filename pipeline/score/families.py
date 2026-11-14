@@ -52,9 +52,9 @@ def _clip(
 
 # (family, signal) -> strength. Signal scales are documented in the signal modules.
 STRENGTH: dict[tuple[Family, str], Callable[[float], float]] = {
-    # techniques: probability of the strongest detected technique of the category.
+    # techniques: share of paragraphs with a technique of the category; half of them saturates.
     **{
-        (Family.techniques, category): _clip(0.0, 1.0)
+        (Family.techniques, category): _clip(0.0, 1.0, 2.0)
         for category in (
             "attack_on_reputation",
             "justification",
@@ -67,12 +67,13 @@ STRENGTH: dict[tuple[Family, str], Callable[[float], float]] = {
     # tone: z-score vs peers, z = 3 saturates. Calmer than the peers points away, but at most
     # -0.5: being calm is weaker evidence than being charged.
     (Family.tone, "tone_vs_peers"): _clip(-0.5, 1.0, 1 / 3),
-    # claim_support: v = share of addressing sources that contradict the claim. 2v - 1 maps all
-    # contradicting to 1, a split to 0, all supporting to -1, floored at -0.6 so corroboration
-    # alone never makes the result abstain on disagreement (DISAGREEMENT = 0.7).
+    # claim_support: v = smoothed share of addressing sources that contradict the claim
+    # (`signals.claims`). 2v - 1 maps "all contradict" toward 1, a split to 0, "all support"
+    # toward -1, floored at -0.6 so corroboration alone never makes the result abstain on
+    # disagreement (DISAGREEMENT = 0.7).
     (Family.claim_support, "contradicted"): _clip(-0.6, 1.0, 2.0, -1.0),
-    # Nobody else reports the claim: weak on its own.
-    (Family.claim_support, "unaddressed"): lambda _: 0.35,
+    # Nobody else reports the claim: common in honest original reporting, so weak.
+    (Family.claim_support, "unaddressed"): lambda _: 0.2,
     # fact_checks: rating value (1 false, 0.6 misleading); a "true" rating points away.
     (Family.fact_checks, "rated_false"): _clip(0.0, 1.0),
     (Family.fact_checks, "rated_misleading"): _clip(0.0, 1.0),

@@ -8,6 +8,7 @@ import pytest
 from pipeline import explain
 from pipeline.common.fixtures import example_analysis
 from pipeline.explain import Draft, check, digest, quotations
+from pipeline.score.families import strength
 
 
 def draft(summary: str, *reasons: tuple[str, list[str]]) -> Draft:
@@ -56,8 +57,10 @@ def test_digest_carries_scores_and_strongest_evidence_first() -> None:
     payload = json.loads(digest(example_analysis()))
     assert payload["scores"]["single"]["confidence"] == 0.86
     ids = [e["id"] for e in payload["evidence"]]
-    assert ids[0] == "s4"  # rated false: strength 1.0
-    assert set(ids) == {e.id for e in example_analysis().evidence}
+    by_id = {e.id: abs(strength(e) or 0.0) for e in example_analysis().evidence}
+    ranked = [by_id[i] for i in ids]
+    assert ranked == sorted(ranked, reverse=True) and ranked[0] == 1.0
+    assert set(ids) == set(by_id)
     assert payload["claims"][0] == "The government will ban private wells by January"
 
 
