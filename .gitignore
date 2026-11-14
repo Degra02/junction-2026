@@ -21,6 +21,10 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Evaluation datasets (research-only, never commit)
+evals/data/
+evals/results/
+
 # Misc
 *.log
 .DS_Store
