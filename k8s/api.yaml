@@ -1,0 +1,101 @@
+# The Rust API: jobs, SQLite, SSE. One replica only: SQLite lives on a ReadWriteOnce volume and
+# a second process would corrupt the cache and the job state (D11). Recreate, not RollingUpdate,
+# so the old pod releases the volume before the new one starts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: api-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+    spec:
+      securityContext:
+        # distroless nonroot; fsGroup makes the volume writable where the provisioner honours it.
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      containers:
+        - name: api
+          image: ghcr.io/degra02/junction-2026-api
+          args: [serve]
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: api-settings
+          env:
+            - name: WORKER_URL
+              value: http://worker:8001
+            # Reachable only through Caddy (network-policy.yaml), so X-Forwarded-For is trusted.
+            - name: TRUST_PROXY
+              value: "true"
+            # Part of the cache key; set from the api image tag by the replacement in
+            # kustomization.yaml, so every new tag empties the result cache as on the VPS.
+            - name: PIPELINE_VERSION
+              value: IMAGE_TAG
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          # /api/health answers 200 while the API and its database work, even with the worker
+          # down, so a worker restart does not take the API out of the Service.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: api-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector:
+    app.kubernetes.io/name: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

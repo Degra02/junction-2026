@@ -1,0 +1,66 @@
+# Local cluster (kind) version of deploy/compose.yaml: `mise run k8s:up` builds the three images,
+# loads them into kind and applies this. Usage and caveats: k8s/README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: junction
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: junction
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - api.yaml
+  - worker.yaml
+  - caddy.yaml
+  - network-policy.yaml
+
+# One tag for all three, as IMAGE_TAG on the VPS. `dev` is what `mise run k8s:up` builds locally.
+images:
+  - name: ghcr.io/degra02/junction-2026-api
+    newTag: dev
+  - name: ghcr.io/degra02/junction-2026-worker
+    newTag: dev
+  - name: ghcr.io/degra02/junction-2026-caddy
+    newTag: dev
+
+# API settings, defaults from deploy/compose.yaml (names in api/src/config.rs). Eval runs: set
+# RATE_LIMIT_PER_MINUTE=0 and MAX_ANALYSES_PER_HOUR=0 here.
+configMapGenerator:
+  - name: api-settings
+    literals:
+      - WORKER_CONNECT_WAIT_SECS=180
+      - RATE_LIMIT_PER_MINUTE=30
+      - MAX_ANALYSES_PER_HOUR=600
+      - STAGE_TIMEOUT_SECS=120
+      - ANALYSIS_TIMEOUT_SECS=300
+      - MAX_CONCURRENT_ANALYSES=4
+      - MAX_CONCURRENT_INFERENCE=1
+      # Kill switch: comma-separated stages to skip, e.g. explain,retrieve.
+      - STAGES_DISABLED=
+      - BACKUP_INTERVAL_MINS=15
+      - RUST_LOG=info
+
+# The worker's secrets: a git-ignored copy of the repo's .env (mise run k8s:up copies it).
+secretGenerator:
+  - name: worker-env
+    envs:
+      - .env
+
+# PIPELINE_VERSION follows the api image tag (the result cache key), as in compose.
+replacements:
+  - source:
+      kind: Deployment
+      name: api
+      fieldPath: spec.template.spec.containers.[name=api].image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select:
+          kind: Deployment
+          name: api
+        fieldPaths:
+          - spec.template.spec.containers.[name=api].env.[name=PIPELINE_VERSION].value

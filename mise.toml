@@ -105,6 +105,50 @@ done
 description = "Mock API from the contract for frontend work (Prism on :4010)"
 run = "bunx @stoplight/prism-cli@5.16.0 mock contracts/openapi.json"
 
+# --- Local Kubernetes (k8s/) ---------------------------------------------------
+
+[tasks."k8s:up"]
+description = "Build the three images, load them into a local kind cluster `junction` and apply k8s/"
+tools = { kind = "0.33.0", kubectl = "1.37.2" }
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# kind uses podman when no Docker daemon answers (KIND_EXPERIMENTAL_PROVIDER). Rootless podman
+# sees the cpu cgroup controller only inside a delegated systemd scope, which kind requires.
+if docker info >/dev/null 2>&1; then
+  engine=docker; scope=()
+else
+  engine=podman; scope=(systemd-run --user --scope --quiet -p Delegate=yes)
+  export KIND_EXPERIMENTAL_PROVIDER=podman
+fi
+kind get clusters 2>/dev/null | grep -qx junction || "${scope[@]}" kind create cluster --name junction
+mkdir -p target
+for image in api worker caddy; do
+  ref=ghcr.io/degra02/junction-2026-$image:dev
+  "$engine" build -f "deploy/$image.Dockerfile" -t "$ref" .
+  "$engine" save "$ref" -o "target/k8s-$image.tar"
+  kind load image-archive "target/k8s-$image.tar" --name junction
+  rm "target/k8s-$image.tar"
+done
+# The worker's secrets (git-ignored like .env); kustomize reads only files inside k8s/.
+if [ -f .env ]; then cp .env k8s/.env; else : > k8s/.env; fi
+kubectl --context kind-junction apply -k k8s
+# Same tag `dev` on every rebuild: restart so the pods run the images just loaded.
+kubectl --context kind-junction -n junction rollout restart deployment
+kubectl --context kind-junction -n junction rollout status deployment --timeout=15m
+echo "UI and API: kubectl --context kind-junction -n junction port-forward svc/caddy 8088:80, then http://127.0.0.1:8088"
+"""
+
+[tasks."k8s:down"]
+description = "Delete the local kind cluster `junction` (volumes included)"
+tools = { kind = "0.33.0" }
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+docker info >/dev/null 2>&1 || export KIND_EXPERIMENTAL_PROVIDER=podman
+kind delete cluster --name junction
+"""
+
 # --- Aggregate -----------------------------------------------------------------
 
 [tasks.check]

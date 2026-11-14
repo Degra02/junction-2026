@@ -1,0 +1,88 @@
+# The Python stage worker. Hugging Face weights are cached on the hf-cache volume; the worker
+# listens only once its models are loaded, and the API waits for it (WORKER_CONNECT_WAIT_SECS).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  # ReadWriteOnce model cache: the old pod must release it first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: worker
+          image: ghcr.io/degra02/junction-2026-worker
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            # LLM_* and provider keys, generated from k8s/.env (kustomization.yaml).
+            - secretRef:
+                name: worker-env
+          env:
+            # One inference at a time (the API's MAX_CONCURRENT_INFERENCE), on two cores.
+            - name: OMP_NUM_THREADS
+              value: "2"
+            - name: MKL_NUM_THREADS
+              value: "2"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          # TCP, not /health: the port opens only once the models are loaded, and a health
+          # request queued behind a long CPU-bound stage must not mark the worker unready.
+          # No liveness probe: a crash exits the process and the pod restarts; a probe that
+          # times out during inference would kill a working stage.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            # An OOM kills the worker (the API marks the step failed), not the API or Caddy.
+            limits:
+              memory: 6Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: hf-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+spec:
+  selector:
+    app.kubernetes.io/name: worker
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http
