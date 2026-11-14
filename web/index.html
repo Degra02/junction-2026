@@ -3,11 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Decode the Noise — Context-Aware Propaganda Analysis</title>
+    <title>Decode the Noise</title>
     <meta
       name="description"
-      content="Paste text or an article link. See how everyone else covered the event, what has been copied, and how sure we are — with every source shown."
+      content="Check an article against the rest of the news: who else reported it, what was copied, and how sure we are, with every source shown."
     />
+    <meta name="theme-color" content="#f8f8f6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#09090a" media="(prefers-color-scheme: dark)" />
+    <script>
+      // Apply the saved theme before first paint (no light flash in dark mode).
+      try {
+        var t = localStorage.getItem("junction-theme");
+        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

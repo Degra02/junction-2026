@@ -1,21 +1,11 @@
 import { useState } from "react";
 import * as HoverCard from "@radix-ui/react-hover-card";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  FileText,
-  Globe,
-  ShieldAlert,
-} from "lucide-react";
-import type {
-  ContextItem,
-  DocumentData,
-  Evidence,
-  SourceProfile,
-} from "../lib/contracts";
+import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import type { ContextItem, DocumentData, Evidence, SourceProfile } from "../lib/contracts";
 import { resolveCitationChip } from "../lib/evidence";
+import { buttonClass, tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
+import { Favicon } from "./ui/Favicon";
 
 export interface CitationChipProps {
   readonly evidence: Evidence;
@@ -26,10 +16,7 @@ export interface CitationChipProps {
   readonly onInspect?: (evidenceId: string) => void;
 }
 
-/**
- * Perplexity-style publisher/signal inline chip with a Liquid Glass HoverCard
- * supporting 1/N multi-source pagination, outlet badges, domain age, and verbatim quotes.
- */
+/** Inline source chip; hovering shows the signal and its sources one at a time. */
 export function CitationChip({
   evidence,
   document,
@@ -43,6 +30,8 @@ export function CitationChip({
   const total = meta.sources.length;
   const safeIndex = total > 0 ? Math.min(page, total - 1) : 0;
   const current = meta.sources[safeIndex] ?? null;
+  const lead = meta.sources[0] ?? null;
+  const leadDomain = lead && lead.kind !== "document" ? lead.domain : null;
 
   return (
     <HoverCard.Root openDelay={120} closeDelay={140}>
@@ -51,19 +40,16 @@ export function CitationChip({
           type="button"
           onClick={() => onInspect?.(evidence.id)}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all cursor-pointer align-baseline",
+            "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-xs transition-colors cursor-pointer align-middle",
             active
-              ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
-              : meta.tone === "teal"
-                ? "bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-border)] hover:opacity-90"
-                : meta.tone === "caution"
-                  ? "bg-[var(--caution-soft)] text-[var(--caution)] border-[var(--caution-border)] hover:opacity-90"
-                  : "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent-border)] hover:opacity-90",
+              ? "bg-[var(--accent-soft)] border-[var(--accent-border)] text-[var(--accent)]"
+              : "bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--fg-primary)]",
           )}
         >
-          <span className="truncate max-w-[150px]">{meta.primaryLabel}</span>
+          {leadDomain && <Favicon domain={leadDomain} size={12} />}
+          <span className="truncate max-w-[160px]">{meta.primaryLabel}</span>
           {meta.extraCount > 0 && (
-            <span className="font-mono-num text-[10px] opacity-80">+{meta.extraCount}</span>
+            <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">+{meta.extraCount}</span>
           )}
         </button>
       </HoverCard.Trigger>
@@ -74,21 +60,16 @@ export function CitationChip({
           align="center"
           sideOffset={8}
           collisionPadding={16}
-          className="z-50 glass-popover rounded-2xl p-3.5 w-80 sm:w-96 space-y-2.5 text-left outline-none"
+          className="z-50 glass-popover rounded-xl p-3 w-80 space-y-2.5 text-left outline-none"
         >
-          {/* Header: Signal Family + 1/N Pagination */}
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border-subtle)]/80">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
-                {meta.familyLabel}
-              </div>
-              <div className="text-xs font-bold text-[var(--fg-primary)] truncate">
-                {meta.signalLabel}
-              </div>
+              <div className="text-[13px] font-medium text-[var(--fg-primary)] truncate">{meta.signalLabel}</div>
+              <div className="text-xs text-[var(--fg-muted)] truncate">{meta.familyLabel}</div>
             </div>
 
             {total > 1 && (
-              <div className="inline-flex items-center gap-1 shrink-0 bg-[var(--bg-subtle)]/80 rounded-full px-1.5 py-0.5">
+              <div className="inline-flex items-center shrink-0">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -96,11 +77,11 @@ export function CitationChip({
                     setPage((p) => (p - 1 + total) % total);
                   }}
                   aria-label="Previous source"
-                  className="p-0.5 text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] cursor-pointer"
+                  className={buttonClass("ghost", "sm", "h-6 w-6 px-0")}
                 >
-                  <ChevronLeft className="h-3 w-3" aria-hidden="true" />
+                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
-                <span className="font-mono-num text-[10px] text-[var(--fg-secondary)] px-0.5">
+                <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">
                   {safeIndex + 1}/{total}
                 </span>
                 <button
@@ -110,103 +91,77 @@ export function CitationChip({
                     setPage((p) => (p + 1) % total);
                   }}
                   aria-label="Next source"
-                  className="p-0.5 text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] cursor-pointer"
+                  className={buttonClass("ghost", "sm", "h-6 w-6 px-0")}
                 >
-                  <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Evidence Plain-Language Detail */}
-          <p className="text-xs text-[var(--fg-secondary)] leading-relaxed m-0">
-            {meta.detail}
-          </p>
+          {meta.detail && <p className="text-xs leading-relaxed text-[var(--fg-secondary)]">{meta.detail}</p>}
 
-          {/* Current Source Card */}
           {current && (
-            <div className="rounded-xl bg-[var(--bg-subtle)]/75 border border-[var(--border-subtle)] p-2.5 space-y-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)] min-w-0">
-                  {current.kind === "document" ? (
-                    <FileText className="h-3.5 w-3.5 text-[var(--accent)] shrink-0" aria-hidden="true" />
-                  ) : (
-                    <Globe className="h-3.5 w-3.5 text-[var(--accent)] shrink-0" aria-hidden="true" />
-                  )}
-                  <span className="truncate">{current.domain}</span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1">
-                  {current.outletTypeLabel && (
-                    <span
-                      className={cn(
-                        "px-1.5 py-0.5 rounded-md text-[10px] font-medium border",
-                        current.outletTypeTone === "teal"
-                          ? "bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-border)]"
-                          : current.outletTypeTone === "caution"
-                            ? "bg-[var(--caution-soft)] text-[var(--caution)] border-[var(--caution-border)]"
-                            : "bg-[var(--bg-surface)] text-[var(--fg-secondary)] border-[var(--border-subtle)]",
-                      )}
-                    >
-                      {current.outletTypeLabel}
-                    </span>
-                  )}
-
-                  {current.domainAge && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] font-mono-num text-[10px] text-[var(--fg-muted)]">
-                      {current.domainAge}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {current.knownNetworkLabel && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--caution-soft)] border border-[var(--caution-border)] text-[10px] font-semibold text-[var(--caution)]">
-                  <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-                  <span>{current.knownNetworkLabel}</span>
-                </div>
-              )}
-
-              {current.factCheckRating && (
-                <div className="text-[11px] font-semibold text-[var(--caution)]">
-                  {current.factCheckPublisher ? `${current.factCheckPublisher} rating: ` : "Fact-check rating: "}
-                  <span className="underline decoration-dotted">{current.factCheckRating}</span>
-                </div>
-              )}
-
-              <div className="text-[11px] font-medium text-[var(--fg-primary)] line-clamp-1">
-                {current.title}
-              </div>
-
-              {current.quote && (
-                <blockquote className="m-0 pl-2.5 border-l-2 border-[var(--accent)] text-[11px] italic text-[var(--fg-secondary)] line-clamp-3 leading-relaxed">
-                  “{current.quote}”
-                </blockquote>
-              )}
-
-              <div className="pt-1 flex items-center justify-between gap-2">
-                {onInspect && (
-                  <button
-                    type="button"
-                    onClick={() => onInspect(evidence.id)}
-                    className="text-[11px] font-semibold text-[var(--accent)] hover:underline cursor-pointer"
-                  >
-                    {current.kind === "document" ? "Highlight in text →" : "Open in evidence inspector →"}
-                  </button>
+            <div className="pt-2.5 border-t border-[var(--border-subtle)] space-y-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {current.kind !== "document" && <Favicon domain={current.domain} size={14} />}
+                <span className="font-mono-num text-xs text-[var(--fg-primary)] truncate">
+                  {current.kind === "document" ? "This article" : current.domain}
+                </span>
+                {current.domainAge && (
+                  <span className="font-mono-num text-[11px] text-[var(--fg-muted)] shrink-0">{current.domainAge}</span>
                 )}
-
                 {current.url && (
                   <a
                     href={current.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--fg-secondary)] hover:text-[var(--accent)] ml-auto"
+                    aria-label="Open source"
+                    className="ml-auto shrink-0 text-[var(--fg-muted)] hover:text-[var(--accent)]"
                   >
-                    <span>Open source</span>
-                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   </a>
                 )}
               </div>
+
+              {current.title && (
+                <div className="text-[13px] text-[var(--fg-primary)] line-clamp-2">{current.title}</div>
+              )}
+
+              {(current.outletTypeLabel || current.knownNetworkLabel || current.factCheckRating) && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {current.outletTypeLabel && (
+                    <span className={tagClass(current.outletTypeTone ?? "neutral")}>{current.outletTypeLabel}</span>
+                  )}
+                  {current.knownNetworkLabel && (
+                    <span className={tagClass("caution")}>{current.knownNetworkLabel}</span>
+                  )}
+                  {current.factCheckRating && (
+                    <span className={tagClass("caution")}>
+                      {current.factCheckPublisher ? `${current.factCheckPublisher}: ` : ""}
+                      {current.factCheckRating}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {current.quote && (
+                <blockquote className="font-serif text-[13px] leading-relaxed text-[var(--fg-primary)] line-clamp-4">
+                  <mark className="bg-[var(--mark)] text-inherit rounded-[2px] px-0.5 box-decoration-clone">
+                    {current.quote}
+                  </mark>
+                </blockquote>
+              )}
+
+              {onInspect && (
+                <button
+                  type="button"
+                  onClick={() => onInspect(evidence.id)}
+                  className={buttonClass("ghost", "sm", "-ml-2.5")}
+                >
+                  {current.kind === "document" ? "Show in text →" : "Inspect →"}
+                </button>
+              )}
             </div>
           )}
         </HoverCard.Content>

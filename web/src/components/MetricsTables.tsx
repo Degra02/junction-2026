@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type {
   BinaryMetrics,
   CalibrationBin,
@@ -15,6 +16,36 @@ import {
   STAGE_LABELS,
   languageName,
 } from "../lib/labels";
+import { cn } from "../lib/utils";
+import { AnimatedNumber } from "./ui/AnimatedNumber";
+
+const SERIES_COLOR: Record<DimensionKey, string> = {
+  single: "var(--accent)",
+  coordinated: "var(--indigo)",
+};
+
+const TH = "sticky top-0 z-[1] bg-[var(--bg-subtle)] py-2 px-3 text-xs font-medium text-[var(--fg-muted)] whitespace-nowrap";
+const TH_NUM = cn(TH, "text-right");
+const TD = "py-2 px-3 align-top";
+const TD_NUM = "py-2 px-3 align-top text-right font-mono-num text-xs whitespace-nowrap";
+
+/** Bordered, scrollable table shell with a sticky header row. */
+function DataTable({
+  head,
+  children,
+  className,
+}: Readonly<{ head: ReactNode; children: ReactNode; className?: string }>) {
+  return (
+    <div className={cn("editorial-card rounded-xl overflow-auto max-h-[32rem]", className)}>
+      <table className="w-full border-collapse text-left text-[13px]">
+        <thead>
+          <tr className="border-b border-[var(--border-subtle)]">{head}</tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle)]">{children}</tbody>
+      </table>
+    </div>
+  );
+}
 
 function RateCell({
   rate,
@@ -27,142 +58,160 @@ function RateCell({
   coverage?: number | null;
   coverageLabel?: string;
 }>) {
-  if (rate === null || rate === undefined) {
-    return (
-      <div className="space-y-0.5">
-        <span className="font-mono-num text-xs text-[var(--fg-muted)]">n/a</span>
-        {coverage !== undefined && coverage !== null && (
-          <div className="font-mono-num text-[10px] text-[var(--fg-muted)]">
-            {coverageLabel} {formatPct(coverage, 0)}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-0.5">
-      <div className="font-mono-num text-xs font-semibold text-[var(--fg-primary)]">
+    <td className={TD_NUM}>
+      <div className={rate == null ? "text-[var(--fg-muted)]" : "text-[var(--fg-primary)]"}>
         {formatPct(rate, 1)}
       </div>
-      {ci && (
-        <div className="font-mono-num text-[10px] text-[var(--fg-muted)]">{formatCi(ci, 0)}</div>
-      )}
-      {coverage !== undefined && coverage !== null && (
-        <div className="font-mono-num text-[10px] text-[var(--fg-secondary)]">
+      {rate != null && ci && <div className="text-[11px] text-[var(--fg-muted)]">{formatCi(ci, 0)}</div>}
+      {coverage != null && (
+        <div className="text-[11px] text-[var(--fg-muted)]">
           {coverageLabel} {formatPct(coverage, 0)}
         </div>
       )}
-    </div>
+    </td>
   );
 }
 
-function CalibrationChart({ bins }: Readonly<{ bins: readonly CalibrationBin[] }>) {
+const RATE_HEAD = (
+  <>
+    <th className={TH_NUM}>+ / −</th>
+    <th className={TH_NUM}>Precision</th>
+    <th className={TH_NUM}>Recall</th>
+    <th className={TH_NUM}>Recall (all)</th>
+    <th className={TH_NUM}>FPR</th>
+    <th className={TH_NUM}>Abstain</th>
+    <th className={TH_NUM}>Failed</th>
+  </>
+);
+
+function MetricsRowCells({ m }: Readonly<{ m: BinaryMetrics }>) {
+  return (
+    <>
+      <td className={cn(TD_NUM, "text-[var(--fg-muted)]")}>
+        {m.positives} / {m.negatives}
+      </td>
+      <RateCell rate={m.precision} ci={m.precision_ci} coverage={m.coverage} />
+      <RateCell rate={m.recall} ci={m.recall_ci} coverage={m.coverage_pos} coverageLabel="pos" />
+      <RateCell rate={m.recall_all} ci={m.recall_all_ci} />
+      <RateCell rate={m.fpr} ci={m.fpr_ci} coverage={m.coverage_neg} coverageLabel="neg" />
+      <td className={cn(TD_NUM, "text-[var(--fg-secondary)]")}>{formatPct(m.abstain_rate, 1)}</td>
+      <td className={cn(TD_NUM, "text-[var(--fg-muted)]")}>{formatPct(m.failure_rate, 1)}</td>
+    </>
+  );
+}
+
+function CalibrationChart({
+  bins,
+  color,
+}: Readonly<{ bins: readonly CalibrationBin[]; color: string }>) {
   if (bins.length === 0) {
-    return (
-      <p className="text-xs text-[var(--fg-muted)] m-0">
-        No scored items available yet for reliability binning.
-      </p>
-    );
+    return <p className="text-[13px] text-[var(--fg-muted)]">No scored items yet.</p>;
   }
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-      <svg
-        viewBox="0 0 280 220"
-        className="w-full max-w-[300px] h-auto"
-        role="img"
-        aria-label="Reliability calibration diagram comparing mean predicted confidence to observed positive rate"
-      >
-        {/* Axes */}
-        <line
-          x1="40"
-          y1="20"
-          x2="40"
-          y2="180"
-          stroke="var(--border-strong)"
-          strokeWidth="1"
-        />
-        <line
-          x1="40"
-          y1="180"
-          x2="250"
-          y2="180"
-          stroke="var(--border-strong)"
-          strokeWidth="1"
-        />
-        {/* Diagonal ideal calibration line */}
-        <line
-          x1="40"
-          y1="180"
-          x2="250"
-          y2="20"
-          stroke="var(--fg-muted)"
-          strokeDasharray="4 3"
-          strokeWidth="1"
-        />
-        <text x="40" y="198" fontSize="10" fill="var(--fg-muted)">
-          0%
-        </text>
-        <text x="132" y="198" fontSize="10" fill="var(--fg-muted)">
-          Predicted
-        </text>
-        <text x="232" y="198" fontSize="10" fill="var(--fg-muted)">
-          100%
-        </text>
-        <text x="8" y="26" fontSize="10" fill="var(--fg-muted)">
-          100%
-        </text>
-        <text x="14" y="180" fontSize="10" fill="var(--fg-muted)">
-          0%
-        </text>
+  const x0 = 36;
+  const x1 = 256;
+  const y0 = 184;
+  const y1 = 16;
+  const px = (p: number) => x0 + p * (x1 - x0);
+  const py = (p: number) => y0 - p * (y0 - y1);
+  const ticks = [0, 0.5, 1];
 
+  return (
+    <div className="editorial-card rounded-xl grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] items-start">
+      <svg
+        viewBox="0 0 272 216"
+        className="w-full max-w-[18rem] h-auto p-3"
+        role="img"
+        aria-label="Calibration: mean predicted confidence against observed positive rate"
+      >
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={px(t)} y1={y1} x2={px(t)} y2={y0} stroke="var(--border-subtle)" />
+            <line x1={x0} y1={py(t)} x2={x1} y2={py(t)} stroke="var(--border-subtle)" />
+            <text
+              x={px(t)}
+              y={y0 + 14}
+              textAnchor="middle"
+              fontSize="10"
+              fontFamily="var(--font-mono)"
+              fill="var(--fg-muted)"
+            >
+              {Math.round(t * 100)}
+            </text>
+            <text
+              x={x0 - 6}
+              y={py(t) + 3}
+              textAnchor="end"
+              fontSize="10"
+              fontFamily="var(--font-mono)"
+              fill="var(--fg-muted)"
+            >
+              {Math.round(t * 100)}
+            </text>
+          </g>
+        ))}
+        <line
+          x1={px(0)}
+          y1={py(0)}
+          x2={px(1)}
+          y2={py(1)}
+          stroke="var(--border-strong)"
+          strokeDasharray="3 3"
+        />
+        <text x={(x0 + x1) / 2} y={y0 + 28} textAnchor="middle" fontSize="10" fill="var(--fg-muted)">
+          predicted %
+        </text>
+        <text
+          x={10}
+          y={(y0 + y1) / 2}
+          textAnchor="middle"
+          fontSize="10"
+          fill="var(--fg-muted)"
+          transform={`rotate(-90 10 ${(y0 + y1) / 2})`}
+        >
+          observed %
+        </text>
         {bins.map((b, idx) => {
           if (b.mean_confidence == null || b.positive_rate == null) return null;
-          const cx = 40 + b.mean_confidence * 210;
-          const cy = 180 - b.positive_rate * 160;
-          const r = Math.max(4, Math.min(10, 3 + Math.sqrt(b.n)));
+          const r = Math.max(3, Math.min(8, 2 + Math.sqrt(b.n)));
           return (
-            <g key={idx}>
-              <circle
-                cx={cx}
-                cy={cy}
-                r={r}
-                fill="var(--accent)"
-                fillOpacity="0.85"
-              />
+            <circle
+              key={idx}
+              cx={px(b.mean_confidence)}
+              cy={py(b.positive_rate)}
+              r={r}
+              fill={color}
+              fillOpacity="0.85"
+            >
               <title>
-                Bin [{formatPct(b.bin[0], 0)}–{formatPct(b.bin[1], 0)}]: predicted{" "}
-                {formatPct(b.mean_confidence, 1)}, observed {formatPct(b.positive_rate, 1)} (n={b.n})
+                {formatPct(b.bin[0], 0)}–{formatPct(b.bin[1], 0)}: predicted {formatPct(b.mean_confidence, 1)},
+                observed {formatPct(b.positive_rate, 1)}, n={b.n}
               </title>
-            </g>
+            </circle>
           );
         })}
       </svg>
 
-      <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-        <table className="w-full text-left border-collapse text-xs">
+      <div className="overflow-auto md:border-l border-t md:border-t-0 border-[var(--border-subtle)]">
+        <table className="w-full border-collapse text-left text-[13px]">
           <thead>
-            <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-              <th className="py-2 px-3 font-semibold">Confidence bin</th>
-              <th className="py-2 px-3 font-semibold">Mean score</th>
-              <th className="py-2 px-3 font-semibold">Observed +</th>
-              <th className="py-2 px-3 font-semibold">Items</th>
+            <tr className="border-b border-[var(--border-subtle)]">
+              <th className={TH}>Bin</th>
+              <th className={TH_NUM}>Predicted</th>
+              <th className={TH_NUM}>Observed</th>
+              <th className={TH_NUM}>n</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-subtle)]">
             {bins.map((b, idx) => (
-              <tr key={idx} className="bg-[var(--bg-surface)] font-mono-num">
-                <td className="py-1.5 px-3 text-[var(--fg-primary)]">
-                  [{formatPct(b.bin[0], 0)}, {formatPct(b.bin[1], 0)}]
+              <tr key={idx}>
+                <td className={cn(TD, "font-mono-num text-xs text-[var(--fg-secondary)] whitespace-nowrap")}>
+                  {formatPct(b.bin[0], 0)}–{formatPct(b.bin[1], 0)}
                 </td>
-                <td className="py-1.5 px-3 text-[var(--fg-secondary)]">
-                  {formatPct(b.mean_confidence, 1)}
-                </td>
-                <td className="py-1.5 px-3 font-semibold text-[var(--fg-primary)]">
-                  {formatPct(b.positive_rate, 1)}
-                </td>
-                <td className="py-1.5 px-3 text-[var(--fg-muted)]">{b.n}</td>
+                <td className={cn(TD_NUM, "text-[var(--fg-secondary)]")}>{formatPct(b.mean_confidence, 1)}</td>
+                <td className={cn(TD_NUM, "text-[var(--fg-primary)]")}>{formatPct(b.positive_rate, 1)}</td>
+                <td className={cn(TD_NUM, "text-[var(--fg-muted)]")}>{b.n}</td>
               </tr>
             ))}
           </tbody>
@@ -172,31 +221,12 @@ function CalibrationChart({ bins }: Readonly<{ bins: readonly CalibrationBin[] }
   );
 }
 
-function MetricsRowCells({ m }: Readonly<{ m: BinaryMetrics }>) {
+function SubSection({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
   return (
-    <>
-      <td className="py-2.5 px-3 font-mono-num text-xs text-[var(--fg-muted)]">
-        +{m.positives} / −{m.negatives}
-      </td>
-      <td className="py-2.5 px-3">
-        <RateCell rate={m.precision} ci={m.precision_ci} coverage={m.coverage} />
-      </td>
-      <td className="py-2.5 px-3">
-        <RateCell rate={m.recall} ci={m.recall_ci} coverage={m.coverage_pos} coverageLabel="pos cov" />
-      </td>
-      <td className="py-2.5 px-3">
-        <RateCell rate={m.recall_all} ci={m.recall_all_ci} />
-      </td>
-      <td className="py-2.5 px-3">
-        <RateCell rate={m.fpr} ci={m.fpr_ci} coverage={m.coverage_neg} coverageLabel="neg cov" />
-      </td>
-      <td className="py-2.5 px-3 font-mono-num text-xs text-[var(--fg-secondary)]">
-        {formatPct(m.abstain_rate, 1)}
-      </td>
-      <td className="py-2.5 px-3 font-mono-num text-xs text-[var(--fg-muted)]">
-        {formatPct(m.failure_rate, 1)}
-      </td>
-    </>
+    <div className="space-y-2">
+      <h3 className="text-sm font-medium text-[var(--fg-primary)]">{title}</h3>
+      {children}
+    </div>
   );
 }
 
@@ -213,152 +243,118 @@ function DimensionSection({
   const langEntries = Object.entries(data.per_language);
 
   return (
-    <section
-      aria-labelledby={`metrics-${dimension}`}
-      className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-5"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3 border-b border-[var(--border-subtle)]">
+    <section aria-labelledby={`metrics-${dimension}`} className="space-y-5 pt-6 border-t border-[var(--border-subtle)]">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 id={`metrics-${dimension}`} className="text-base font-bold text-[var(--fg-primary)] m-0">
-            {meta.title} ({meta.shortTitle})
+          <h2 id={`metrics-${dimension}`} className="display text-xl text-[var(--fg-primary)]">
+            {meta.shortTitle}
           </h2>
-          <p className="text-xs text-[var(--fg-secondary)] m-0 mt-0.5">{meta.subtitle}</p>
+          <p className="text-[13px] text-[var(--fg-muted)] mt-0.5">{meta.subtitle}</p>
         </div>
         {data.missing > 0 && (
-          <span className="font-mono-num text-xs text-[var(--caution)]">
-            {data.missing} labelled items pending
-          </span>
+          <span className="font-mono-num text-xs text-[var(--caution)]">{data.missing} pending</span>
         )}
       </div>
 
-      {/* Overall + Per-Set (including Hard Negatives) */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--fg-secondary)] m-0">
-          Overall &amp; per-dataset breakdown (with Wilson 95% intervals &amp; scored coverage)
-        </h3>
-        <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-                <th className="py-2 px-3 font-semibold">Labelled set</th>
-                <th className="py-2 px-3 font-semibold">Labels (+/−)</th>
-                <th className="py-2 px-3 font-semibold">Precision (scored)</th>
-                <th className="py-2 px-3 font-semibold">Recall (scored)</th>
-                <th className="py-2 px-3 font-semibold">Recall (all)</th>
-                <th className="py-2 px-3 font-semibold">False-Positive Rate</th>
-                <th className="py-2 px-3 font-semibold">Abstain</th>
-                <th className="py-2 px-3 font-semibold">Failed</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-subtle)]">
-              <tr className="bg-[var(--accent-soft)]/35 font-medium">
-                <td className="py-2.5 px-3 font-bold text-[var(--fg-primary)]">Overall</td>
-                <MetricsRowCells m={data.overall} />
-              </tr>
-              {setEntries.map(([setName, m]) => {
-                const info = SET_LABELS[setName];
-                return (
-                  <tr key={setName} className="bg-[var(--bg-surface)]">
-                    <td className="py-2.5 px-3">
-                      <div className="font-medium text-[var(--fg-primary)]">
-                        {info?.label ?? setName}
-                      </div>
-                      <div className="font-mono-num text-[10px] text-[var(--fg-muted)]">{setName}</div>
-                    </td>
-                    <MetricsRowCells m={m} />
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SubSection title="By dataset">
+        <DataTable
+          head={
+            <>
+              <th className={TH}>Set</th>
+              {RATE_HEAD}
+            </>
+          }
+        >
+          <tr className="bg-[var(--bg-subtle)]/50">
+            <td className={cn(TD, "font-medium text-[var(--fg-primary)]")}>Overall</td>
+            <MetricsRowCells m={data.overall} />
+          </tr>
+          {setEntries.map(([setName, m]) => (
+            <tr key={setName}>
+              <td className={TD}>
+                <div className="text-[var(--fg-primary)]">{SET_LABELS[setName]?.label ?? setName}</div>
+                <div className="font-mono-num text-[11px] text-[var(--fg-muted)]">{setName}</div>
+              </td>
+              <MetricsRowCells m={m} />
+            </tr>
+          ))}
+        </DataTable>
+      </SubSection>
 
-      {/* Calibration */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--fg-secondary)] m-0">
-          Reliability &amp; calibration
-        </h3>
-        <CalibrationChart bins={data.calibration} />
-      </div>
+      <SubSection title="Calibration">
+        <CalibrationChart bins={data.calibration} color={SERIES_COLOR[dimension]} />
+      </SubSection>
 
-      {/* Family Ablation */}
       {ablationEntries.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--fg-secondary)] m-0">
-            Signal family ablation (re-scored without each family)
-          </h3>
-          <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-                  <th className="py-2 px-3 font-semibold">Ablated configuration</th>
-                  <th className="py-2 px-3 font-semibold">Labels (+/−)</th>
-                  <th className="py-2 px-3 font-semibold">Precision</th>
-                  <th className="py-2 px-3 font-semibold">Recall (scored)</th>
-                  <th className="py-2 px-3 font-semibold">Recall (all)</th>
-                  <th className="py-2 px-3 font-semibold">FPR</th>
-                  <th className="py-2 px-3 font-semibold">Abstain</th>
-                  <th className="py-2 px-3 font-semibold">Failed</th>
+        <SubSection title="Ablation">
+          <DataTable
+            head={
+              <>
+                <th className={TH}>Without</th>
+                {RATE_HEAD}
+              </>
+            }
+          >
+            {ablationEntries.map(([key, m]) => {
+              const fam = key.replace(/^without_/, "") as Family;
+              return (
+                <tr key={key}>
+                  <td className={cn(TD, "text-[var(--fg-primary)]")}>{FAMILY_LABELS[fam]?.name ?? fam}</td>
+                  <MetricsRowCells m={m} />
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {ablationEntries.map(([key, m]) => {
-                  const rawFam = key.replace(/^without_/, "") as Family;
-                  const famName = FAMILY_LABELS[rawFam]?.name ?? rawFam;
-                  return (
-                    <tr key={key} className="bg-[var(--bg-surface)]">
-                      <td className="py-2.5 px-3 font-medium text-[var(--fg-primary)]">
-                        Without {famName}
-                      </td>
-                      <MetricsRowCells m={m} />
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              );
+            })}
+          </DataTable>
+        </SubSection>
       )}
 
-      {/* Per-language */}
       {langEntries.length > 0 && (
-        <details className="group rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)]">
-          <summary className="px-3.5 py-2.5 text-xs font-semibold text-[var(--fg-secondary)] cursor-pointer select-none">
-            Per-language breakdown ({langEntries.length} languages)
+        <details className="group space-y-2">
+          <summary className="cursor-pointer select-none text-sm font-medium text-[var(--fg-primary)]">
+            By language <span className="font-mono-num text-xs text-[var(--fg-muted)]">{langEntries.length}</span>
           </summary>
-          <div className="overflow-x-auto border-t border-[var(--border-subtle)]">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-                  <th className="py-2 px-3 font-semibold">Language</th>
-                  <th className="py-2 px-3 font-semibold">Labels (+/−)</th>
-                  <th className="py-2 px-3 font-semibold">Precision</th>
-                  <th className="py-2 px-3 font-semibold">Recall (scored)</th>
-                  <th className="py-2 px-3 font-semibold">Recall (all)</th>
-                  <th className="py-2 px-3 font-semibold">FPR</th>
-                  <th className="py-2 px-3 font-semibold">Abstain</th>
-                  <th className="py-2 px-3 font-semibold">Failed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {langEntries.map(([lang, m]) => (
-                  <tr key={lang} className="bg-[var(--bg-surface)]">
-                    <td className="py-2 px-3 font-medium text-[var(--fg-primary)]">
-                      {languageName(lang)}{" "}
-                      <span className="font-mono-num text-[var(--fg-muted)]">({lang})</span>
-                    </td>
-                    <MetricsRowCells m={m} />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            className="mt-2"
+            head={
+              <>
+                <th className={TH}>Language</th>
+                {RATE_HEAD}
+              </>
+            }
+          >
+            {langEntries.map(([lang, m]) => (
+              <tr key={lang}>
+                <td className={cn(TD, "text-[var(--fg-primary)] whitespace-nowrap")}>
+                  {languageName(lang)} <span className="font-mono-num text-xs text-[var(--fg-muted)]">{lang}</span>
+                </td>
+                <MetricsRowCells m={m} />
+              </tr>
+            ))}
+          </DataTable>
         </details>
       )}
     </section>
   );
 }
+
+function Stat({
+  label,
+  children,
+  sub,
+}: Readonly<{ label: string; children: ReactNode; sub?: ReactNode }>) {
+  return (
+    <div className="min-w-0 py-1 sm:px-5 sm:first:pl-0">
+      <dt className="text-xs text-[var(--fg-muted)]">{label}</dt>
+      <dd className="mt-1 text-3xl font-semibold tracking-tight tabular text-[var(--fg-primary)] truncate">
+        {children}
+      </dd>
+      {sub && <dd className="mt-0.5 font-mono-num text-xs text-[var(--fg-muted)] truncate">{sub}</dd>}
+    </div>
+  );
+}
+
+const formatInt = (n: number) => String(Math.round(n));
+const formatAuc = (n: number) => n.toFixed(3);
 
 export interface MetricsTablesProps {
   readonly metrics: MetricsPayload | null;
@@ -372,148 +368,91 @@ export function MetricsTables({
   notPublishedYet,
 }: Readonly<MetricsTablesProps>) {
   return (
-    <div className="space-y-6">
-      {notPublishedYet || !metrics ? (
-        <section className="rounded-xl border border-[var(--caution-border)] bg-[var(--caution-soft)] p-5 space-y-2">
-          <h2 className="text-base font-bold text-[var(--fg-primary)] m-0">
-            Evaluation metrics coming — benchmark run in progress
-          </h2>
-          <p className="text-xs sm:text-sm text-[var(--fg-secondary)] leading-relaxed m-0 max-w-[80ch]">
-            <code>/api/metrics</code> has not published <code>evals/metrics.json</code> yet. Our 284-item benchmark across 12 languages (ClaimReview debunks, EUvsDisinfo cases, VIGINUM Portal Kombat articles, and hard-negative sets for fact-checks, wire copy, press releases, satire, op-eds, and emotional reporting) reports Wilson 95% intervals and coverage as soon as the evaluation run completes. No placeholder numbers are shown.
+    <div className="space-y-8">
+      {!metrics ? (
+        notPublishedYet && (
+        <section className="editorial-card rounded-xl p-4 sm:p-5 space-y-1">
+          <h2 className="text-sm font-medium text-[var(--fg-primary)]">Not published yet</h2>
+          <p className="text-[13px] text-[var(--fg-secondary)]">
+            Results appear here when the benchmark run publishes{" "}
+            <code className="font-mono-num text-xs">evals/metrics.json</code>.
           </p>
         </section>
+        )
       ) : (
         <>
-          {/* Summary KPI strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-              <div className="text-xs text-[var(--fg-muted)]">Third-party labelled items</div>
-              <div className="font-mono-num text-2xl font-bold text-[var(--fg-primary)] mt-1">
-                {metrics.items}
-              </div>
-              <div className="text-[11px] text-[var(--fg-secondary)] mt-0.5">
-                Decision threshold {formatPct(metrics.threshold, 0)}
-              </div>
-            </div>
-
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 sm:divide-x divide-[var(--border-subtle)]">
+            <Stat label="Labelled items" sub={`threshold ${formatPct(metrics.threshold, 0)}`}>
+              <AnimatedNumber value={metrics.items} format={formatInt} />
+            </Stat>
             {(["single", "coordinated"] as const).map((dim) => {
               const fit = metrics.fit[dim];
               return (
-                <div
+                <Stat
                   key={dim}
-                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4"
+                  label={`${DIMENSION_META[dim].shortTitle} AUC`}
+                  sub={fit ? `n=${fit.n} · Brier ${fit.brier?.toFixed(3) ?? "n/a"}` : "prior weights"}
                 >
-                  <div className="text-xs text-[var(--fg-muted)]">
-                    {DIMENSION_META[dim].shortTitle} CV fit
-                  </div>
-                  <div className="font-mono-num text-2xl font-bold text-[var(--fg-primary)] mt-1">
-                    {fit?.auc != null ? `AUC ${fit.auc.toFixed(3)}` : "Prior weights"}
-                  </div>
-                  <div className="font-mono-num text-[11px] text-[var(--fg-secondary)] mt-0.5">
-                    {fit
-                      ? `n=${fit.n} · Brier ${fit.brier?.toFixed(3) ?? "n/a"}`
-                      : "n=0 (unfitted priors)"}
-                  </div>
-                </div>
+                  {fit?.auc != null ? <AnimatedNumber value={fit.auc} format={formatAuc} /> : "—"}
+                </Stat>
               );
             })}
-
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-              <div className="text-xs text-[var(--fg-muted)]">Evaluated pipeline build</div>
-              <div className="font-mono-num text-sm font-bold text-[var(--fg-primary)] mt-2 truncate">
+            <Stat label="Pipeline">
+              <span className="font-mono-num text-base font-medium">
                 {metrics.pipeline_versions.join(", ") || "current"}
-              </div>
-              <div className="text-[11px] text-[var(--fg-secondary)] mt-1">
-                Abstentions tracked as coverage, never wins
-              </div>
-            </div>
-          </div>
+              </span>
+            </Stat>
+          </dl>
 
-          {/* Headline with & without label-shared family */}
           {Object.keys(metrics.headline).length > 0 && (
-            <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-3">
-              <div className="space-y-1">
-                <h2 className="text-base font-bold text-[var(--fg-primary)] m-0">
-                  Headline results — with &amp; without label-source families
-                </h2>
-                <p className="text-xs text-[var(--fg-secondary)] m-0 max-w-[85ch]">
-                  VIGINUM’s domain list defines the <code>viginum_pravda</code> ground-truth labels and also powers <code>known_networks</code>; ClaimReview defines <code>fact_checker_debunk</code> and powers <code>fact_checks</code>. To prevent circular inflation, we report each dimension both with all signals and with that label-shared family removed.
-                </p>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-                      <th className="py-2 px-3 font-semibold">Slice &amp; configuration</th>
-                      <th className="py-2 px-3 font-semibold">Precision (scored)</th>
-                      <th className="py-2 px-3 font-semibold">Recall (scored)</th>
-                      <th className="py-2 px-3 font-semibold">FPR (scored)</th>
-                      <th className="py-2 px-3 font-semibold">Abstain</th>
-                      <th className="py-2 px-3 font-semibold">CV AUC (refit)</th>
+            <SubSection title="Headline">
+              <p className="text-[13px] text-[var(--fg-muted)]">
+                Each slice with and without the family that shares its label source.
+              </p>
+              <DataTable
+                head={
+                  <>
+                    <th className={TH}>Slice</th>
+                    <th className={TH_NUM}>Precision</th>
+                    <th className={TH_NUM}>Recall</th>
+                    <th className={TH_NUM}>FPR</th>
+                    <th className={TH_NUM}>Abstain</th>
+                    <th className={TH_NUM}>CV AUC</th>
+                  </>
+                }
+              >
+                {Object.entries(metrics.headline).flatMap(([sliceKey, entry]) => {
+                  const famLabel =
+                    FAMILY_LABELS[entry.family_removed as Family]?.name ?? entry.family_removed;
+                  const rows: { rowKey: string; variant: string; m: BinaryMetrics; auc: number | null }[] = [
+                    { rowKey: `${sliceKey}-with`, variant: "all signals", m: entry.with, auc: entry.fit?.auc ?? null },
+                  ];
+                  if (entry.without) {
+                    rows.push({
+                      rowKey: `${sliceKey}-without`,
+                      variant: `without ${famLabel}`,
+                      m: entry.without,
+                      auc: entry.fit?.auc_without ?? null,
+                    });
+                  }
+                  return rows.map((r) => (
+                    <tr key={r.rowKey}>
+                      <td className={TD}>
+                        <span className="font-mono-num text-xs text-[var(--fg-primary)]">{sliceKey}</span>{" "}
+                        <span className="text-[var(--fg-muted)]">{r.variant}</span>
+                      </td>
+                      <RateCell rate={r.m.precision} ci={r.m.precision_ci} coverage={r.m.coverage} />
+                      <RateCell rate={r.m.recall} ci={r.m.recall_ci} coverage={r.m.coverage_pos} coverageLabel="pos" />
+                      <RateCell rate={r.m.fpr} ci={r.m.fpr_ci} coverage={r.m.coverage_neg} coverageLabel="neg" />
+                      <td className={cn(TD_NUM, "text-[var(--fg-secondary)]")}>{formatPct(r.m.abstain_rate, 1)}</td>
+                      <td className={cn(TD_NUM, "text-[var(--fg-primary)]")}>
+                        {r.auc != null ? r.auc.toFixed(3) : "—"}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border-subtle)]">
-                    {Object.entries(metrics.headline).flatMap(([sliceKey, entry]) => {
-                      const famLabel =
-                        FAMILY_LABELS[entry.family_removed as Family]?.name ?? entry.family_removed;
-                      const rows = [
-                        {
-                          rowKey: `${sliceKey}-with`,
-                          title: `${sliceKey} — Full pipeline`,
-                          m: entry.with,
-                          auc: entry.fit?.auc ?? null,
-                        },
-                      ];
-                      if (entry.without) {
-                        rows.push({
-                          rowKey: `${sliceKey}-without`,
-                          title: `${sliceKey} — Without ${famLabel}`,
-                          m: entry.without,
-                          auc: entry.fit?.auc_without ?? null,
-                        });
-                      }
-                      return rows.map((r) => (
-                        <tr key={r.rowKey} className="bg-[var(--bg-surface)]">
-                          <td className="py-2.5 px-3 font-medium text-[var(--fg-primary)]">
-                            {r.title}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <RateCell
-                              rate={r.m.precision}
-                              ci={r.m.precision_ci}
-                              coverage={r.m.coverage}
-                            />
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <RateCell
-                              rate={r.m.recall}
-                              ci={r.m.recall_ci}
-                              coverage={r.m.coverage_pos}
-                              coverageLabel="pos cov"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <RateCell
-                              rate={r.m.fpr}
-                              ci={r.m.fpr_ci}
-                              coverage={r.m.coverage_neg}
-                              coverageLabel="neg cov"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3 font-mono-num text-xs text-[var(--fg-secondary)]">
-                            {formatPct(r.m.abstain_rate, 1)}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono-num text-xs text-[var(--fg-primary)]">
-                            {r.auc != null ? r.auc.toFixed(3) : "—"}
-                          </td>
-                        </tr>
-                      ));
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                  ));
+                })}
+              </DataTable>
+            </SubSection>
           )}
 
           {metrics.dimensions.single && (
@@ -525,74 +464,61 @@ export function MetricsTables({
         </>
       )}
 
-      {/* Live VPS runtime stats (`GET /api/stats`) */}
       {stats && (
         <section
           aria-labelledby="runtime-stats-heading"
-          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4"
+          className="space-y-3 pt-6 border-t border-[var(--border-subtle)]"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3 border-b border-[var(--border-subtle)]">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h2 id="runtime-stats-heading" className="text-base font-bold text-[var(--fg-primary)] m-0">
-                Live VPS throughput &amp; per-stage latency
+              <h2 id="runtime-stats-heading" className="display text-xl text-[var(--fg-primary)]">
+                Runtime
               </h2>
-              <p className="text-xs text-[var(--fg-secondary)] m-0 mt-0.5">
-                Measured over stored runs on Hostinger KVM 2 (2 vCPU, 8 GB RAM, CPU-only inference).
+              <p className="text-[13px] text-[var(--fg-muted)] mt-0.5">
+                Stored runs on a 2 vCPU, 8 GB VPS, CPU only.
               </p>
             </div>
-            <div className="flex items-center gap-4 font-mono-num text-xs text-[var(--fg-secondary)]">
-              <span>{stats.submissions} submissions</span>
+            <div className="flex flex-wrap gap-x-4 font-mono-num text-xs text-[var(--fg-secondary)]">
+              <span>{stats.submissions} runs</span>
               <span>
-                {stats.submissions > 0
-                  ? `${formatPct(stats.cache_hits / stats.submissions, 0)} cache hit rate`
-                  : "0 cache hits"}
+                {stats.submissions > 0 ? formatPct(stats.cache_hits / stats.submissions, 0) : "0%"} cached
               </span>
               {stats.analysis_ms && (
                 <span>
-                  total p50 {formatDurationMs(stats.analysis_ms.p50)} / p95{" "}
-                  {formatDurationMs(stats.analysis_ms.p95)}
+                  p50 {formatDurationMs(stats.analysis_ms.p50)} · p95 {formatDurationMs(stats.analysis_ms.p95)}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-b border-[var(--border-subtle)]">
-                  <th className="py-2 px-3 font-semibold">Stage</th>
-                  <th className="py-2 px-3 font-semibold">Completed</th>
-                  <th className="py-2 px-3 font-semibold">Skipped</th>
-                  <th className="py-2 px-3 font-semibold">Failed</th>
-                  <th className="py-2 px-3 font-semibold">Latency p50</th>
-                  <th className="py-2 px-3 font-semibold">Latency p95</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {stats.stages.map((st) => (
-                  <tr key={st.name} className="bg-[var(--bg-surface)]">
-                    <td className="py-2 px-3">
-                      <span className="font-mono-num font-semibold text-[var(--fg-primary)]">
-                        {st.name}
-                      </span>
-                      <span className="text-[var(--fg-muted)] ml-2">
-                        {STAGE_LABELS[st.name]?.label}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 font-mono-num text-[var(--fg-primary)]">{st.done}</td>
-                    <td className="py-2 px-3 font-mono-num text-[var(--fg-muted)]">{st.skipped}</td>
-                    <td className="py-2 px-3 font-mono-num text-[var(--fg-muted)]">{st.failed}</td>
-                    <td className="py-2 px-3 font-mono-num text-[var(--fg-secondary)]">
-                      {formatDurationMs(st.duration_ms?.p50)}
-                    </td>
-                    <td className="py-2 px-3 font-mono-num text-[var(--fg-secondary)]">
-                      {formatDurationMs(st.duration_ms?.p95)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            head={
+              <>
+                <th className={TH}>Stage</th>
+                <th className={TH_NUM}>Done</th>
+                <th className={TH_NUM}>Skipped</th>
+                <th className={TH_NUM}>Failed</th>
+                <th className={TH_NUM}>p50</th>
+                <th className={TH_NUM}>p95</th>
+              </>
+            }
+          >
+            {stats.stages.map((st) => (
+              <tr key={st.name}>
+                <td className={TD}>
+                  <span className="font-mono-num text-xs text-[var(--fg-primary)]">{st.name}</span>
+                  <span className="ml-2 text-[var(--fg-muted)]">{STAGE_LABELS[st.name]?.label}</span>
+                </td>
+                <td className={cn(TD_NUM, "text-[var(--fg-primary)]")}>{st.done}</td>
+                <td className={cn(TD_NUM, "text-[var(--fg-muted)]")}>{st.skipped}</td>
+                <td className={cn(TD_NUM, st.failed > 0 ? "text-[var(--danger)]" : "text-[var(--fg-muted)]")}>
+                  {st.failed}
+                </td>
+                <td className={cn(TD_NUM, "text-[var(--fg-secondary)]")}>{formatDurationMs(st.duration_ms?.p50)}</td>
+                <td className={cn(TD_NUM, "text-[var(--fg-secondary)]")}>{formatDurationMs(st.duration_ms?.p95)}</td>
+              </tr>
+            ))}
+          </DataTable>
         </section>
       )}
     </div>

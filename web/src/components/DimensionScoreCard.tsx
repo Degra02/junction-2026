@@ -1,11 +1,10 @@
 import { motion } from "motion/react";
-import { ArrowUpRight, HelpCircle, Layers, Sparkles } from "lucide-react";
 import type { DimensionKey, Evidence, Family, Score } from "../lib/contracts";
-import { describeConfidenceBand } from "../lib/evidence";
-import { formatPct, formatSignedContribution } from "../lib/format";
+import { formatSignedContribution } from "../lib/format";
 import { DIMENSION_META, FAMILY_LABELS } from "../lib/labels";
 import { SPATIAL_SPRING } from "../lib/motion";
-import { cn } from "../lib/utils";
+import { buttonClass, tagClass } from "../lib/ui";
+import { AnimatedNumber } from "./ui/AnimatedNumber";
 
 export interface DimensionScoreCardProps {
   readonly dimension: DimensionKey;
@@ -24,6 +23,8 @@ const SINGLE_FAMILY_MAP: Partial<Record<Family, true>> = {
   source_profile: true,
 };
 
+const formatWholePct = (value: number): string => `${Math.round(value)}%`;
+
 export function DimensionScoreCard({
   dimension,
   score,
@@ -33,10 +34,9 @@ export function DimensionScoreCard({
   onInspectCalculation,
 }: Readonly<DimensionScoreCardProps>) {
   const meta = DIMENSION_META[dimension];
-  const dimEvidence = evidence.filter((e) =>
+  const evidenceCount = evidence.filter((e) =>
     dimension === "single" ? Boolean(SINGLE_FAMILY_MAP[e.family]) : !SINGLE_FAMILY_MAP[e.family],
-  );
-  const evidenceCount = dimEvidence.length;
+  ).length;
 
   const strongest =
     score?.breakdown
@@ -47,190 +47,87 @@ export function DimensionScoreCard({
   const isAbstained = !score || score.abstained || score.confidence == null;
   const confidence = score?.confidence ?? 0;
   const pct = Math.max(0, Math.min(100, confidence * 100));
-  const band = !isAbstained ? describeConfidenceBand(confidence, evidenceCount) : null;
+  const headingId = `dim-${dimension}-heading`;
 
   return (
     <section
-      aria-labelledby={`dim-${dimension}-heading`}
-      className="editorial-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-5 relative overflow-hidden"
+      aria-labelledby={headingId}
+      data-spotlight
+      className="editorial-card rounded-xl p-5 flex flex-col gap-4"
     >
-      {/* Top Header */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
-            {dimension === "single" ? (
-              <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-            ) : (
-              <Layers className="h-3.5 w-3.5 text-[var(--indigo)]" aria-hidden="true" />
-            )}
-            <span>{meta.shortTitle}</span>
-          </span>
-
-          {isPreliminaryEstimate && !isAbstained && (
-            <span
-              title="Combiner weights are currently hand-set priors pending benchmark calibration."
-              className="px-2 py-0.5 rounded-full bg-[var(--caution-soft)] border border-[var(--caution-border)] text-[10px] font-medium text-[var(--caution)]"
-            >
-              Prior estimate
-            </span>
-          )}
-        </div>
-
-        <h2
-          id={`dim-${dimension}-heading`}
-          className="text-sm font-semibold text-[var(--fg-primary)] leading-snug m-0"
-        >
+      <div className="flex items-start justify-between gap-2">
+        <h2 id={headingId} className="text-sm font-medium text-[var(--fg-primary)] leading-snug">
           {meta.title}
         </h2>
+        {isPreliminaryEstimate && !isAbstained && (
+          <span title="Weights are hand-set priors, not yet calibrated" className={tagClass("caution")}>
+            Prior estimate
+          </span>
+        )}
       </div>
 
-      {/* Main Confidence Readout or Honest Abstention */}
       {isAbstained ? (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/65 p-4 space-y-1.5 my-auto">
-          <div className="flex items-center gap-2 text-base font-bold text-[var(--fg-primary)]">
-            <HelpCircle className="h-4 w-4 text-[var(--fg-muted)] shrink-0" aria-hidden="true" />
-            <span>Not enough evidence</span>
-          </div>
-          <p className="text-xs text-[var(--fg-secondary)] leading-relaxed m-0">
-            {score?.reason ??
-              "Too few independent reports or corroborating signals were found to compute a reliable confidence score."}
+        <div className="space-y-1.5 my-auto">
+          <p className="display text-2xl text-[var(--fg-primary)]">Not enough evidence</p>
+          <p className="text-[13px] text-[var(--fg-secondary)]">
+            {score?.reason ?? "Too few independent reports."}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div className="flex items-baseline gap-2.5">
-              <span className="font-mono-num text-4xl sm:text-[42px] font-bold tracking-tight text-[var(--fg-primary)] leading-none">
-                {formatPct(confidence, 0)}
-              </span>
-              <span className="text-xs font-medium text-[var(--fg-muted)]">confidence</span>
-            </div>
+        <div className="space-y-3">
+          <AnimatedNumber
+            value={pct}
+            format={formatWholePct}
+            className="block text-[44px] leading-none font-semibold tracking-tight tabular text-[var(--fg-primary)]"
+          />
 
-            {band && (
+          <div
+            role="meter"
+            aria-label={`${meta.shortTitle} confidence`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(pct)}
+            className="relative h-1.5 rounded-full bg-[var(--bg-subtle)]"
+          >
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={SPATIAL_SPRING}
+              className="h-full rounded-full"
+              style={{ background: dimension === "single" ? "var(--accent)" : "var(--indigo)" }}
+            />
+            {cappedAt85 && (
               <span
-                className={cn(
-                  "px-2.5 py-1 rounded-full text-xs font-semibold border",
-                  band.tone === "teal"
-                    ? "bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-border)]"
-                    : band.tone === "accent"
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent-border)]"
-                      : "bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-[var(--border-subtle)]",
-                )}
-              >
-                {band.badge}
-              </span>
+                title="Capped at 85%: language not calibrated"
+                style={{ left: "85%" }}
+                className="absolute -top-1 -bottom-1 w-px bg-[var(--caution)]"
+              />
             )}
           </div>
 
-          {/* Calibrated Segmented Spectrum Track */}
-          <div className="space-y-2">
-            <div
-              role="meter"
-              aria-label={`${meta.shortTitle} confidence`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(pct)}
-              className="relative h-3 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)]"
-            >
-              {/* Quartile Hairline Ticks */}
-              {[25, 50, 75].map((tick) => (
-                <span
-                  key={tick}
-                  aria-hidden="true"
-                  style={{ left: `${tick}%` }}
-                  className="absolute top-0.5 bottom-0.5 w-px bg-[var(--border-strong)]/70 z-10"
-                />
-              ))}
-
-              {/* Language Tier 85% Cap Indicator (D2) */}
-              {cappedAt85 && (
-                <span
-                  title="Uncalibrated language tier: confidence capped at 85%"
-                  style={{ left: "85%" }}
-                  className="absolute -top-1 -bottom-1 w-0.5 bg-[var(--caution)] z-20"
-                />
-              )}
-
-              {/* Active Fill */}
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={SPATIAL_SPRING}
-                className={cn(
-                  "h-full rounded-full",
-                  confidence < 0.16
-                    ? "bg-[var(--teal)]"
-                    : dimension === "single"
-                      ? "bg-[var(--accent)]"
-                      : "bg-[var(--indigo)]",
-                )}
-              />
-
-              {/* Crisp Thumb Indicator */}
-              <motion.span
-                initial={{ left: "0%" }}
-                animate={{ left: `${pct}%` }}
-                transition={SPATIAL_SPRING}
-                aria-hidden="true"
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rounded-full bg-[var(--bg-surface)] border-2 shadow-xs z-20",
-                  confidence < 0.16
-                    ? "border-[var(--teal)]"
-                    : dimension === "single"
-                      ? "border-[var(--accent)]"
-                      : "border-[var(--indigo)]",
-                )}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono-num text-[var(--fg-muted)] select-none">
-              <span>0% Baseline</span>
-              <span>25%</span>
-              <span>50%</span>
-              <span>75%</span>
-              <span>{cappedAt85 ? "85% Cap" : "100%"}</span>
-            </div>
-          </div>
-
-          {/* Primary Contributing Family Hint */}
           {strongest ? (
-            <div className="text-xs text-[var(--fg-secondary)] flex items-center justify-between gap-2 pt-0.5">
-              <span className="truncate">
-                Top driver:{" "}
-                <strong className="font-semibold text-[var(--fg-primary)]">
-                  {FAMILY_LABELS[strongest.family].name}
-                </strong>
+            <p className="flex items-baseline justify-between gap-2 text-[13px] text-[var(--fg-secondary)]">
+              <span className="truncate">{FAMILY_LABELS[strongest.family].name}</span>
+              <span className="font-mono-num text-xs text-[var(--fg-primary)] shrink-0">
+                {formatSignedContribution(strongest.contribution)}
               </span>
-              <span
-                className={cn(
-                  "font-mono-num font-semibold shrink-0",
-                  strongest.contribution > 0 ? "text-[var(--accent)]" : "text-[var(--teal)]",
-                )}
-              >
-                {formatSignedContribution(strongest.contribution)} log-odds
-              </span>
-            </div>
+            </p>
           ) : (
-            <div className="text-xs text-[var(--fg-muted)]">
-              Zero manipulation or copy signals fired across checked coverage.
-            </div>
+            <p className="text-[13px] text-[var(--fg-muted)]">No signals found</p>
           )}
         </div>
       )}
 
-      {/* Footer Action: Progressive Disclosure Trigger */}
-      <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2 text-xs">
-        <span className="text-[var(--fg-muted)] font-mono-num">
-          {evidenceCount} {evidenceCount === 1 ? "evidence item" : "evidence items"}
+      <div className="mt-auto pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+        <span className="font-mono-num text-xs text-[var(--fg-muted)]">
+          {evidenceCount} {evidenceCount === 1 ? "signal" : "signals"}
         </span>
-
         <button
           type="button"
           onClick={() => onInspectCalculation(dimension)}
-          className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline cursor-pointer"
+          className={buttonClass("ghost", "sm", "-mr-2.5")}
         >
-          <span>How this was computed</span>
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          How it was scored →
         </button>
       </div>
     </section>

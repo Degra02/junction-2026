@@ -1,5 +1,4 @@
 import type {
-  Analysis,
   ContextItem,
   DimensionKey,
   DocumentData,
@@ -7,18 +6,9 @@ import type {
   Family,
   Score,
   SourceProfile,
-  StageName,
 } from "./contracts";
 import { formatDomainAge } from "./format";
-import {
-  ALL_STAGES,
-  FAMILY_LABELS,
-  OUTLET_TYPE_LABELS,
-  STAGE_LABELS,
-  languageName,
-  networkLabel,
-  signalLabel,
-} from "./labels";
+import { FAMILY_LABELS, OUTLET_TYPE_LABELS, networkLabel, signalLabel } from "./labels";
 import { sliceCodePoints } from "./spans";
 
 export function cleanDomain(raw: string | null | undefined): string {
@@ -209,121 +199,6 @@ export function resolveCitationChip(
   };
 }
 
-export interface LiveActivityDescription {
-  readonly headline: string;
-  readonly subline: string;
-  readonly activeStages: readonly StageName[];
-  readonly completedCount: number;
-  readonly totalCount: number;
-  readonly progressFraction: number;
-}
-
-/**
- * Generates a crisp, human-readable one-sentence status summary of what the pipeline
- * is doing right now, incorporating live worker progress notes and hydrated artifacts.
- */
-export function describeLiveActivity(analysis: Analysis): LiveActivityDescription {
-  const stepMap = new Map(analysis.steps.map((s) => [s.name, s]));
-  const totalCount = ALL_STAGES.length;
-  const completedCount = ALL_STAGES.filter((name) => {
-    const st = stepMap.get(name)?.state;
-    return st === "done" || st === "skipped";
-  }).length;
-
-  const runningSteps = ALL_STAGES.map((n) => stepMap.get(n)).filter(
-    (s): s is NonNullable<typeof s> => s !== undefined && s.state === "running",
-  );
-  const activeStages = runningSteps.map((s) => s.name);
-
-  if (analysis.status === "queued") {
-    const pos = analysis.queue_position ?? 1;
-    return {
-      headline: `Queued for analysis (position #${pos})…`,
-      subline: "Waiting for an inference worker slot on the server.",
-      activeStages: [],
-      completedCount: 0,
-      totalCount,
-      progressFraction: 0.04,
-    };
-  }
-
-  if (runningSteps.length > 0 && runningSteps[0]) {
-    const primary = runningSteps[0];
-    const stageMeta = STAGE_LABELS[primary.name];
-    const liveNote = primary.detail?.trim() || null;
-
-    let headline = stageMeta.activeVerb;
-    let subline = liveNote ?? `Stage ${completedCount + 1} of ${totalCount}`;
-
-    if (primary.name === "extract") {
-      headline =
-        analysis.input.kind === "url"
-          ? `Fetching article and extracting clean text from ${cleanDomain(analysis.input.value) || "URL"}…`
-          : "Parsing pasted text and identifying its language…";
-      subline = liveNote ?? "Stripping navigation boilerplate and locating tracking tags";
-    } else if (primary.name === "understand") {
-      const lang = analysis.language ? languageName(analysis.language.code) : null;
-      headline = `Extracting verifiable claims and building ${lang && lang !== "English" ? `${lang} + English` : "search"} queries…`;
-      subline =
-        liveNote ??
-        (analysis.document
-          ? `Reading ${analysis.document.paragraphs.length} paragraphs${analysis.document.outlet ? ` from ${analysis.document.outlet}` : ""}`
-          : "Identifying the core event and assertions");
-    } else if (primary.name === "retrieve") {
-      const qCount = analysis.queries.length;
-      headline = liveNote
-        ? `Searching live web sources — ${liveNote.charAt(0).toLowerCase()}${liveNote.slice(1)}…`
-        : `Searching news feeds, ClaimReview fact-checkers, and web archives${qCount > 0 ? ` across ${qCount} queries` : ""}…`;
-      subline =
-        analysis.queries.length > 0
-          ? `Queries include “${analysis.queries[0]?.text}”`
-          : "Querying curated RSS, Google Fact Check API, Oxylabs, and domain registries";
-    } else if (primary.name === "story") {
-      headline = `Clustering ${analysis.context.length || "retrieved"} articles to isolate coverage of the exact same event…`;
-      subline = liveNote ?? "Computing multilingual semantic embeddings across retrieved outlets";
-    } else if (
-      primary.name === "signals_single" ||
-      primary.name === "signals_coordinated"
-    ) {
-      const both = runningSteps.length > 1;
-      const peerCount = analysis.context.filter((c) => c.in_story !== false).length;
-      headline = both
-        ? `Cross-checking ${analysis.claims.length || "key"} claims against ${peerCount || "peer"} reports and scanning for copy networks…`
-        : stageMeta.activeVerb;
-      subline =
-        liveNote ??
-        "Running multilingual NLI claim verification, persuasion classification, and 5-gram reuse checks";
-    } else if (primary.name === "score") {
-      headline = "Combining strongest signal per family into confidence scores…";
-      subline = "Evaluating abstention thresholds and computing family log-odds contributions";
-    } else if (primary.name === "explain") {
-      headline = "Writing plain-language summary with verbatim quote verification…";
-      subline = "Every cited reason is checked character-by-character against retrieved sources";
-    }
-
-    return {
-      headline,
-      subline,
-      activeStages,
-      completedCount,
-      totalCount,
-      progressFraction: Math.max(0.08, Math.min(0.95, (completedCount + 0.5) / totalCount)),
-    };
-  }
-
-  return {
-    headline:
-      analysis.status === "failed"
-        ? "Analysis stopped before completing all stages."
-        : "Preparing pipeline stages…",
-    subline: analysis.error ?? `${completedCount} of ${totalCount} stages complete`,
-    activeStages: [],
-    completedCount,
-    totalCount,
-    progressFraction: completedCount / totalCount,
-  };
-}
-
 export function sigmoid(z: number): number {
   if (z >= 0) {
     const ez = Math.exp(-z);
@@ -417,36 +292,5 @@ export function computeWaterfallSteps(
     baselineProb,
     finalProb,
     steps,
-  };
-}
-
-export function describeConfidenceBand(
-  confidence: number,
-  evidenceCount: number,
-): {
-  readonly badge: string;
-  readonly tone: "teal" | "neutral" | "accent" | "caution";
-} {
-  if (confidence < 0.16) {
-    return {
-      badge: evidenceCount === 0 ? "Baseline · No signals found" : "Minimal signal alignment",
-      tone: "teal",
-    };
-  }
-  if (confidence < 0.40) {
-    return {
-      badge: "Low signal alignment",
-      tone: "neutral",
-    };
-  }
-  if (confidence < 0.68) {
-    return {
-      badge: "Moderate signal alignment",
-      tone: "accent",
-    };
-  }
-  return {
-    badge: "Strong signal alignment",
-    tone: "accent",
   };
 }

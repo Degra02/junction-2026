@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Globe, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type {
   Claim,
   ContextItem,
@@ -8,7 +8,7 @@ import type {
   SourceProfile,
 } from "../lib/contracts";
 import { cleanDomain } from "../lib/evidence";
-import { formatDateTime, formatDomainAge, formatPct } from "../lib/format";
+import { formatDateTime, formatDomainAge, formatPct, formatShortDate } from "../lib/format";
 import {
   ADAPTER_LABELS,
   OUTLET_TYPE_LABELS,
@@ -16,7 +16,9 @@ import {
   networkLabel,
   signalLabel,
 } from "../lib/labels";
+import { tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
+import { Favicon } from "./ui/Favicon";
 
 export interface CoverageViewProps {
   readonly context: readonly ContextItem[];
@@ -32,9 +34,10 @@ export interface CoverageViewProps {
 
 type CoverageTab = "peers" | "fact_checks" | "domains" | "excluded";
 
-/**
- * Custom SVG 1D Peer Tone Strip + Publication Timeline / Similarity Scatter Plot.
- */
+const SECTION = "px-4 sm:px-5 py-4 border-t border-[var(--border-subtle)]";
+const PLOT_LABEL = { fontSize: 10, fontFamily: "var(--font-mono)", fill: "var(--fg-muted)" } as const;
+
+/** Tone z-score strip and publication timeline × similarity scatter. */
 function PeerComparisonPlots({
   storyItems,
   toneZ,
@@ -48,15 +51,13 @@ function PeerComparisonPlots({
   documentOutlet: string | null | undefined;
   sourceMap: ReadonlyMap<string, SourceProfile>;
 }>) {
-  // Dated items for Timeline × Similarity scatter
   const datedPoints = useMemo(() => {
     const pts: {
       readonly id: string;
       readonly domain: string;
       readonly ms: number;
       readonly similarity: number;
-      readonly isNetwork: boolean;
-      readonly sharedTracker: boolean;
+      readonly flagged: boolean;
     }[] = [];
 
     const trackerCounts = new Map<string, number>();
@@ -71,14 +72,14 @@ function PeerComparisonPlots({
       const ms = new Date(item.published_at).getTime();
       if (Number.isNaN(ms)) continue;
       const dom = cleanDomain(item.outlet ?? item.url) || "source";
-      const prof = sourceMap.get(dom);
       pts.push({
         id: item.id,
         domain: dom,
         ms,
         similarity: item.similarity ?? 0.85,
-        isNetwork: Boolean(prof?.known_network),
-        sharedTracker: item.tracking_ids.some((t) => (trackerCounts.get(t) ?? 0) > 1),
+        flagged:
+          Boolean(sourceMap.get(dom)?.known_network) ||
+          item.tracking_ids.some((t) => (trackerCounts.get(t) ?? 0) > 1),
       });
     }
     return pts.sort((a, b) => a.ms - b.ms);
@@ -95,198 +96,154 @@ function PeerComparisonPlots({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Plot 1: Emotional Intensity Relative to Story Peers (z-score) */}
+    <div className={cn(SECTION, "grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6")}>
       {toneZ !== null && (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-4 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-bold text-[var(--fg-primary)]">
-              Emotional tone vs. story peers
-            </div>
-            <span className="font-mono-num text-xs font-semibold text-[var(--accent)]">
-              z = {toneZ >= 0 ? `+${toneZ.toFixed(2)}` : toneZ.toFixed(2)}σ
+        <figure className="space-y-2">
+          <figcaption className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="font-medium text-[var(--fg-secondary)]">Tone vs peers</span>
+            <span className="font-mono-num text-[var(--fg-primary)]">
+              z {toneZ >= 0 ? `+${toneZ.toFixed(2)}` : toneZ.toFixed(2)}
             </span>
-          </div>
+          </figcaption>
 
           <svg
-            viewBox="0 0 380 86"
+            viewBox="0 0 380 80"
             className="w-full h-auto select-none"
             role="img"
-            aria-label="Article emotional intensity z-score relative to peer outlets covering the same story"
+            aria-label={`Emotional tone z-score ${toneZ.toFixed(2)} relative to same-event peers`}
           >
-            {/* Normal Peer Band [-1σ, +1σ] */}
-            <rect
-              x={190 - 48}
-              y={22}
-              width={96}
-              height={24}
-              rx={6}
-              fill="var(--teal-soft)"
-              stroke="var(--teal-border)"
-            />
-            <line
-              x1={30}
-              y1={34}
-              x2={350}
-              y2={34}
-              stroke="var(--border-strong)"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            {/* Center Peer Mean Tick */}
-            <line x1={190} y1={16} x2={190} y2={52} stroke="var(--teal)" strokeDasharray="3 2" />
+            <rect x={190 - 45} y={24} width={90} height={20} rx={3} fill="var(--bg-subtle)" />
+            <line x1={30} y1={34} x2={350} y2={34} stroke="var(--border-subtle)" strokeWidth="1" />
+            <line x1={190} y1={20} x2={190} y2={48} stroke="var(--fg-muted)" strokeDasharray="2 2" />
 
-            {/* Peer Dots Clustered near Mean */}
             {storyItems.slice(0, 7).map((item, i) => {
               const offset = ((i % 2 === 0 ? 1 : -1) * ((i + 1) * 13)) % 44;
               return (
-                <circle
-                  key={item.id}
-                  cx={190 + offset}
-                  cy={34}
-                  r={4}
-                  fill="var(--fg-muted)"
-                  opacity="0.55"
-                />
+                <circle key={item.id} cx={190 + offset} cy={34} r={3} fill="var(--fg-muted)" opacity="0.6" />
               );
             })}
 
-            {/* Analysed Document Marker */}
             {(() => {
               const clampedZ = Math.max(-3.2, Math.min(3.2, toneZ));
               const docX = 190 + (clampedZ / 3.2) * 145;
               return (
                 <g>
-                  <circle
-                    cx={docX}
-                    cy={34}
-                    r={7}
-                    fill={toneZ > 1.0 ? "var(--accent)" : "var(--teal)"}
-                    stroke="var(--bg-surface)"
-                    strokeWidth="2"
-                  />
+                  <circle cx={docX} cy={34} r={5} fill="var(--accent)" stroke="var(--bg-surface)" strokeWidth="2" />
                   <text
                     x={Math.max(48, Math.min(332, docX))}
-                    y={13}
+                    y={14}
                     textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="700"
+                    {...PLOT_LABEL}
                     fill="var(--fg-primary)"
                   >
-                    {documentOutlet ? cleanDomain(documentOutlet) : "This item"}
+                    {documentOutlet ? cleanDomain(documentOutlet) : "this item"}
                   </text>
                 </g>
               );
             })()}
 
-            <text x={30} y={72} fontSize="10" fill="var(--fg-muted)">
-              −3σ Calmer
+            <text x={30} y={68} {...PLOT_LABEL}>
+              −3σ calmer
             </text>
-            <text x={190} y={72} textAnchor="middle" fontSize="10" fill="var(--teal)">
-              Peer average (±1σ)
+            <text x={190} y={68} textAnchor="middle" {...PLOT_LABEL}>
+              mean ±1σ
             </text>
-            <text x={350} y={72} textAnchor="end" fontSize="10" fill="var(--fg-muted)">
-              More charged +3σ
+            <text x={350} y={68} textAnchor="end" {...PLOT_LABEL}>
+              charged +3σ
             </text>
           </svg>
-        </div>
+        </figure>
       )}
 
-      {/* Plot 2: Coverage Propagation Timeline × Semantic Similarity */}
       {datedPoints.length >= 2 && (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-4 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-bold text-[var(--fg-primary)]">
-              Coverage timeline &amp; similarity
-            </div>
-            <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">
-              {datedPoints.length} dated reports
+        <figure className="space-y-2">
+          <figcaption className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="font-medium text-[var(--fg-secondary)]">Timeline</span>
+            <span className="inline-flex items-center gap-3 text-[var(--fg-muted)]">
+              <span className="inline-flex items-center gap-1">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                peer
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--caution)]" />
+                network / shared tag
+              </span>
             </span>
-          </div>
+          </figcaption>
 
           {(() => {
             const allMs = docMs !== null ? [...datedPoints.map((p) => p.ms), docMs] : datedPoints.map((p) => p.ms);
             const minMs = Math.min(...allMs);
             const maxMs = Math.max(...allMs);
             const spanMs = Math.max(3_600_000, maxMs - minMs);
-            const xOfMs = (ms: number) => 36 + ((ms - minMs) / spanMs) * 314;
+            const xOfMs = (ms: number) => 40 + ((ms - minMs) / spanMs) * 310;
+            const windowStart = docMs !== null ? Math.max(40, xOfMs(docMs - 6 * 3_600_000)) : 0;
+            const windowEnd = docMs !== null ? Math.min(350, xOfMs(docMs + 6 * 3_600_000)) : 0;
 
             return (
               <svg
-                viewBox="0 0 380 86"
+                viewBox="0 0 380 80"
                 className="w-full h-auto select-none"
                 role="img"
-                aria-label="Publication timeline versus semantic similarity across outlets"
+                aria-label="Publication time versus similarity across outlets"
               >
-                {/* Axes */}
-                <line x1={36} y1={64} x2={354} y2={64} stroke="var(--border-strong)" />
-                <line x1={36} y1={16} x2={36} y2={64} stroke="var(--border-strong)" />
-
-                {/* 6-hour burst window around document publication */}
                 {docMs !== null && (
                   <rect
-                    x={Math.max(36, xOfMs(docMs - 6 * 3_600_000))}
-                    y={16}
-                    width={Math.max(
-                      6,
-                      Math.min(354, xOfMs(docMs + 6 * 3_600_000)) -
-                        Math.max(36, xOfMs(docMs - 6 * 3_600_000)),
-                    )}
+                    x={windowStart}
+                    y={12}
+                    width={Math.max(6, windowEnd - windowStart)}
                     height={48}
-                    fill="var(--accent-soft)"
-                    opacity="0.7"
+                    fill="var(--bg-subtle)"
                   />
                 )}
+                <line x1={40} y1={60} x2={350} y2={60} stroke="var(--border-subtle)" />
+                <line x1={40} y1={12} x2={40} y2={60} stroke="var(--border-subtle)" />
+                <text x={35} y={18} textAnchor="end" {...PLOT_LABEL}>
+                  100%
+                </text>
+                <text x={35} y={60} textAnchor="end" {...PLOT_LABEL}>
+                  70%
+                </text>
 
-                {datedPoints.map((pt) => {
-                  const cx = xOfMs(pt.ms);
-                  const cy =
-                    62 - Math.max(0, Math.min(1, (pt.similarity - 0.7) / 0.3)) * 42;
-                  return (
-                    <g key={pt.id}>
-                      <title>{`${pt.domain} (${Math.round(pt.similarity * 100)}% match)`}</title>
-                      <circle
-                        cx={cx}
-                        cy={cy}
-                        r={5}
-                        fill={
-                          pt.isNetwork || pt.sharedTracker
-                            ? "var(--caution)"
-                            : "var(--accent)"
-                        }
-                        opacity="0.85"
-                      />
-                    </g>
-                  );
-                })}
+                {datedPoints.map((pt) => (
+                  <circle
+                    key={pt.id}
+                    cx={xOfMs(pt.ms)}
+                    cy={58 - Math.max(0, Math.min(1, (pt.similarity - 0.7) / 0.3)) * 42}
+                    r={4}
+                    fill={pt.flagged ? "var(--caution)" : "var(--accent)"}
+                    opacity="0.85"
+                  >
+                    <title>{`${pt.domain} · ${Math.round(pt.similarity * 100)}%`}</title>
+                  </circle>
+                ))}
 
                 {docMs !== null && (
                   <line
                     x1={xOfMs(docMs)}
-                    y1={14}
+                    y1={10}
                     x2={xOfMs(docMs)}
-                    y2={64}
+                    y2={60}
                     stroke="var(--fg-primary)"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 2"
+                    strokeDasharray="2 2"
                   />
                 )}
 
-                <text x={36} y={78} fontSize="10" fontFamily="var(--font-mono)" fill="var(--fg-muted)">
-                  Earliest
+                <text x={40} y={74} {...PLOT_LABEL}>
+                  {formatShortDate(new Date(minMs).toISOString()) ?? ""}
                 </text>
                 {docMs !== null && (
-                  <text x={195} y={78} textAnchor="middle" fontSize="10" fill="var(--accent)">
-                    Shaded = ±6h copy window
+                  <text x={195} y={74} textAnchor="middle" {...PLOT_LABEL}>
+                    ±6h window
                   </text>
                 )}
-                <text x={354} y={78} textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--fg-muted)">
-                  Latest
+                <text x={350} y={74} textAnchor="end" {...PLOT_LABEL}>
+                  {formatShortDate(new Date(maxMs).toISOString()) ?? ""}
                 </text>
               </svg>
             );
           })()}
-        </div>
+        </figure>
       )}
     </div>
   );
@@ -360,6 +317,9 @@ export function CoverageView({
   }, [claims, evidence]);
 
   const docLang = documentLanguage?.code?.toLowerCase() ?? null;
+  const crossLanguageCount = docLang
+    ? storyPeers.filter((c) => c.language && c.language.toLowerCase() !== docLang).length
+    : 0;
 
   const effectiveTab: CoverageTab =
     tab === "peers" && storyPeers.length === 0 && factChecks.length > 0
@@ -368,299 +328,251 @@ export function CoverageView({
         ? "domains"
         : tab;
 
+  const tabs: readonly { readonly id: CoverageTab; readonly label: string; readonly count: number }[] = [
+    { id: "peers", label: "Same event", count: storyPeers.length },
+    { id: "fact_checks", label: "Fact-checks", count: factChecks.length },
+    { id: "domains", label: "Outlets", count: sources.length },
+    ...(excludedItems.length > 0
+      ? [{ id: "excluded" as const, label: "Dropped", count: excludedItems.length }]
+      : []),
+  ];
+
+  const list =
+    effectiveTab === "peers" ? storyPeers : effectiveTab === "fact_checks" ? factChecks : excludedItems;
+
   return (
-    <div className="space-y-5">
-      {/* Top Visual Plots + Claim Matrix */}
-      <div className="editorial-card rounded-3xl p-5 sm:p-6 space-y-5">
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-[var(--fg-primary)] m-0">
-            Cross-outlet comparison &amp; visited sources
+    <section aria-labelledby="coverage-heading" className="editorial-card rounded-xl overflow-hidden">
+      <header className="px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h3 id="coverage-heading" className="text-sm font-medium text-[var(--fg-primary)]">
+            Coverage
           </h3>
-          <p className="text-xs text-[var(--fg-secondary)] m-0">
-            How independent outlets and fact-checkers covered the same event across languages.
-          </p>
+          <span className="font-mono-num text-xs text-[var(--fg-muted)]">
+            {context.length} reports · {storyPeers.length} on the same event
+            {crossLanguageCount > 0 && ` · ${crossLanguageCount} other-language`}
+          </span>
         </div>
 
-        <PeerComparisonPlots
-          storyItems={storyPeers}
-          toneZ={toneEvidence?.value ?? null}
-          documentPublishedAt={documentPublishedAt}
-          documentOutlet={documentOutlet}
-          sourceMap={sourceMap}
-        />
-
-        {/* Claim Verification Matrix */}
-        {claimVerificationRows.length > 0 && (
-          <div className="space-y-2.5 pt-1">
-            <div className="text-xs font-bold text-[var(--fg-primary)]">
-              Extracted claims vs. external coverage ({claimVerificationRows.length})
-            </div>
-            <div className="space-y-2">
-              {claimVerificationRows.map(({ claim, matching }) => (
-                <div
-                  key={claim.id}
-                  className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <p className="text-xs text-[var(--fg-primary)] leading-relaxed m-0 flex-1">
-                    “{claim.text}”
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                    {matching.length === 0 ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[11px] text-[var(--fg-muted)]">
-                        No direct contradiction or fact-check
-                      </span>
-                    ) : (
-                      matching.map((ev) => {
-                        const isFalseOrContra =
-                          ev.signal === "rated_false" ||
-                          ev.signal === "rated_misleading" ||
-                          (ev.signal === "contradicted" && ev.value > 0.5);
-                        return (
-                          <button
-                            key={ev.id}
-                            type="button"
-                            onClick={() => onSelectAnnotation(ev.id)}
-                            className={cn(
-                              "px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer",
-                              isFalseOrContra
-                                ? "bg-[var(--caution-soft)] text-[var(--caution)] border-[var(--caution-border)]"
-                                : "bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-border)]",
-                            )}
-                          >
-                            {signalLabel(ev.signal)}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Visited Websites & Domain Profiles Browser */}
-      <div className="editorial-card rounded-3xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border-subtle)] pb-3">
-          {(
-            [
-              { id: "peers", label: `Same-event peers (${storyPeers.length})` },
-              { id: "fact_checks", label: `Fact-checks (${factChecks.length})` },
-              { id: "domains", label: `Outlet profiles (${sources.length})` },
-              ...(excludedItems.length > 0
-                ? [{ id: "excluded" as const, label: `Filtered out (${excludedItems.length})` }]
-                : []),
-            ] as const
-          ).map((t) => (
+        <div role="tablist" className="inline-flex rounded-lg bg-[var(--bg-subtle)] p-0.5">
+          {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={effectiveTab === t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer",
+                "h-6 px-2.5 rounded-md text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer",
                 effectiveTab === t.id
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70",
+                  ? "bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-[var(--shadow-editorial)]"
+                  : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]",
               )}
             >
               {t.label}
+              <span className="font-mono-num text-[11px] text-[var(--fg-muted)]">{t.count}</span>
             </button>
           ))}
         </div>
+      </header>
 
-        {effectiveTab === "domains" ? (
-          sources.length === 0 ? (
-            <p className="text-xs text-[var(--fg-muted)] m-0">No domain records collected.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sources.map((src) => {
-                const typeMeta = src.outlet_type ? OUTLET_TYPE_LABELS[src.outlet_type] : null;
-                const age = formatDomainAge(src.registered_at, src.first_cert_at, documentPublishedAt);
-                return (
-                  <div
-                    key={src.domain}
-                    className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3.5 space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--fg-primary)] truncate">
-                        <Globe className="h-3.5 w-3.5 text-[var(--fg-muted)] shrink-0" aria-hidden="true" />
-                        <span className="truncate">{src.domain}</span>
-                      </span>
-                      {src.country && (
-                        <span className="font-mono-num text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--fg-muted)]">
-                          {src.country}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                      {typeMeta && (
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-full font-medium border",
-                            typeMeta.tone === "teal"
-                              ? "bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-border)]"
-                              : typeMeta.tone === "caution"
-                                ? "bg-[var(--caution-soft)] text-[var(--caution)] border-[var(--caution-border)]"
-                                : "bg-[var(--bg-subtle)] text-[var(--fg-secondary)] border-[var(--border-subtle)]",
-                          )}
-                        >
-                          {typeMeta.label}
-                        </span>
-                      )}
-
-                      {age && (
-                        <span className="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] font-mono-num text-[var(--fg-secondary)]">
-                          {age}
-                        </span>
-                      )}
-
-                      {src.known_network && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--caution-soft)] border border-[var(--caution-border)] font-semibold text-[var(--caution)]">
-                          <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-                          <span>{networkLabel(src.known_network)}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+      {effectiveTab === "domains" ? (
+        sources.length === 0 ? (
+          <p className={cn(SECTION, "text-[13px] text-[var(--fg-muted)]")}>No outlet records.</p>
         ) : (
-          (() => {
-            const list =
-              effectiveTab === "peers"
-                ? storyPeers
-                : effectiveTab === "fact_checks"
-                  ? factChecks
-                  : excludedItems;
-
-            if (list.length === 0) {
+          <ul className="p-0 list-none">
+            {sources.map((src) => {
+              const typeMeta = src.outlet_type ? OUTLET_TYPE_LABELS[src.outlet_type] : null;
+              const age = formatDomainAge(src.registered_at, src.first_cert_at, documentPublishedAt);
               return (
-                <p className="text-xs text-[var(--fg-muted)] m-0 py-2">
-                  No items in this category for the current analysis.
-                </p>
+                <li
+                  key={src.domain}
+                  className="px-4 sm:px-5 py-2.5 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-x-2 gap-y-1 hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <Favicon domain={src.domain} size={14} />
+                  <span className="font-mono-num text-xs text-[var(--fg-primary)] truncate">{src.domain}</span>
+                  {src.country && <span className={tagClass("neutral", { mono: true })}>{src.country}</span>}
+                  {typeMeta && <span className={tagClass(typeMeta.tone)}>{typeMeta.label}</span>}
+                  {src.known_network && (
+                    <span className={tagClass("caution")}>{networkLabel(src.known_network)}</span>
+                  )}
+                  {age && <span className="ml-auto font-mono-num text-xs text-[var(--fg-muted)]">{age}</span>}
+                </li>
               );
-            }
+            })}
+          </ul>
+        )
+      ) : list.length === 0 ? (
+        <p className={cn(SECTION, "text-[13px] text-[var(--fg-muted)]")}>None found.</p>
+      ) : (
+        <ul className="p-0 list-none">
+          {list.map((item) => {
+            const dom = cleanDomain(item.outlet ?? item.url) || "source";
+            const profile = sourceMap.get(dom);
+            const typeMeta = profile?.outlet_type ? OUTLET_TYPE_LABELS[profile.outlet_type] : null;
+            const linkedQuotes = quotesByContextId.get(item.id) ?? [];
+            const quoted = linkedQuotes.find((q) => q.quote);
+            const isHighlighted =
+              activeEvidenceId !== null && linkedQuotes.some((q) => q.evidenceId === activeEvidenceId);
+            const otherLanguage = Boolean(docLang && item.language && item.language.toLowerCase() !== docLang);
+            const date = formatDateTime(item.published_at);
 
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {list.map((item) => {
-                  const dom = cleanDomain(item.outlet ?? item.url) || "External source";
-                  const profile = sourceMap.get(dom);
-                  const typeMeta = profile?.outlet_type ? OUTLET_TYPE_LABELS[profile.outlet_type] : null;
-                  const linkedQuotes = quotesByContextId.get(item.id) ?? [];
-                  const isHighlighted =
-                    activeEvidenceId !== null &&
-                    linkedQuotes.some((q) => q.evidenceId === activeEvidenceId);
+              <li
+                key={item.id}
+                className={cn(
+                  "group px-4 sm:px-5 py-3 border-t border-[var(--border-subtle)] space-y-1 transition-colors",
+                  isHighlighted
+                    ? "bg-[var(--bg-hover)] shadow-[inset_2px_0_0_var(--accent)]"
+                    : "hover:bg-[var(--bg-hover)]",
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Favicon domain={dom} size={14} />
+                  <span className="font-mono-num text-xs text-[var(--fg-secondary)] truncate">{dom}</span>
+                  {typeMeta && <span className={tagClass(typeMeta.tone)}>{typeMeta.label}</span>}
+                  {profile?.known_network && (
+                    <span className={tagClass("caution")}>{networkLabel(profile.known_network)}</span>
+                  )}
+                  {item.fact_check && (
+                    <span className={tagClass("caution")}>
+                      {item.fact_check.rating}
+                      {item.fact_check.publisher && ` · ${item.fact_check.publisher}`}
+                    </span>
+                  )}
+                </div>
 
-                  return (
-                    <article
-                      key={item.id}
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-baseline gap-1.5 text-sm font-medium leading-snug text-[var(--fg-primary)] hover:text-[var(--accent)]"
+                >
+                  <span>{item.title || dom}</span>
+                  <ExternalLink
+                    className="h-3 w-3 shrink-0 self-center text-[var(--fg-muted)] opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-hidden="true"
+                  />
+                </a>
+
+                <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-[var(--fg-muted)]">
+                  {[
+                    date && <span key="date" className="font-mono-num">{date}</span>,
+                    item.language && (
+                      <span
+                        key="lang"
+                        title={languageName(item.language)}
+                        className={cn("font-mono-num uppercase", otherLanguage && "text-[var(--accent)]")}
+                      >
+                        {item.language}
+                      </span>
+                    ),
+                    <span key="adapter">{ADAPTER_LABELS[item.retrieved_by] ?? item.retrieved_by}</span>,
+                    item.similarity != null && (
+                      <span key="sim" className="font-mono-num">
+                        {formatPct(item.similarity, 0)} match
+                      </span>
+                    ),
+                  ]
+                    .filter(Boolean)
+                    .flatMap((node, i) =>
+                      i === 0 ? [node] : [<span key={`sep${i}`} aria-hidden="true">·</span>, node],
+                    )}
+                </div>
+
+                {item.fact_check && (
+                  <p className="text-[13px] text-[var(--fg-secondary)] line-clamp-2">
+                    “{item.fact_check.claim}”
+                  </p>
+                )}
+
+                {quoted?.quote ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectAnnotation(quoted.evidenceId)}
+                    className="block text-left text-[13px] leading-relaxed text-[var(--fg-primary)] cursor-pointer"
+                  >
+                    <mark
                       className={cn(
-                        "rounded-2xl border p-4 space-y-2.5 flex flex-col justify-between transition-colors",
-                        isHighlighted
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)]/40"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-canvas)]",
+                        "text-inherit rounded-[2px] box-decoration-clone line-clamp-3",
+                        quoted.evidenceId === activeEvidenceId ? "bg-[var(--mark-strong)]" : "bg-[var(--mark)]",
                       )}
                     >
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
-                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <span className="font-bold text-[var(--fg-primary)] truncate">
-                              {dom}
-                            </span>
+                      “{quoted.quote}”
+                    </mark>
+                  </button>
+                ) : (
+                  !item.fact_check &&
+                  item.text && (
+                    <p className="text-[13px] text-[var(--fg-secondary)] leading-relaxed line-clamp-2">
+                      {item.text}
+                    </p>
+                  )
+                )}
 
-                            {item.language && (
-                              <span
-                                title={languageName(item.language)}
-                                className={cn(
-                                  "px-1.5 py-0.5 rounded font-mono-num text-[10px] uppercase border",
-                                  docLang && item.language.toLowerCase() !== docLang
-                                    ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent-border)]"
-                                    : "bg-[var(--bg-subtle)] text-[var(--fg-muted)] border-[var(--border-subtle)]",
-                                )}
-                              >
-                                {item.language}
-                              </span>
-                            )}
-
-                            {typeMeta && (
-                              <span className="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[10px] font-medium text-[var(--fg-secondary)]">
-                                {typeMeta.label}
-                              </span>
-                            )}
-                          </div>
-
-                          <span className="text-[10px] text-[var(--fg-muted)]">
-                            {ADAPTER_LABELS[item.retrieved_by] ?? item.retrieved_by}
-                          </span>
-                        </div>
-
-                        {item.fact_check && (
-                          <div className="rounded-xl bg-[var(--caution-soft)]/70 border border-[var(--caution-border)] px-3 py-2 space-y-0.5">
-                            <div className="inline-flex items-center gap-1 text-xs font-bold text-[var(--caution)]">
-                              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                              <span>
-                                {item.fact_check.publisher ?? dom}: {item.fact_check.rating}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[var(--fg-secondary)] m-0 line-clamp-2">
-                              Reviewed claim: “{item.fact_check.claim}”
-                            </p>
-                          </div>
-                        )}
-
-                        <h4 className="text-xs sm:text-sm font-semibold text-[var(--fg-primary)] leading-snug m-0">
-                          {item.title || dom}
-                        </h4>
-
-                        {linkedQuotes[0]?.quote ? (
-                          <blockquote className="m-0 pl-2.5 border-l-2 border-[var(--accent)] text-xs italic text-[var(--fg-secondary)] line-clamp-3">
-                            “{linkedQuotes[0].quote}”
-                          </blockquote>
-                        ) : item.text ? (
-                          <p className="text-xs text-[var(--fg-secondary)] line-clamp-2 leading-relaxed m-0">
-                            {item.text}
-                          </p>
-                        ) : null}
-
-                        {item.story_reason && item.in_story === false && (
-                          <p className="text-[11px] text-[var(--fg-muted)] m-0">
-                            Filtered out: {item.story_reason}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-2 border-t border-[var(--border-subtle)]/70 flex items-center justify-between gap-2 text-[11px] text-[var(--fg-muted)]">
-                        <span className="font-mono-num">
-                          {formatDateTime(item.published_at) ??
-                            (item.similarity != null
-                              ? `${formatPct(item.similarity, 0)} topic match`
-                              : "Live web extract")}
-                        </span>
-
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline"
-                        >
-                          <span>Visit site</span>
-                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                        </a>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                {item.story_reason && item.in_story === false && (
+                  <p className="text-xs text-[var(--fg-muted)]">Dropped: {item.story_reason}</p>
+                )}
+              </li>
             );
-          })()
-        )}
-      </div>
-    </div>
+          })}
+        </ul>
+      )}
+
+      <PeerComparisonPlots
+        storyItems={storyPeers}
+        toneZ={toneEvidence?.value ?? null}
+        documentPublishedAt={documentPublishedAt}
+        documentOutlet={documentOutlet}
+        sourceMap={sourceMap}
+      />
+
+      {claimVerificationRows.length > 0 && (
+        <div className="border-t border-[var(--border-subtle)]">
+          <div className="px-4 sm:px-5 pt-4 pb-2 flex items-baseline gap-2">
+            <h4 className="text-sm font-medium text-[var(--fg-primary)]">Claims</h4>
+            <span className="font-mono-num text-xs text-[var(--fg-muted)]">{claimVerificationRows.length}</span>
+          </div>
+          <ul className="p-0 list-none">
+            {claimVerificationRows.map(({ claim, matching }) => (
+              <li
+                key={claim.id}
+                className="px-4 sm:px-5 py-2.5 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              >
+                <p className="text-[13px] text-[var(--fg-primary)] leading-relaxed flex-1">“{claim.text}”</p>
+                <div className="flex flex-wrap items-center gap-1 shrink-0">
+                  {matching.length === 0 ? (
+                    <span className="text-xs text-[var(--fg-muted)]">No match</span>
+                  ) : (
+                    matching.map((ev) => {
+                      const disputed =
+                        ev.signal === "rated_false" ||
+                        ev.signal === "rated_misleading" ||
+                        (ev.signal === "contradicted" && ev.value > 0.5);
+                      return (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          onClick={() => onSelectAnnotation(ev.id)}
+                          className={tagClass(
+                            disputed ? "caution" : "teal",
+                            undefined,
+                            cn(
+                              "cursor-pointer hover:border-current",
+                              ev.id === activeEvidenceId && "ring-1 ring-current",
+                            ),
+                          )}
+                        >
+                          {signalLabel(ev.signal)}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
