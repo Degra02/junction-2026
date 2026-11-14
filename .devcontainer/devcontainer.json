@@ -17,7 +17,7 @@
   // Same steps as docs/setup.md: trust, install pinned tools, enable git hooks.
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  "forwardPorts": [3000, 5173, 8000],
+  "forwardPorts": [3000, 5173, 8001, 8080],
 
   "customizations": {
     "vscode": {
@@ -25,6 +25,7 @@
         "hverlin.mise-vscode",
         "ms-python.python",
         "charliermarsh.ruff",
+        "rust-lang.rust-analyzer",
         "oven.bun-vscode",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode"

@@ -12,10 +12,15 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Cold Rust builds take minutes on the 2 vCPU private-repo runner; rust-cache keeps warm runs short.
+    timeout-minutes: 20
+    env:
+      NEXTEST_PROFILE: ci
+      CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # gitleaks scans the full history
       - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
       - run: mise run check

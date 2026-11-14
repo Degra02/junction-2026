@@ -1,0 +1,16 @@
+.git
+.github
+.devcontainer
+.venv
+.env
+.env.*
+**/__pycache__
+**/.pytest_cache
+.ruff_cache
+target
+data
+node_modules
+web/node_modules
+docs
+plans
+worker/tests

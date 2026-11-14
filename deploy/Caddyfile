@@ -1,0 +1,22 @@
+# SITE_ADDRESS: the VPS hostname (e.g. srv123456.hstgr.cloud) for automatic HTTPS;
+# defaults to plain HTTP on :80 for local runs. API_UPSTREAM defaults to the compose service.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Caddy overwrites X-Forwarded-For from untrusted clients with the real peer address,
+	# which the API's rate limiter trusts (TRUST_PROXY=true). SSE is flushed immediately.
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM:api:8080}
+	}
+
+	# Until web/ ships a build, the root shows the interactive API docs.
+	handle {
+		redir * /api/docs 302
+	}
+}
