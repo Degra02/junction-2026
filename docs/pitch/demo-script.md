@@ -16,3 +16,15 @@ Target: 3 minutes live, same beats in the video. Live site: <https://the4thlover
 - No "propaganda / not propaganda" wording (D4): say "signs of", "confidence", "evidence".
 - If the live site is slow, switch to replay links; if it is down, play the backup recording.
 - Numbers on the metrics page are read from `evals/metrics.json`; say the set size and the intervals, not only the point values.
+
+## Inputs
+
+Submit each one on the VPS after the last deploy (`POST /api/analyses?force=true`). Record the analysis ID and keep the one with a clean run. Swap in a backup if the main item has gone offline or scores without evidence.
+
+| Beat | Item | Language | Why | Analysis ID |
+|---|---|---|---|---|
+| Coordinated | `pk_de_002` deutsch.news-pravda.com "Yuri Kotenok: Leidenschaften nach Konstantinovka" | de | Same piece the same day on the fr, es and en editions (`pk_fr_001`, `pk_es_001`, `pk_en_002`); the domain is on the VIGINUM list | after deploy |
+| Coordinated, backup | `pk_de_004` austria.news-pravda.com, Latvian oil reserves | de | Copies in nl, pt, ro (`pk_nl_001`, `pk_pt_001`, `pk_ro_001`) | after deploy |
+| Single-actor | `fcd_de_002` achgut.com "Sind die Klimadaten manipuliert?" | de | BR24 #Faktenfuchs rated the claim false | after deploy |
+| Single-actor, 2nd language | `fcd_en_001` cdm.press "Christians being crucified in Syria" | en | DW Faktencheck: false | after deploy |
+| Hard negative | `fc_de_005` BR24 #Faktenfuchs debunk of the `fcd_de_002` claim | de | Quotes the hoax; should stay low | after deploy |
