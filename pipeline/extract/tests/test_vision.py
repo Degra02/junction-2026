@@ -46,9 +46,11 @@ def test_build_image_document_merges_companion_and_never_trusts_forged_banner_ou
     assert forged.paragraphs[1].startswith("[Visual context] Publisher shown in image: bbc.com.")
 
     # With a companion post URL, real post metadata + paragraphs are merged into the document.
+    # A post has no outlet (the platform is not its publisher), and the merged document keeps
+    # it empty, as when the post is analysed on its own.
     companion = Document(
         url="https://x.com/hoaxposter/status/999",
-        outlet="x.com",
+        outlet=None,
         published_at=datetime(2026, 11, 14, 20, 0, tzinfo=UTC),
         title="Post by @hoaxposter",
         author="@hoaxposter",
@@ -59,7 +61,7 @@ def test_build_image_document_merges_companion_and_never_trusts_forged_banner_ou
     merged = build_image_document(
         reading, companion=companion, companion_url="https://x.com/hoaxposter/status/999"
     )
-    assert (merged.outlet, merged.author) == ("x.com", "@hoaxposter")
+    assert (merged.outlet, merged.author) == (None, "@hoaxposter")
     assert merged.outbound_links == ["https://patriot-voice.example/wells"]
     assert merged.paragraphs[:2] == [
         "BREAKING: The government will ban private wells by January.",
@@ -110,7 +112,7 @@ def test_extract_run_handles_image_with_companion_url(monkeypatch: pytest.Monkey
     async def fake_doc_from_url(url: str) -> Document:
         return Document(
             url=url,
-            outlet="reddit.com",
+            outlet=None,  # a post, as `social.document_from_post` builds it
             paragraphs=["Ecco il post che sta girando stamattina nei gruppi locali."],
             outbound_links=[],
             tracking_ids=[],
@@ -126,6 +128,96 @@ def test_extract_run_handles_image_with_companion_url(monkeypatch: pytest.Monkey
         context_url="https://www.reddit.com/r/italy/comments/abc123/pozzi/",
     )
     patch = asyncio.run(extract.run(analysis))
-    assert patch.document.outlet == "reddit.com"
+    assert patch.document.outlet is None
     assert len(patch.document.paragraphs) == 3
     assert patch.language is not None and patch.language.code == "it"
+
+
+# --- what the image implies (P-C1) -------------------------------------------------------------
+
+MEME = VisionReading(
+    kind="meme",
+    language="en",
+    ocr_paragraphs=["NEW STADIUM", "SCHOOL REPAIRS", "Maybe next decade"],
+    visual_context="A cartoon mayor cuts a ribbon at a stadium while a school roof leaks behind.",
+    implied_message=(
+        "The image implies that the mayor cares more about the stadium than about the schools."
+    ),
+)
+
+
+def test_the_visual_context_note_says_what_the_image_implies() -> None:
+    doc = build_image_document(MEME)
+    note = doc.paragraphs[-1]
+    assert doc.paragraphs[:-1] == ["NEW STADIUM", "SCHOOL REPAIRS", "Maybe next decade"]
+    assert note == (
+        "[Visual context] A cartoon mayor cuts a ribbon at a stadium while a school roof leaks "
+        "behind. The image implies that the mayor cares more about the stadium than about the "
+        "schools."
+    )
+    # It is our description: no claim is taken from it and no technique is looked for in it.
+    assert vision.is_synthetic_vision_paragraph(note)
+
+
+@pytest.mark.parametrize(
+    ("message", "note"),
+    [
+        ("", ""),
+        ("   ", ""),
+        (
+            "The image implies that taxes only ever go up.",
+            "The image implies that taxes only ever go up.",
+        ),
+        ("the image implies taxes only ever go up", "the image implies taxes only ever go up."),
+        # A model that forgets the opening still cannot make the sentence read as a fact.
+        ("taxes only ever go up", "The image implies that taxes only ever go up."),
+        ("taxes only\n ever go up?", "The image implies that taxes only ever go up?"),
+    ],
+)
+def test_an_implied_message_always_reads_as_the_image_s_own(message: str, note: str) -> None:
+    assert vision.implied_note(message) == note
+
+
+def test_no_implied_message_leaves_the_note_as_it_was() -> None:
+    plain = MEME.model_copy(update={"implied_message": ""})
+    assert build_image_document(plain).paragraphs[-1] == (
+        "[Visual context] A cartoon mayor cuts a ribbon at a stadium while a school roof leaks "
+        "behind."
+    )
+
+
+def test_a_pure_joke_gets_no_implied_message() -> None:
+    joke = MEME.model_copy(update={"pure_humour_or_satire": True})
+    note = build_image_document(joke).paragraphs[-1]
+    assert note.startswith("[Satire/humour meme] ") and "implies" not in note
+
+
+def test_the_prompt_asks_for_the_implication_without_a_verdict() -> None:
+    assert "implied_message" in vision.SYSTEM
+    assert "Never judge whether the image is true or propaganda" in vision.SYSTEM
+    assert "implied_message" in VisionReading.model_json_schema()["properties"]
+
+
+# --- the outlet of an image with a companion (P-C2) --------------------------------------------
+
+POST_URL = "https://www.reddit.com/r/italy/comments/abc123/pozzi/"
+
+
+def test_a_post_as_companion_leaves_the_outlet_empty() -> None:
+    post = Document(
+        url=POST_URL, outlet=None, paragraphs=["Guardate qui."], outbound_links=[], tracking_ids=[]
+    )
+    assert build_image_document(MEME, companion=post, companion_url=POST_URL).outlet is None
+    # Also when the post could not be read: its address alone does not make Reddit the outlet.
+    assert build_image_document(MEME, companion_url=POST_URL).outlet is None
+
+
+def test_an_article_as_companion_gives_its_outlet() -> None:
+    url = "https://paper.example/2026/stadium"
+    article = Document(
+        url=url, outlet="paper.example", paragraphs=["Text."], outbound_links=[], tracking_ids=[]
+    )
+    assert (
+        build_image_document(MEME, companion=article, companion_url=url).outlet == "paper.example"
+    )
+    assert build_image_document(MEME, companion_url=url).outlet == "paper.example"

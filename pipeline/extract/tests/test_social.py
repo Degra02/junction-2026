@@ -501,3 +501,89 @@ def test_document_keeps_a_reddit_title_above_a_body():
     document = social.document_from_post(post)
     assert document.title == "Harbour sold?" and document.paragraphs == [SENTENCE]
     assert social.post_text(post) == f"Harbour sold?\n\n{SENTENCE}"
+
+
+# --- the picture of a post -------------------------------------------------------------------
+
+IMAGE_POST = reddit_entry(
+    "t3_1abc2d",
+    "They said it was about the harbour",
+    '<table><tr><td><a href="https://www.reddit.com/r/worldnews/comments/1abc2d/the_title/">'
+    '<img src="https://preview.redd.it/meme1.jpeg?width=640&amp;s=abc"/></a></td><td> submitted '
+    'by <a href="https://www.reddit.com/user/alice">/u/alice</a> '
+    '<a href="https://i.redd.it/meme1.jpeg">[link]</a> '
+    '<a href="https://www.reddit.com/r/worldnews/comments/1abc2d/the_title/">[comments]</a>'
+    "</td></tr></table>",
+)
+
+
+def image_address(post: social.Post, get=None) -> str | None:
+    return asyncio.run(social.image_address(post, get or getter(500)))
+
+
+def test_a_reddit_image_post_names_its_picture():
+    post = social.parse_reddit(reddit_feed(IMAGE_POST), post_ref("https://redd.it/1abc2d"))
+    assert post.text == "" and post.links == ["https://i.redd.it/meme1.jpeg"]
+    assert image_address(post) == "https://i.redd.it/meme1.jpeg"
+
+
+def test_a_post_without_a_picture_has_no_image_address():
+    seen: list = []
+    link = social.parse_reddit(reddit_feed(LINK_POST), post_ref("https://redd.it/1abc2d"))
+    assert image_address(link, getter(200, b"{}", seen)) is None
+    words = social.parse_x(x_oembed(SENTENCE), X_REF)
+    assert words.has_media is False and image_address(words, getter(200, b"{}", seen)) is None
+    assert seen == []  # nothing is asked when the post has no picture
+
+
+def x_result(*media: dict) -> bytes:
+    return json.dumps(
+        {"__typename": "Tweet", "id_str": "1855", "mediaDetails": list(media)}
+    ).encode()
+
+
+def test_an_x_post_with_a_picture_asks_the_embed_endpoint_for_it():
+    post = social.parse_x(
+        x_oembed(f'{SENTENCE} <a href="https://t.co/pic1">pic.twitter.com/pic1</a>'), X_REF
+    )
+    assert post.has_media is True and post.links == ["https://t.co/pic1"]
+    seen: list = []
+    answer = x_result(
+        {"type": "video", "media_url_https": "https://pbs.twimg.com/thumb/v.jpg"},
+        {"type": "photo", "media_url_https": "https://pbs.twimg.com/media/Gabc.jpg"},
+        {"type": "photo", "media_url_https": "https://pbs.twimg.com/media/Gdef.jpg"},
+    )
+    assert image_address(post, getter(200, answer, seen)) == "https://pbs.twimg.com/media/Gabc.jpg"
+    assert seen == [
+        "https://cdn.syndication.twimg.com/tweet-result?id=1855000000000000000&token=a&lang=en"
+    ]
+    assert post.links == ["https://t.co/pic1"]  # the post itself is left as the platform gave it
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (404, b"{}"),
+        (200, b"not json"),
+        (200, b"[]"),
+        (200, x_result()),
+        (200, x_result({"type": "photo", "media_url_https": "https://elsewhere.example/a.jpg"})),
+        (200, x_result({"type": "photo"})),
+    ],
+)
+def test_an_x_picture_that_cannot_be_found_is_no_error(status, body):
+    post = social.parse_x(
+        x_oembed(f'{SENTENCE} <a href="https://t.co/pic1">pic.x.com/pic1</a>'), X_REF
+    )
+    assert post.has_media is True
+    assert image_address(post, getter(status, body)) is None
+
+
+def test_an_unreachable_embed_endpoint_is_no_error():
+    async def get(url: str) -> Page:
+        raise FetchFailed("The site could not be reached")
+
+    post = social.parse_x(
+        x_oembed(f'{SENTENCE} <a href="https://t.co/pic1">pic.twitter.com/pic1</a>'), X_REF
+    )
+    assert image_address(post, get) is None
