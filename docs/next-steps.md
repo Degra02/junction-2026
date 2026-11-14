@@ -5,7 +5,7 @@ Living task list per person, kept by the integrator. Agents: read your section, 
 ## State of `main` (Sat 16:30)
 - Live at <https://the4thlover.tech> (API docs: `/api/docs`). Every merge to `main` deploys; the deploy goes red if a stage fails to import.
 - Stages on `main`: `extract`, `understand`, `signals_single`, `signals_coordinated`, `score`, `explain`. **`retrieve` and `story` are written but not merged**: `ck-lithium/retrieve` (14 commits, no PR yet, 5 behind `main`). Until they land every analysis has no context, `score` abstains and coordinated signals stay empty. **Merging that branch is the critical path.**
-- Merged this round: #8 explain discloses uncalibrated confidences and writes in the reader's language; #9 `SPEC.md` rewrite, eval runner, harness failures and `--json`; #11 real labelled set (235 items, 11 languages); #12 `Input.explanation_language` in the contract and the cache key.
+- Merged this round: #8 explain discloses uncalibrated confidences and writes in the reader's language; #9 `SPEC.md` rewrite, eval runner, harness failures and `--json`; #11 + #13 real labelled set (260 items, 12 languages, incl. 25 EUvsDisinfo cases); #12 `Input.explanation_language` in the contract and the cache key.
 - `/api/metrics` reads the committed `evals/metrics.json` (404 until mosearc commits it). `web/` is not built yet: `/` has no UI.
 - Confidences are still priors (`pipeline/score/weights.json`, `n = 0`): the explanation says so until the fit lands.
 
@@ -32,7 +32,7 @@ Living task list per person, kept by the integrator. Agents: read your section, 
    - Explanation language (D14): send `explanation_language` (e.g. `it`) with the input; default English; offer the content language (`language.code` of an earlier analysis of the same input). Invalid codes get a 422 `invalid_input`.
    - Metrics page from `GET /api/metrics` (404 = not published yet: show "metrics coming").
    - Show the abstention reason when a dimension abstains, and the failed-step message when a step fails.
-5. `EVALUATED_LANGUAGES` in `pipeline/extract/language.py`: the labelled set has real items in en 52, de 47, it 35, fr 35, es 35, nl 17 (pl, pt, ro, sv, cs: under 6 each). Add the first six once the metrics are published.
+5. `EVALUATED_LANGUAGES` in `pipeline/extract/language.py`: the labelled set has real items in en 57, de 48, fr 41, es 41, it 37, nl 17 (ru, pl, pt, ro, sv, cs: under 6 each). Add the first six once the metrics are published.
 
 ## Lyreplus — AI core on real data
 1. As soon as `retrieve` is live: run real texts on the VPS and read `/api/stats` (p50/p95 per stage) and worker memory. If `signals_single` is too slow on 2 vCPU, cut paragraphs/peers or switch to a smaller model; the analysis budget is 300 s in total.
@@ -41,10 +41,9 @@ Living task list per person, kept by the integrator. Agents: read your section, 
 4. Re-run the demo items with `rerun?from=signals_single` after each signal or weight change and compare with mosearc.
 
 ## mosearc — evaluation, metrics, pitch
-1. **EUvsDisinfo items**: PR #13 (the 25 cases that missed the #11 merge) is open; the integrator merges it. Nothing else to do here.
-2. **Metrics**: after the integrator's VPS run, `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). The API image serves it at `/api/metrics` on the next deploy.
-3. **Demo inputs** (`docs/pitch/demo-script.md`): once retrieve and story are live, submit each item on the VPS (`?force=true`), keep the clean runs and fill in the analysis IDs; swap in backups that score without evidence.
-4. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
+1. **Metrics**: after the integrator's VPS run, `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` (numbers only). The API image serves it at `/api/metrics` on the next deploy.
+2. **Demo inputs** (`docs/pitch/demo-script.md`): once retrieve and story are live, submit each item on the VPS (`?force=true`), keep the clean runs and fill in the analysis IDs; swap in backups that score without evidence.
+3. **Pitch** (`docs/pitch/`): demo script final by 18:00 (metrics beat once the numbers exist); video, description and submission text before Sun 09:00.
 
 ## Integrator (Degra02)
 - Review and merge `ck-lithium/retrieve` as soon as the PR is up; watch the worker image build (e5 model) and the deploy.
