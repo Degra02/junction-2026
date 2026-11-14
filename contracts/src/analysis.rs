@@ -16,6 +16,8 @@ pub struct Analysis {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub status: AnalysisStatus,
+    /// Place in the queue (1 = next to start) while `status` is `queued`; null otherwise.
+    pub queue_position: Option<u32>,
     /// Why the analysis failed, in plain language. Set only when `status` is `failed`.
     pub error: Option<String>,
     /// One entry per pipeline stage, in execution order.
@@ -33,6 +35,9 @@ pub struct Analysis {
     pub queries: Vec<SearchQuery>,
     /// Related items found online. Set by `retrieve`; `story` fills the story fields.
     pub context: Vec<ContextItem>,
+    /// What is known about the outlets behind the document and the context items, one entry
+    /// per domain. Set by `retrieve`.
+    pub sources: Vec<SourceProfile>,
     /// Signals with their evidence. Appended by `signals_single` and `signals_coordinated`.
     pub evidence: Vec<Evidence>,
     /// Confidence per dimension. Set by `score`.
@@ -52,17 +57,9 @@ impl Analysis {
             created_at: now,
             updated_at: now,
             status: AnalysisStatus::Queued,
+            queue_position: None,
             error: None,
-            steps: StageName::ALL
-                .into_iter()
-                .map(|name| Step {
-                    name,
-                    state: StepState::Pending,
-                    duration_ms: None,
-                    detail: None,
-                    error: None,
-                })
-                .collect(),
+            steps: StageName::ALL.into_iter().map(Step::pending).collect(),
             input,
             language: None,
             document: None,
@@ -70,6 +67,7 @@ impl Analysis {
             claims: vec![],
             queries: vec![],
             context: vec![],
+            sources: vec![],
             evidence: vec![],
             scores: None,
             explanation: None,
@@ -80,6 +78,14 @@ impl Analysis {
     pub fn step_mut(&mut self, stage: StageName) -> &mut Step {
         self.steps
             .iter_mut()
+            .find(|s| s.name == stage)
+            .expect("Analysis::new creates one step per stage")
+    }
+
+    /// The step entry of `stage`.
+    pub fn step(&self, stage: StageName) -> &Step {
+        self.steps
+            .iter()
             .find(|s| s.name == stage)
             .expect("Analysis::new creates one step per stage")
     }
@@ -105,6 +111,20 @@ pub struct Step {
     pub detail: Option<String>,
     /// Why the stage failed or was skipped.
     pub error: Option<String>,
+}
+
+impl Step {
+    /// A stage that has not started.
+    #[must_use]
+    pub const fn pending(name: StageName) -> Self {
+        Self {
+            name,
+            state: StepState::Pending,
+            duration_ms: None,
+            detail: None,
+            error: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -171,7 +191,9 @@ pub struct Document {
 
 /// A verbatim slice of `document.paragraphs[paragraph]`.
 ///
-/// Offsets count Unicode code points (Python `str` indexing), `end` exclusive.
+/// Offsets count Unicode code points (Python `str` indexing), `end` exclusive. JavaScript
+/// strings index UTF-16 code units: slice with `Array.from(paragraph).slice(start, end)`,
+/// otherwise spans after an emoji are off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Span {
     pub paragraph: u32,
@@ -212,18 +234,65 @@ pub struct ContextItem {
     pub outlet: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
     pub title: Option<String>,
-    /// Extracted body text; quotes in evidence must be substrings of it.
+    /// Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the
+    /// reviewed claim followed by the verdict text.
     pub text: String,
     /// ISO 639-1 code.
     pub language: Option<String>,
     /// Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`.
     pub retrieved_by: String,
+    /// Analytics and ad IDs found in the page (GA, GTM, `AdSense`); compared across outlets by
+    /// the infrastructure signal. Empty when the page was not fetched.
+    pub tracking_ids: Vec<String>,
+    /// Set when the item is a fact-check (`ClaimReview`) rather than coverage of the event.
+    pub fact_check: Option<FactCheck>,
     /// Similarity to the analysed item. Set by `story`.
     pub similarity: Option<f64>,
     /// Whether it covers the same event. Set by `story`.
     pub in_story: Option<bool>,
     /// Why it was kept or dropped from the story. Set by `story`.
     pub story_reason: Option<String>,
+}
+
+/// A published fact-check of a claim (`ClaimReview`, e.g. from the Google Fact Check Tools API).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct FactCheck {
+    /// The claim that was reviewed, as stated by the fact-checker.
+    pub claim: String,
+    /// Textual rating as published, e.g. `False`, `Misleading`, `Mostly true`.
+    pub rating: String,
+    /// Fact-checking organisation, e.g. `Pagella Politica`.
+    pub publisher: Option<String>,
+}
+
+/// Measurable facts about one outlet (D9: no political-bias ratings).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct SourceProfile {
+    /// Outlet domain as written in `document.outlet` and `context[].outlet`; unique in `sources`.
+    pub domain: String,
+    /// Domain registration date (RDAP).
+    pub registered_at: Option<DateTime<Utc>>,
+    /// Issue date of the first certificate in the Certificate Transparency logs.
+    pub first_cert_at: Option<DateTime<Utc>>,
+    pub outlet_type: Option<OutletType>,
+    /// ISO 3166-1 alpha-2 country of the outlet, e.g. `IT`.
+    pub country: Option<String>,
+    /// Documented network that lists the domain, e.g. `portal_kombat` (VIGINUM); null when
+    /// it is on no list.
+    pub known_network: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OutletType {
+    /// News agency whose copy is syndicated (Reuters, AP, AFP, dpa, EFE, ANSA): reuse of its
+    /// text is not coordination.
+    WireService,
+    National,
+    Local,
+    Partisan,
+    StateAffiliated,
+    FactChecker,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -277,7 +346,8 @@ pub struct Evidence {
     pub value: f64,
     /// One plain-language sentence for the UI.
     pub detail: String,
-    /// Where the evidence comes from. Items with a dangling or non-verbatim ref are dropped.
+    /// Where the evidence comes from: at least one. Items without a source, or with a dangling
+    /// or non-verbatim ref, are dropped.
     pub source_refs: Vec<SourceRef>,
 }
 
@@ -323,8 +393,11 @@ pub struct Contribution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Explanation {
+    /// Blanked when it contains a quotation that is not verbatim in the analysed material.
     pub summary: String,
-    /// Each reason must cite at least one existing evidence ID, otherwise it is dropped.
+    /// Each reason must cite at least one existing evidence ID and quote only verbatim text
+    /// (document, context items, evidence details), otherwise it is dropped. A quotation is a
+    /// passage of 12 or more characters inside double quotes or guillemets.
     pub reasons: Vec<Reason>,
 }
 

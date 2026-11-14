@@ -4,7 +4,7 @@ use axum::{
     Json,
     extract::{
         FromRequest, FromRequestParts,
-        rejection::{JsonRejection, PathRejection},
+        rejection::{JsonRejection, PathRejection, QueryRejection},
     },
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -21,14 +21,23 @@ pub struct ApiJson<T>(pub T);
 #[from_request(via(axum::extract::Path), rejection(ApiError))]
 pub struct ApiPath<T>(pub T);
 
+/// `axum::extract::Query` whose rejections are JSON [`ErrorBody`] responses.
+#[derive(FromRequestParts)]
+#[from_request(via(axum::extract::Query), rejection(ApiError))]
+pub struct ApiQuery<T>(pub T);
+
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error("{0}")]
     InvalidInput(String),
     #[error("{0}")]
     NotFound(String),
+    #[error("{0}")]
+    Conflict(String),
     #[error("too many new analyses from this address; try again in a minute")]
     RateLimited,
+    #[error("the service reached its hourly limit of new analyses; earlier results stay available")]
+    Busy,
     #[error("service unavailable: {0}")]
     Unavailable(String),
     #[error(transparent)]
@@ -47,6 +56,12 @@ impl From<JsonRejection> for ApiError {
     }
 }
 
+impl From<QueryRejection> for ApiError {
+    fn from(e: QueryRejection) -> Self {
+        Self::InvalidInput(e.body_text())
+    }
+}
+
 impl From<PathRejection> for ApiError {
     fn from(e: PathRejection) -> Self {
         Self::NotFound(e.body_text())
@@ -58,7 +73,9 @@ impl ApiError {
         match self {
             Self::InvalidInput(_) => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_input"),
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
+            Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
+            Self::Busy => (StatusCode::TOO_MANY_REQUESTS, "busy"),
             Self::Unavailable(_) => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
             Self::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }

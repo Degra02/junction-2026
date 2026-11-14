@@ -16,8 +16,19 @@
           "analyses"
         ],
         "summary": "Start an analysis of pasted text or an article URL.",
-        "description": "Returns at once; follow progress on `/api/analyses/{id}/events`. Re-submitting the same input\nreturns the earlier analysis (`cached: true`) unless that one failed.",
+        "description": "Returns at once; follow progress on `/api/analyses/{id}/events`. Re-submitting the same input\nreturns the earlier analysis (`cached: true`) unless that one failed, had a failed step, or\n`force=true` is set. Only new analyses count towards the rate limits.",
         "operationId": "create",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Run again even when an earlier analysis of the same input could be reused.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -50,7 +61,7 @@
             }
           },
           "429": {
-            "description": "Rate limited",
+            "description": "Rate limited (`rate_limited` per client, `busy` service-wide)",
             "content": {
               "application/json": {
                 "schema": {
@@ -109,7 +120,7 @@
           "analyses"
         ],
         "summary": "Server-sent progress events.",
-        "description": "Starts with a `snapshot` of the record, then `step` events, and ends with `done`. A finished\nanalysis sends `snapshot` and `done` at once. Clients that fall behind are disconnected and\nget a fresh snapshot when `EventSource` reconnects. Payloads are `AnalysisEvent`.",
+        "description": "Starts with a `snapshot` of the record, then `queue` and `step` events, and ends with `done`.\nA finished analysis sends `snapshot` and `done` at once, or with `replay=true` plays its\nstored steps back from an empty snapshot (a demo that does not depend on live sources).\nClients that fall behind are disconnected and get a fresh snapshot when `EventSource`\nreconnects. Payloads are `AnalysisEvent`.",
         "operationId": "events",
         "parameters": [
           {
@@ -121,6 +132,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "replay",
+            "in": "query",
+            "description": "For a finished analysis: send its steps again with short pauses, as if it ran now.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -131,6 +151,88 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyses/{id}/rerun": {
+      "post": {
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Run a finished analysis again from one stage on.",
+        "description": "Creates a new analysis that keeps the stored output of the stages before `from` and runs\n`from` and everything after it (both signal stages when `from` is either of them). Use it to\nretry a stage that failed, or to score the same retrieved context again after a change to\nthe signals, the combiner or the explanation. The new analysis replaces the source as the\ncached result of its input.",
+        "operationId": "rerun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Analysis to start from",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "First stage to run again.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/StageName"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "New analysis queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The source analysis has not finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown stage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
             "content": {
               "application/json": {
                 "schema": {
@@ -204,6 +306,27 @@
           }
         }
       }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Usage and latency over every stored analysis.",
+        "description": "Feeds the \"scale\" part of the metrics page: how many analyses ran, how often the cache\nanswered, and how long each stage takes on this machine.",
+        "operationId": "stats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -223,6 +346,7 @@
           "claims",
           "queries",
           "context",
+          "sources",
           "evidence"
         ],
         "properties": {
@@ -250,6 +374,15 @@
           },
           "status": {
             "$ref": "#/components/schemas/AnalysisStatus"
+          },
+          "queue_position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Place in the queue (1 = next to start) while `status` is `queued`; null otherwise.",
+            "minimum": 0
           },
           "error": {
             "type": [
@@ -322,6 +455,13 @@
             },
             "description": "Related items found online. Set by `retrieve`; `story` fills the story fields."
           },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceProfile"
+            },
+            "description": "What is known about the outlets behind the document and the context items, one entry\nper domain. Set by `retrieve`."
+          },
           "evidence": {
             "type": "array",
             "items": {
@@ -376,6 +516,28 @@
           },
           {
             "type": "object",
+            "title": "QueueEvent",
+            "description": "New place in the queue; 1 = next to start.",
+            "required": [
+              "position",
+              "type"
+            ],
+            "properties": {
+              "position": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "queue"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "title": "StepEvent",
             "required": [
               "step",
@@ -413,7 +575,7 @@
             }
           }
         ],
-        "description": "Payload of the server-sent events on `GET /api/analyses/{id}/events`.\n\nThe SSE event name equals `type`. The stream starts with `snapshot`, sends `step` on every\nstep change and ends with `done` (also sent for failed analyses)."
+        "description": "Payload of the server-sent events on `GET /api/analyses/{id}/events`.\n\nThe SSE event name equals `type`. The stream starts with `snapshot`, sends `queue` while the\nanalysis waits its turn and `step` on every step change (a running step repeats with a new\n`detail` as the stage reports progress), and ends with `done` (also sent for failed analyses)."
       },
       "AnalysisStatus": {
         "type": "string",
@@ -451,7 +613,8 @@
           "id",
           "url",
           "text",
-          "retrieved_by"
+          "retrieved_by",
+          "tracking_ids"
         ],
         "properties": {
           "id": {
@@ -482,7 +645,7 @@
           },
           "text": {
             "type": "string",
-            "description": "Extracted body text; quotes in evidence must be substrings of it."
+            "description": "Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the\nreviewed claim followed by the verdict text."
           },
           "language": {
             "type": [
@@ -494,6 +657,24 @@
           "retrieved_by": {
             "type": "string",
             "description": "Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`."
+          },
+          "tracking_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Analytics and ad IDs found in the page (GA, GTM, `AdSense`); compared across outlets by\nthe infrastructure signal. Empty when the page was not fetched."
+          },
+          "fact_check": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FactCheck",
+                "description": "Set when the item is a fact-check (`ClaimReview`) rather than coverage of the event."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "similarity": {
             "type": [
@@ -678,7 +859,7 @@
             "items": {
               "$ref": "#/components/schemas/SourceRef"
             },
-            "description": "Where the evidence comes from. Items with a dangling or non-verbatim ref are dropped."
+            "description": "Where the evidence comes from: at least one. Items without a source, or with a dangling\nor non-verbatim ref, are dropped."
           }
         }
       },
@@ -703,14 +884,15 @@
         ],
         "properties": {
           "summary": {
-            "type": "string"
+            "type": "string",
+            "description": "Blanked when it contains a quotation that is not verbatim in the analysed material."
           },
           "reasons": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Reason"
             },
-            "description": "Each reason must cite at least one existing evidence ID, otherwise it is dropped."
+            "description": "Each reason must cite at least one existing evidence ID and quote only verbatim text\n(document, context items, evidence details), otherwise it is dropped. A quotation is a\npassage of 12 or more characters inside double quotes or guillemets."
           }
         }
       },
@@ -736,6 +918,31 @@
           }
         },
         "additionalProperties": false
+      },
+      "FactCheck": {
+        "type": "object",
+        "description": "A published fact-check of a claim (`ClaimReview`, e.g. from the Google Fact Check Tools API).",
+        "required": [
+          "claim",
+          "rating"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "The claim that was reviewed, as stated by the fact-checker."
+          },
+          "rating": {
+            "type": "string",
+            "description": "Textual rating as published, e.g. `False`, `Misleading`, `Mostly true`."
+          },
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Fact-checking organisation, e.g. `Pagella Politica`."
+          }
+        }
       },
       "Family": {
         "type": "string",
@@ -834,6 +1041,37 @@
           "unsupported"
         ]
       },
+      "OutletType": {
+        "type": "string",
+        "enum": [
+          "wire_service",
+          "national",
+          "local",
+          "partisan",
+          "state_affiliated",
+          "fact_checker"
+        ]
+      },
+      "Percentiles": {
+        "type": "object",
+        "description": "Nearest-rank percentiles in milliseconds.",
+        "required": [
+          "p50",
+          "p95"
+        ],
+        "properties": {
+          "p50": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "p95": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Reason": {
         "type": "object",
         "required": [
@@ -856,7 +1094,8 @@
         "type": "object",
         "description": "Response of `POST /stages/retrieve`.",
         "required": [
-          "context"
+          "context",
+          "sources"
         ],
         "properties": {
           "context": {
@@ -864,6 +1103,13 @@
             "items": {
               "$ref": "#/components/schemas/ContextItem"
             }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceProfile"
+            },
+            "description": "Profiles of the outlets seen in the document and the context, one per domain."
           },
           "detail": {
             "type": [
@@ -970,6 +1216,59 @@
         },
         "additionalProperties": false
       },
+      "SourceProfile": {
+        "type": "object",
+        "description": "Measurable facts about one outlet (D9: no political-bias ratings).",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Outlet domain as written in `document.outlet` and `context[].outlet`; unique in `sources`."
+          },
+          "registered_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Domain registration date (RDAP)."
+          },
+          "first_cert_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Issue date of the first certificate in the Certificate Transparency logs."
+          },
+          "outlet_type": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OutletType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 3166-1 alpha-2 country of the outlet, e.g. `IT`."
+          },
+          "known_network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Documented network that lists the domain, e.g. `portal_kombat` (VIGINUM); null when\nit is on no list."
+          }
+        }
+      },
       "SourceRef": {
         "oneOf": [
           {
@@ -1042,7 +1341,7 @@
       },
       "Span": {
         "type": "object",
-        "description": "A verbatim slice of `document.paragraphs[paragraph]`.\n\nOffsets count Unicode code points (Python `str` indexing), `end` exclusive.",
+        "description": "A verbatim slice of `document.paragraphs[paragraph]`.\n\nOffsets count Unicode code points (Python `str` indexing), `end` exclusive. JavaScript\nstrings index UTF-16 code units: slice with `Array.from(paragraph).slice(start, end)`,\notherwise spans after an emoji are off.",
         "required": [
           "paragraph",
           "start",
@@ -1078,7 +1377,14 @@
           },
           "implemented": {
             "type": "boolean",
-            "description": "False until the stage's owner ships its `run` function."
+            "description": "False until the stage's owner ships its `run` function, or when it failed to load."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the stage failed to load (exception type); null when it loaded or is not shipped yet."
           }
         }
       },
@@ -1095,6 +1401,124 @@
           "score",
           "explain"
         ]
+      },
+      "StageStats": {
+        "type": "object",
+        "description": "Counts of one stage over the stored analyses. A re-run keeps the steps before its first\nstage, so those count once per record that carries them.",
+        "required": [
+          "name",
+          "done",
+          "failed",
+          "skipped"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/StageName"
+          },
+          "done": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "duration_ms": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Percentiles",
+                "description": "Duration of the `done` runs; null when there are none."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Stats": {
+        "type": "object",
+        "description": "Response of `GET /api/stats`: usage and latency over every stored analysis.",
+        "required": [
+          "analyses",
+          "submissions",
+          "cache_hits",
+          "stages"
+        ],
+        "properties": {
+          "analyses": {
+            "$ref": "#/components/schemas/StatusCounts"
+          },
+          "submissions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Accepted `POST /api/analyses` requests, cache hits included.",
+            "minimum": 0
+          },
+          "cache_hits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Submissions answered with an earlier analysis of the same input.",
+            "minimum": 0
+          },
+          "analysis_ms": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Percentiles",
+                "description": "Wall time of `done` analyses from submission to result, queue wait included."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageStats"
+            },
+            "description": "One entry per stage, in execution order."
+          }
+        }
+      },
+      "StatusCounts": {
+        "type": "object",
+        "description": "Number of analyses per status.",
+        "required": [
+          "queued",
+          "running",
+          "done",
+          "failed"
+        ],
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "running": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "done": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       },
       "Step": {
         "type": "object",
@@ -1268,7 +1692,7 @@
     },
     {
       "name": "ops",
-      "description": "Health and metrics"
+      "description": "Health, usage and evaluation metrics"
     }
   ]
 }

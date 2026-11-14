@@ -123,7 +123,7 @@ async fn extract_failure_fails_the_analysis_and_skips_everything_else() {
     assert_eq!(a.status, AnalysisStatus::Failed);
     let error = a.error.unwrap();
     assert!(
-        error.starts_with("could not read the input: extract worker returned 500"),
+        error.starts_with("could not read the input (extract): worker returned 500"),
         "{error}"
     );
     assert!(a.steps[1..].iter().all(|s| s.state == StepState::Skipped));
@@ -141,7 +141,7 @@ async fn missing_score_fails_the_analysis_and_skips_explain() {
     assert_eq!(a.status, AnalysisStatus::Failed);
     assert_eq!(
         a.error.as_deref(),
-        Some("no score was produced: score not implemented yet")
+        Some("no score was produced (score): not implemented yet")
     );
     assert_eq!(
         step(&a, StageName::Explain).error.as_deref(),
@@ -263,6 +263,15 @@ async fn invalid_input_is_rejected_with_a_json_error() {
         json!({ "kind": "text", "value": "x".repeat(21) }),
         json!({ "kind": "url", "value": "ftp://example.com/a" }),
         json!({ "kind": "url", "value": "not a url" }),
+        // Hosts inside our own network: the worker would fetch them (SSRF).
+        json!({ "kind": "url", "value": "http://localhost/admin" }),
+        json!({ "kind": "url", "value": "http://worker:8001/health" }),
+        json!({ "kind": "url", "value": "http://127.0.0.1/" }),
+        json!({ "kind": "url", "value": "http://2130706433/" }),
+        json!({ "kind": "url", "value": "http://[::1]/" }),
+        json!({ "kind": "url", "value": "http://[::ffff:10.0.0.5]/" }),
+        json!({ "kind": "url", "value": "http://169.254.169.254/latest/meta-data" }),
+        json!({ "kind": "url", "value": "https://news.example:8001/a" }),
         json!({ "kind": "image", "value": "x" }),
         json!({ "value": "missing kind" }),
     ];
@@ -344,14 +353,52 @@ async fn new_analyses_are_rate_limited_per_client_ip() {
         limited.json::<ErrorBody>().await.unwrap().error,
         "rate_limited"
     );
+    let cached = post("198.51.100.1", 1).await.unwrap();
+    assert_eq!(cached.status(), 202, "a cached result costs nothing");
+    assert!(cached.json::<Created>().await.unwrap().cached);
     assert_eq!(
         post("198.51.100.2", 4).await.unwrap().status(),
         202,
         "other client unaffected"
     );
+    assert_eq!(post("2001:db8:1:2::1", 5).await.unwrap().status(), 202);
+    assert_eq!(post("2001:db8:1:2:aaaa::9", 6).await.unwrap().status(), 202);
+    assert_eq!(
+        post("2001:db8:1:2:ffff::7", 7).await.unwrap().status(),
+        429,
+        "one IPv6 /64 is one client"
+    );
 
     let health = app.http.get(app.url("/api/health")).send().await.unwrap();
     assert_eq!(health.status(), 200, "reads are not limited");
+}
+
+#[tokio::test]
+async fn new_analyses_are_capped_for_the_whole_service() {
+    let app = TestApp::spawn_with(|c| {
+        c.max_analyses_per_hour = 2;
+        c.trust_proxy = true;
+    })
+    .await;
+    mount_pipeline(&app.worker, &[]).await;
+    let post = |ip: &'static str, n: usize| {
+        app.http
+            .post(app.url("/api/analyses"))
+            .header("x-forwarded-for", ip)
+            .json(&json!({ "kind": "text", "value": format!("text {n}") }))
+            .send()
+    };
+
+    assert_eq!(post("198.51.100.1", 1).await.unwrap().status(), 202);
+    assert_eq!(post("198.51.100.2", 2).await.unwrap().status(), 202);
+    let over = post("198.51.100.3", 3).await.unwrap();
+    assert_eq!(over.status(), 429);
+    assert_eq!(over.json::<ErrorBody>().await.unwrap().error, "busy");
+    assert_eq!(
+        post("198.51.100.3", 1).await.unwrap().status(),
+        202,
+        "cached results stay available"
+    );
 }
 
 #[tokio::test]

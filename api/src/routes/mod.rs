@@ -3,10 +3,11 @@
 mod analyses;
 mod health;
 mod metrics;
+mod stats;
 
 use std::time::Duration;
 
-use axum::{Json, Router, http::StatusCode, middleware, routing::get};
+use axum::{Json, Router, http::StatusCode, routing::get};
 use junction_contracts as c;
 use tower_http::{
     limit::RequestBodyLimitLayer,
@@ -18,7 +19,7 @@ use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable as _};
 
-use crate::{AppState, ratelimit};
+use crate::AppState;
 
 /// Request bodies above this are rejected before parsing (50 000 chars of UTF-8 fit easily).
 const MAX_BODY_BYTES: usize = 512 * 1024;
@@ -43,7 +44,7 @@ const MAX_BODY_BYTES: usize = 512 * 1024;
     )),
     tags(
         (name = "analyses", description = "Create and read analyses"),
-        (name = "ops", description = "Health and metrics"),
+        (name = "ops", description = "Health, usage and evaluation metrics"),
     )
 )]
 struct ApiDoc;
@@ -51,29 +52,23 @@ struct ApiDoc;
 /// Routes with their OpenAPI metadata; state is attached in [`router`].
 fn documented() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(analyses::create))
         .routes(routes!(analyses::get_one))
+        .routes(routes!(analyses::rerun))
         .routes(routes!(analyses::events))
         .routes(routes!(health::health))
+        .routes(routes!(stats::stats))
         .routes(routes!(metrics::metrics))
 }
 
 /// The OpenAPI document, as written to `contracts/openapi.json`.
 #[must_use]
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    documented()
-        .merge(OpenApiRouter::new().routes(routes!(analyses::create)))
-        .split_for_parts()
-        .1
+    documented().split_for_parts().1
 }
 
 pub fn router(state: AppState) -> Router {
-    let create = OpenApiRouter::new()
-        .routes(routes!(analyses::create))
-        .route_layer(middleware::from_fn_with_state(
-            state.rate_limiter.clone(),
-            ratelimit::limit,
-        ));
-    let (api, spec) = documented().merge(create).split_for_parts();
+    let (api, spec) = documented().split_for_parts();
     let spec_json = spec.clone();
 
     api.route(

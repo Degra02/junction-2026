@@ -1,0 +1,520 @@
+{
+  "id": "019a7c1e-5b00-7000-8000-00000000f1c5",
+  "schema_version": 1,
+  "pipeline_version": "fixture",
+  "created_at": "2026-11-13T09:00:00Z",
+  "updated_at": "2026-11-13T09:00:34Z",
+  "status": "done",
+  "queue_position": null,
+  "error": null,
+  "steps": [
+    {
+      "name": "extract",
+      "state": "done",
+      "duration_ms": 850,
+      "detail": null,
+      "error": null
+    },
+    {
+      "name": "understand",
+      "state": "done",
+      "duration_ms": 3200,
+      "detail": null,
+      "error": null
+    },
+    {
+      "name": "retrieve",
+      "state": "done",
+      "duration_ms": 14100,
+      "detail": "5 sources from 3 adapters",
+      "error": null
+    },
+    {
+      "name": "story",
+      "state": "done",
+      "duration_ms": 1900,
+      "detail": "4 of 5 items in the story",
+      "error": null
+    },
+    {
+      "name": "signals_single",
+      "state": "done",
+      "duration_ms": 9800,
+      "detail": null,
+      "error": null
+    },
+    {
+      "name": "signals_coordinated",
+      "state": "done",
+      "duration_ms": 1200,
+      "detail": null,
+      "error": null
+    },
+    {
+      "name": "score",
+      "state": "done",
+      "duration_ms": 15,
+      "detail": null,
+      "error": null
+    },
+    {
+      "name": "explain",
+      "state": "done",
+      "duration_ms": 2900,
+      "detail": null,
+      "error": null
+    }
+  ],
+  "input": {
+    "kind": "url",
+    "value": "https://daily-truth.example/2026/11/water-ban"
+  },
+  "language": {
+    "code": "en",
+    "confidence": 0.99,
+    "support": "evaluated"
+  },
+  "document": {
+    "url": "https://daily-truth.example/2026/11/water-ban",
+    "outlet": "daily-truth.example",
+    "published_at": "2026-11-12T07:40:00Z",
+    "title": "They are coming for your water",
+    "author": null,
+    "paragraphs": [
+      "The government will ban private wells by January, and nobody in the mainstream media dares to say it.",
+      "Only a traitor would defend this shameful plan. Every honest family will pay the price while the elites laugh.",
+      "The ministry said on Tuesday that the draft law requires well owners to register their wells by 2028."
+    ],
+    "outbound_links": [],
+    "tracking_ids": [
+      "G-TRUTH12345",
+      "GTM-K4ZP9Q"
+    ]
+  },
+  "topic": {
+    "summary": "A draft law on the registration of private wells",
+    "entities": [
+      "government",
+      "ministry"
+    ],
+    "date": "2026-11-10",
+    "place": null
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "text": "The government will ban private wells by January",
+      "span": {
+        "paragraph": 0,
+        "start": 0,
+        "end": 48
+      }
+    },
+    {
+      "id": "cl2",
+      "text": "the draft law requires well owners to register their wells by 2028",
+      "span": {
+        "paragraph": 2,
+        "start": 34,
+        "end": 100
+      }
+    }
+  ],
+  "queries": [
+    {
+      "text": "private wells ban draft law",
+      "language": "en"
+    },
+    {
+      "text": "well registration law ministry",
+      "language": "en"
+    }
+  ],
+  "context": [
+    {
+      "id": "ctx1",
+      "url": "https://newswire.example/water-draft-law",
+      "outlet": "newswire.example",
+      "published_at": "2026-11-10T15:02:00Z",
+      "title": "Draft law would require registration of private wells",
+      "text": "The ministry said on Tuesday that the draft law requires well owners to register their wells by 2028. The draft does not ban private wells.",
+      "language": "en",
+      "retrieved_by": "google_news",
+      "tracking_ids": [
+        "G-WIRE000001"
+      ],
+      "fact_check": null,
+      "similarity": 0.91,
+      "in_story": true,
+      "story_reason": null
+    },
+    {
+      "id": "ctx2",
+      "url": "https://patriot-voice.example/wells",
+      "outlet": "patriot-voice.example",
+      "published_at": "2026-11-12T08:05:00Z",
+      "title": "They are coming for your water",
+      "text": "The government will ban private wells by January, and nobody in the mainstream media dares to say it. Only a traitor would defend this shameful plan.",
+      "language": "en",
+      "retrieved_by": "oxylabs",
+      "tracking_ids": [
+        "G-TRUTH12345"
+      ],
+      "fact_check": null,
+      "similarity": 0.97,
+      "in_story": true,
+      "story_reason": null
+    },
+    {
+      "id": "ctx3",
+      "url": "https://free-nation-news.example/water",
+      "outlet": "free-nation-news.example",
+      "published_at": "2026-11-12T08:31:00Z",
+      "title": "Your water is next",
+      "text": "The government will ban private wells by January, and nobody in the mainstream media dares to say it. Every honest family will pay the price while the elites laugh.",
+      "language": "en",
+      "retrieved_by": "oxylabs",
+      "tracking_ids": [
+        "G-TRUTH12345",
+        "GTM-K4ZP9Q"
+      ],
+      "fact_check": null,
+      "similarity": 0.96,
+      "in_story": true,
+      "story_reason": null
+    },
+    {
+      "id": "ctx4",
+      "url": "https://factcheck.example/wells-ban",
+      "outlet": "factcheck.example",
+      "published_at": "2026-11-12T16:00:00Z",
+      "title": "No, the draft law does not ban private wells",
+      "text": "Claim: The government will ban private wells by January. Verdict: False. The draft law requires registration by 2028 and bans nothing.",
+      "language": "en",
+      "retrieved_by": "fact_check_api",
+      "tracking_ids": [],
+      "fact_check": {
+        "claim": "The government will ban private wells by January",
+        "rating": "False",
+        "publisher": "FactCheck Example"
+      },
+      "similarity": 0.88,
+      "in_story": true,
+      "story_reason": null
+    },
+    {
+      "id": "ctx5",
+      "url": "https://sports.example/cup-final",
+      "outlet": "sports.example",
+      "published_at": "2026-11-11T21:45:00Z",
+      "title": "Cup final decided in extra time",
+      "text": "The cup final ended two to one after extra time.",
+      "language": "en",
+      "retrieved_by": "gdelt",
+      "tracking_ids": [],
+      "fact_check": null,
+      "similarity": 0.12,
+      "in_story": false,
+      "story_reason": "below the similarity threshold"
+    }
+  ],
+  "sources": [
+    {
+      "domain": "daily-truth.example",
+      "registered_at": "2026-10-28T00:00:00Z",
+      "first_cert_at": "2026-10-28T11:20:00Z",
+      "outlet_type": "partisan",
+      "country": null,
+      "known_network": null
+    },
+    {
+      "domain": "patriot-voice.example",
+      "registered_at": "2026-10-28T00:00:00Z",
+      "first_cert_at": "2026-10-28T11:24:00Z",
+      "outlet_type": null,
+      "country": null,
+      "known_network": null
+    },
+    {
+      "domain": "free-nation-news.example",
+      "registered_at": "2026-10-29T00:00:00Z",
+      "first_cert_at": "2026-10-29T06:02:00Z",
+      "outlet_type": null,
+      "country": null,
+      "known_network": null
+    },
+    {
+      "domain": "newswire.example",
+      "registered_at": "1998-03-02T00:00:00Z",
+      "first_cert_at": "2015-06-11T00:00:00Z",
+      "outlet_type": "wire_service",
+      "country": "GB",
+      "known_network": null
+    },
+    {
+      "domain": "factcheck.example",
+      "registered_at": "2014-09-19T00:00:00Z",
+      "first_cert_at": "2016-01-04T00:00:00Z",
+      "outlet_type": "fact_checker",
+      "country": "GB",
+      "known_network": null
+    }
+  ],
+  "evidence": [
+    {
+      "id": "s1",
+      "family": "techniques",
+      "signal": "loaded_language",
+      "value": 0.87,
+      "detail": "Emotionally charged words such as traitor and shameful.",
+      "source_refs": [
+        {
+          "kind": "document",
+          "span": {
+            "paragraph": 1,
+            "start": 0,
+            "end": 46
+          }
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "family": "tone",
+      "signal": "tone_vs_peers",
+      "value": 2.3,
+      "detail": "More emotionally charged than all 4 other reports on the same event.",
+      "source_refs": [
+        {
+          "kind": "document",
+          "span": {
+            "paragraph": 1,
+            "start": 0,
+            "end": 110
+          }
+        },
+        {
+          "kind": "context",
+          "id": "ctx1",
+          "quote": null
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "family": "claim_support",
+      "signal": "contradicted",
+      "value": 0.5,
+      "detail": "1 of the 2 sources that address the claim contradicts it.",
+      "source_refs": [
+        {
+          "kind": "document",
+          "span": {
+            "paragraph": 0,
+            "start": 0,
+            "end": 48
+          }
+        },
+        {
+          "kind": "context",
+          "id": "ctx1",
+          "quote": "The draft does not ban private wells."
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "family": "fact_checks",
+      "signal": "rated_false",
+      "value": 1.0,
+      "detail": "A fact-checker rated this claim False.",
+      "source_refs": [
+        {
+          "kind": "document",
+          "span": {
+            "paragraph": 0,
+            "start": 0,
+            "end": 48
+          }
+        },
+        {
+          "kind": "context",
+          "id": "ctx4",
+          "quote": "Verdict: False"
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "family": "source_profile",
+      "signal": "domain_age_days",
+      "value": 15.0,
+      "detail": "The site's domain was registered 15 days before the article was published.",
+      "source_refs": [
+        {
+          "kind": "url",
+          "url": "https://rdap.org/domain/daily-truth.example"
+        }
+      ]
+    },
+    {
+      "id": "c1",
+      "family": "text_reuse",
+      "signal": "copied_passages",
+      "value": 2.0,
+      "detail": "The same passage appears on 2 unrelated sites.",
+      "source_refs": [
+        {
+          "kind": "context",
+          "id": "ctx2",
+          "quote": "The government will ban private wells by January"
+        },
+        {
+          "kind": "context",
+          "id": "ctx3",
+          "quote": "The government will ban private wells by January"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "family": "timing",
+      "signal": "copies_within_an_hour",
+      "value": 2.0,
+      "detail": "Both copies appeared within one hour of the article.",
+      "source_refs": [
+        {
+          "kind": "context",
+          "id": "ctx2",
+          "quote": null
+        },
+        {
+          "kind": "context",
+          "id": "ctx3",
+          "quote": null
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "family": "infrastructure",
+      "signal": "shared_tracking_id",
+      "value": 2.0,
+      "detail": "Both copying sites carry the article's analytics ID (G-TRUTH12345).",
+      "source_refs": [
+        {
+          "kind": "context",
+          "id": "ctx2",
+          "quote": null
+        },
+        {
+          "kind": "context",
+          "id": "ctx3",
+          "quote": null
+        }
+      ]
+    }
+  ],
+  "scores": {
+    "single": {
+      "confidence": 0.86,
+      "abstained": false,
+      "reason": null,
+      "breakdown": [
+        {
+          "family": "techniques",
+          "contribution": 1.1,
+          "evidence_ids": [
+            "s1"
+          ]
+        },
+        {
+          "family": "tone",
+          "contribution": 0.9,
+          "evidence_ids": [
+            "s2"
+          ]
+        },
+        {
+          "family": "claim_support",
+          "contribution": 0.4,
+          "evidence_ids": [
+            "s3"
+          ]
+        },
+        {
+          "family": "fact_checks",
+          "contribution": 1.6,
+          "evidence_ids": [
+            "s4"
+          ]
+        },
+        {
+          "family": "source_profile",
+          "contribution": 0.5,
+          "evidence_ids": [
+            "s5"
+          ]
+        }
+      ]
+    },
+    "coordinated": {
+      "confidence": 0.78,
+      "abstained": false,
+      "reason": null,
+      "breakdown": [
+        {
+          "family": "text_reuse",
+          "contribution": 1.4,
+          "evidence_ids": [
+            "c1"
+          ]
+        },
+        {
+          "family": "timing",
+          "contribution": 0.6,
+          "evidence_ids": [
+            "c2"
+          ]
+        },
+        {
+          "family": "infrastructure",
+          "contribution": 1.2,
+          "evidence_ids": [
+            "c3"
+          ]
+        },
+        {
+          "family": "known_networks",
+          "contribution": 0.0,
+          "evidence_ids": []
+        }
+      ]
+    }
+  },
+  "explanation": {
+    "summary": "The article uses charged language for a claim that a fact-checker rated False, and the same text appeared on two other new sites that share its analytics ID.",
+    "reasons": [
+      {
+        "text": "A fact-checker rated the central claim False.",
+        "evidence_ids": [
+          "s4"
+        ]
+      },
+      {
+        "text": "It attacks opponents instead of arguing: “Only a traitor would defend this shameful plan”.",
+        "evidence_ids": [
+          "s1"
+        ]
+      },
+      {
+        "text": "Two other sites published the same passage within an hour and share one analytics ID.",
+        "evidence_ids": [
+          "c1",
+          "c2",
+          "c3"
+        ]
+      }
+    ]
+  }
+}

@@ -1,9 +1,14 @@
 //! SQLite persistence of [`Analysis`] records (WAL, one JSON record per row).
 
-use std::{path::Path, str::FromStr as _, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr as _,
+    time::Duration,
+};
 
 use anyhow::Context as _;
-use junction_contracts::{Analysis, AnalysisStatus};
+use chrono::Utc;
+use junction_contracts::{Analysis, AnalysisStatus, Step};
 use sqlx::{
     SqlitePool,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
@@ -16,6 +21,14 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 #[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
+}
+
+/// What `GET /api/stats` aggregates from one analysis.
+pub struct StatRow {
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub steps: Vec<Step>,
 }
 
 impl Db {
@@ -80,10 +93,15 @@ impl Db {
         Ok(row.map(|(record,)| record.0))
     }
 
-    /// Latest analysis of the same input that is running or succeeded; failed ones are retried.
+    /// Latest analysis of the same input that is still in progress or finished without a failed
+    /// step. A result degraded by a transient failure (a throttled source, an LLM timeout) is
+    /// not reused: the next submission runs again.
     pub async fn find_reusable(&self, input_hash: &str) -> sqlx::Result<Option<Uuid>> {
         let row: Option<(String,)> = sqlx::query_as(
             "SELECT id FROM analyses WHERE input_hash = ? AND status <> 'failed' \
+             AND NOT EXISTS ( \
+                 SELECT 1 FROM json_each(analyses.record, '$.steps') AS step \
+                 WHERE json_extract(step.value, '$.state') = 'failed') \
              ORDER BY created_at DESC LIMIT 1",
         )
         .bind(input_hash)
@@ -99,6 +117,71 @@ impl Db {
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows.into_iter().map(|(record,)| record.0).collect())
+    }
+
+    /// Counts an accepted submission, and whether an earlier analysis answered it.
+    pub async fn count_submission(&self, cache_hit: bool) -> sqlx::Result<()> {
+        sqlx::query(
+            "UPDATE counters SET value = value + 1 \
+             WHERE name = 'submissions' OR (name = 'cache_hits' AND ?)",
+        )
+        .bind(cache_hit)
+        .execute(&self.pool)
+        .await
+        .map(drop)
+    }
+
+    /// `(submissions, cache_hits)` since the database was created.
+    pub async fn submission_counts(&self) -> sqlx::Result<(u64, u64)> {
+        let rows: Vec<(String, i64)> = sqlx::query_as("SELECT name, value FROM counters")
+            .fetch_all(&self.pool)
+            .await?;
+        let value = |name: &str| {
+            let found = rows.iter().find(|(n, _)| n == name);
+            found.map_or(0, |(_, v)| u64::try_from(*v).unwrap_or(0))
+        };
+        Ok((value("submissions"), value("cache_hits")))
+    }
+
+    /// Status, timestamps and steps of every analysis.
+    pub async fn stat_rows(&self) -> sqlx::Result<Vec<StatRow>> {
+        let rows: Vec<(String, String, String, Json<Vec<Step>>)> = sqlx::query_as(
+            "SELECT status, created_at, updated_at, json_extract(record, '$.steps') FROM analyses",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let rows = rows.into_iter();
+        Ok(rows
+            .map(|(status, created_at, updated_at, steps)| StatRow {
+                status,
+                created_at,
+                updated_at,
+                steps: steps.0,
+            })
+            .collect())
+    }
+
+    /// Writes a consistent copy of the live database into `dir` and keeps the newest `keep`.
+    pub async fn backup(&self, dir: &Path, keep: usize) -> anyhow::Result<PathBuf> {
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        let name = format!("app-{}.db", Utc::now().format("%Y%m%dT%H%M%S%3fZ"));
+        let path = dir.join(name);
+        sqlx::query("VACUUM INTO ?")
+            .bind(path.to_string_lossy().into_owned())
+            .execute(&self.pool)
+            .await
+            .with_context(|| format!("writing {}", path.display()))?;
+
+        let mut copies: Vec<PathBuf> = std::fs::read_dir(dir)?
+            .filter_map(|entry| Some(entry.ok()?.path()))
+            .filter(|p| p.extension().is_some_and(|e| e == "db"))
+            .collect();
+        // The timestamp in the name sorts chronologically.
+        copies.sort();
+        for old in copies.iter().rev().skip(keep) {
+            std::fs::remove_file(old).with_context(|| format!("removing {}", old.display()))?;
+        }
+        Ok(path)
     }
 }
 

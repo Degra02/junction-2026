@@ -16,7 +16,8 @@ export interface paths {
         /**
          * Start an analysis of pasted text or an article URL.
          * @description Returns at once; follow progress on `/api/analyses/{id}/events`. Re-submitting the same input
-         *     returns the earlier analysis (`cached: true`) unless that one failed.
+         *     returns the earlier analysis (`cached: true`) unless that one failed, had a failed step, or
+         *     `force=true` is set. Only new analyses count towards the rate limits.
          */
         post: operations["create"];
         delete?: never;
@@ -51,13 +52,39 @@ export interface paths {
         };
         /**
          * Server-sent progress events.
-         * @description Starts with a `snapshot` of the record, then `step` events, and ends with `done`. A finished
-         *     analysis sends `snapshot` and `done` at once. Clients that fall behind are disconnected and
-         *     get a fresh snapshot when `EventSource` reconnects. Payloads are `AnalysisEvent`.
+         * @description Starts with a `snapshot` of the record, then `queue` and `step` events, and ends with `done`.
+         *     A finished analysis sends `snapshot` and `done` at once, or with `replay=true` plays its
+         *     stored steps back from an empty snapshot (a demo that does not depend on live sources).
+         *     Clients that fall behind are disconnected and get a fresh snapshot when `EventSource`
+         *     reconnects. Payloads are `AnalysisEvent`.
          */
         get: operations["events"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analyses/{id}/rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a finished analysis again from one stage on.
+         * @description Creates a new analysis that keeps the stored output of the stages before `from` and runs
+         *     `from` and everything after it (both signal stages when `from` is either of them). Use it to
+         *     retry a stage that failed, or to score the same retrieved context again after a change to
+         *     the signals, the combiner or the explanation. The new analysis replaces the source as the
+         *     cached result of its input.
+         */
+        post: operations["rerun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -105,6 +132,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Usage and latency over every stored analysis.
+         * @description Feeds the "scale" part of the metrics page: how many analyses ran, how often the cache
+         *     answered, and how long each stage takes on this machine.
+         */
+        get: operations["stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -125,6 +173,11 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             status: components["schemas"]["AnalysisStatus"];
+            /**
+             * Format: int32
+             * @description Place in the queue (1 = next to start) while `status` is `queued`; null otherwise.
+             */
+            queue_position?: number | null;
             /** @description Why the analysis failed, in plain language. Set only when `status` is `failed`. */
             error?: string | null;
             /** @description One entry per pipeline stage, in execution order. */
@@ -139,6 +192,11 @@ export interface components {
             queries: components["schemas"]["SearchQuery"][];
             /** @description Related items found online. Set by `retrieve`; `story` fills the story fields. */
             context: components["schemas"]["ContextItem"][];
+            /**
+             * @description What is known about the outlets behind the document and the context items, one entry
+             *     per domain. Set by `retrieve`.
+             */
+            sources: components["schemas"]["SourceProfile"][];
             /** @description Signals with their evidence. Appended by `signals_single` and `signals_coordinated`. */
             evidence: components["schemas"]["Evidence"][];
             scores?: components["schemas"]["Scores"] | null;
@@ -147,13 +205,19 @@ export interface components {
         /**
          * @description Payload of the server-sent events on `GET /api/analyses/{id}/events`.
          *
-         *     The SSE event name equals `type`. The stream starts with `snapshot`, sends `step` on every
-         *     step change and ends with `done` (also sent for failed analyses).
+         *     The SSE event name equals `type`. The stream starts with `snapshot`, sends `queue` while the
+         *     analysis waits its turn and `step` on every step change (a running step repeats with a new
+         *     `detail` as the stage reports progress), and ends with `done` (also sent for failed analyses).
          */
         AnalysisEvent: {
             analysis: components["schemas"]["Analysis"];
             /** @enum {string} */
             type: "snapshot";
+        } | {
+            /** Format: int32 */
+            position: number;
+            /** @enum {string} */
+            type: "queue";
         } | {
             step: components["schemas"]["Step"];
             /** @enum {string} */
@@ -180,12 +244,21 @@ export interface components {
             /** Format: date-time */
             published_at?: string | null;
             title?: string | null;
-            /** @description Extracted body text; quotes in evidence must be substrings of it. */
+            /**
+             * @description Extracted body text; quotes in evidence must be substrings of it. For a fact-check: the
+             *     reviewed claim followed by the verdict text.
+             */
             text: string;
             /** @description ISO 639-1 code. */
             language?: string | null;
             /** @description Adapter that found it, e.g. `google_news`, `gdelt`, `fact_check_api`, `oxylabs`. */
             retrieved_by: string;
+            /**
+             * @description Analytics and ad IDs found in the page (GA, GTM, `AdSense`); compared across outlets by
+             *     the infrastructure signal. Empty when the page was not fetched.
+             */
+            tracking_ids: string[];
+            fact_check?: components["schemas"]["FactCheck"] | null;
             /**
              * Format: double
              * @description Similarity to the analysed item. Set by `story`.
@@ -247,7 +320,10 @@ export interface components {
             value: number;
             /** @description One plain-language sentence for the UI. */
             detail: string;
-            /** @description Where the evidence comes from. Items with a dangling or non-verbatim ref are dropped. */
+            /**
+             * @description Where the evidence comes from: at least one. Items without a source, or with a dangling
+             *     or non-verbatim ref, are dropped.
+             */
             source_refs: components["schemas"]["SourceRef"][];
         };
         /** @description Response of `POST /stages/explain`. */
@@ -255,14 +331,28 @@ export interface components {
             explanation: components["schemas"]["Explanation"];
         };
         Explanation: {
+            /** @description Blanked when it contains a quotation that is not verbatim in the analysed material. */
             summary: string;
-            /** @description Each reason must cite at least one existing evidence ID, otherwise it is dropped. */
+            /**
+             * @description Each reason must cite at least one existing evidence ID and quote only verbatim text
+             *     (document, context items, evidence details), otherwise it is dropped. A quotation is a
+             *     passage of 12 or more characters inside double quotes or guillemets.
+             */
             reasons: components["schemas"]["Reason"][];
         };
         /** @description Response of `POST /stages/extract`. */
         ExtractPatch: {
             document: components["schemas"]["Document"];
             language?: components["schemas"]["Language"] | null;
+        };
+        /** @description A published fact-check of a claim (`ClaimReview`, e.g. from the Google Fact Check Tools API). */
+        FactCheck: {
+            /** @description The claim that was reviewed, as stated by the fact-checker. */
+            claim: string;
+            /** @description Textual rating as published, e.g. `False`, `Misleading`, `Mostly true`. */
+            rating: string;
+            /** @description Fact-checking organisation, e.g. `Pagella Politica`. */
+            publisher?: string | null;
         };
         /**
          * @description Signal family; inside a family only the strongest signal counts (plan §5).
@@ -298,6 +388,15 @@ export interface components {
          * @enum {string}
          */
         LanguageSupport: "evaluated" | "supported" | "unsupported";
+        /** @enum {string} */
+        OutletType: "wire_service" | "national" | "local" | "partisan" | "state_affiliated" | "fact_checker";
+        /** @description Nearest-rank percentiles in milliseconds. */
+        Percentiles: {
+            /** Format: int64 */
+            p50: number;
+            /** Format: int64 */
+            p95: number;
+        };
         Reason: {
             text: string;
             evidence_ids: string[];
@@ -305,6 +404,8 @@ export interface components {
         /** @description Response of `POST /stages/retrieve`. */
         RetrievePatch: {
             context: components["schemas"]["ContextItem"][];
+            /** @description Profiles of the outlets seen in the document and the context, one per domain. */
+            sources: components["schemas"]["SourceProfile"][];
             /** @description Progress note, e.g. "14 sources from 3 adapters". */
             detail?: string | null;
         };
@@ -342,6 +443,29 @@ export interface components {
         SignalsPatch: {
             evidence: components["schemas"]["Evidence"][];
         };
+        /** @description Measurable facts about one outlet (D9: no political-bias ratings). */
+        SourceProfile: {
+            /** @description Outlet domain as written in `document.outlet` and `context[].outlet`; unique in `sources`. */
+            domain: string;
+            /**
+             * Format: date-time
+             * @description Domain registration date (RDAP).
+             */
+            registered_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Issue date of the first certificate in the Certificate Transparency logs.
+             */
+            first_cert_at?: string | null;
+            outlet_type?: components["schemas"]["OutletType"] | null;
+            /** @description ISO 3166-1 alpha-2 country of the outlet, e.g. `IT`. */
+            country?: string | null;
+            /**
+             * @description Documented network that lists the domain, e.g. `portal_kombat` (VIGINUM); null when
+             *     it is on no list.
+             */
+            known_network?: string | null;
+        };
         SourceRef: {
             span: components["schemas"]["Span"];
             /** @enum {string} */
@@ -359,7 +483,9 @@ export interface components {
         /**
          * @description A verbatim slice of `document.paragraphs[paragraph]`.
          *
-         *     Offsets count Unicode code points (Python `str` indexing), `end` exclusive.
+         *     Offsets count Unicode code points (Python `str` indexing), `end` exclusive. JavaScript
+         *     strings index UTF-16 code units: slice with `Array.from(paragraph).slice(start, end)`,
+         *     otherwise spans after an emoji are off.
          */
         Span: {
             /** Format: int32 */
@@ -371,14 +497,58 @@ export interface components {
         };
         StageAvailability: {
             name: components["schemas"]["StageName"];
-            /** @description False until the stage's owner ships its `run` function. */
+            /** @description False until the stage's owner ships its `run` function, or when it failed to load. */
             implemented: boolean;
+            /** @description Why the stage failed to load (exception type); null when it loaded or is not shipped yet. */
+            error?: string | null;
         };
         /**
          * @description Pipeline stage. The worker serves each one at `POST /stages/{name}`.
          * @enum {string}
          */
         StageName: "extract" | "understand" | "retrieve" | "story" | "signals_single" | "signals_coordinated" | "score" | "explain";
+        /**
+         * @description Counts of one stage over the stored analyses. A re-run keeps the steps before its first
+         *     stage, so those count once per record that carries them.
+         */
+        StageStats: {
+            name: components["schemas"]["StageName"];
+            /** Format: int64 */
+            done: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            skipped: number;
+            duration_ms?: components["schemas"]["Percentiles"] | null;
+        };
+        /** @description Response of `GET /api/stats`: usage and latency over every stored analysis. */
+        Stats: {
+            analyses: components["schemas"]["StatusCounts"];
+            /**
+             * Format: int64
+             * @description Accepted `POST /api/analyses` requests, cache hits included.
+             */
+            submissions: number;
+            /**
+             * Format: int64
+             * @description Submissions answered with an earlier analysis of the same input.
+             */
+            cache_hits: number;
+            analysis_ms?: components["schemas"]["Percentiles"] | null;
+            /** @description One entry per stage, in execution order. */
+            stages: components["schemas"]["StageStats"][];
+        };
+        /** @description Number of analyses per status. */
+        StatusCounts: {
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            done: number;
+            /** Format: int64 */
+            failed: number;
+        };
         Step: {
             name: components["schemas"]["StageName"];
             state: components["schemas"]["StepState"];
@@ -430,7 +600,10 @@ export type $defs = Record<string, never>;
 export interface operations {
     create: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Run again even when an earlier analysis of the same input could be reused. */
+                force?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -459,7 +632,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Rate limited */
+            /** @description Rate limited (`rate_limited` per client, `busy` service-wide) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -502,7 +675,10 @@ export interface operations {
     };
     events: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description For a finished analysis: send its steps again with short pauses, as if it ran now. */
+                replay?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Analysis ID */
@@ -522,6 +698,67 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rerun: {
+        parameters: {
+            query: {
+                /** @description First stage to run again. */
+                from: components["schemas"]["StageName"];
+            };
+            header?: never;
+            path: {
+                /** @description Analysis to start from */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New analysis queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Created"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The source analysis has not finished */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown stage */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -584,6 +821,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stats"];
                 };
             };
         };

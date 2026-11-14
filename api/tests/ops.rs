@@ -17,6 +17,7 @@ async fn health_reports_worker_stages() {
         stages: vec![StageAvailability {
             name: StageName::Extract,
             implemented: true,
+            error: None,
         }],
     };
     Mock::given(method("GET"))

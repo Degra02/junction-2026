@@ -3,7 +3,7 @@ use utoipa::ToSchema;
 
 use crate::analysis::{
     Claim, ContextItem, Dimension, Document, Evidence, Explanation, Language, Scores, SearchQuery,
-    Topic,
+    SourceProfile, Topic,
 };
 
 /// Pipeline stage. The worker serves each one at `POST /stages/{name}`.
@@ -54,6 +54,17 @@ impl std::fmt::Display for StageName {
     }
 }
 
+impl std::str::FromStr for StageName {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|stage| stage.as_str() == s)
+            .ok_or_else(|| format!("unknown stage `{s}`"))
+    }
+}
+
 /// Response of `POST /stages/extract`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -76,6 +87,8 @@ pub struct UnderstandPatch {
 #[serde(deny_unknown_fields)]
 pub struct RetrievePatch {
     pub context: Vec<ContextItem>,
+    /// Profiles of the outlets seen in the document and the context, one per domain.
+    pub sources: Vec<SourceProfile>,
     /// Progress note, e.g. "14 sources from 3 adapters".
     pub detail: Option<String>,
 }

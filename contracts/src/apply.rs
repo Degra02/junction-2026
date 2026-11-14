@@ -9,7 +9,10 @@
 use std::collections::HashSet;
 
 use crate::analysis::{Analysis, Claim, Dimension, Document, Evidence, Score, SourceRef, Span};
-use crate::stage::StagePatch;
+use crate::stage::{StageName, StagePatch};
+
+/// Shortest quoted passage checked as a quotation; shorter ones are terms or scare quotes.
+const MIN_QUOTE_CHARS: usize = 12;
 
 /// What was dropped while applying a patch, for the step's `detail`.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -86,7 +89,9 @@ impl Analysis {
             }
             StagePatch::Retrieve(p) => {
                 unique_ids(p.context.iter().map(|c| c.id.as_str()))?;
+                unique_ids(p.sources.iter().map(|s| s.domain.as_str()))?;
                 self.context = p.context;
+                self.sources = p.sources;
                 report.detail = p.detail;
             }
             StagePatch::Story(p) => {
@@ -123,21 +128,75 @@ impl Analysis {
             StagePatch::Explain(p) => {
                 let mut explanation = p.explanation;
                 let known: HashSet<&str> = self.evidence.iter().map(|e| e.id.as_str()).collect();
+                let sources = self.quotable();
+                let verbatim = |text: &str| {
+                    quotations(text)
+                        .iter()
+                        .all(|q| sources.iter().any(|s| s.contains(q)))
+                };
+
                 let before = explanation.reasons.len();
                 explanation.reasons.retain(|r| {
                     !r.evidence_ids.is_empty()
                         && r.evidence_ids.iter().all(|id| known.contains(id.as_str()))
                 });
-                let dropped = before - explanation.reasons.len();
-                if dropped > 0 {
+                let uncited = before - explanation.reasons.len();
+                explanation.reasons.retain(|r| verbatim(&r.text));
+                let misquoting = before - uncited - explanation.reasons.len();
+                if uncited > 0 {
                     report
                         .dropped
-                        .push(format!("{dropped} reasons without valid evidence"));
+                        .push(format!("{uncited} reasons without valid evidence"));
+                }
+                if misquoting > 0 {
+                    report.dropped.push(format!(
+                        "{misquoting} reasons with a quotation that is not verbatim"
+                    ));
+                }
+                if !verbatim(&explanation.summary) {
+                    explanation.summary.clear();
+                    report
+                        .dropped
+                        .push("the summary: it had a quotation that is not verbatim".into());
                 }
                 self.explanation = Some(explanation);
             }
         }
         Ok(report)
+    }
+
+    /// Removes everything `stage` produced, so that it can run again on this record.
+    pub fn clear_output(&mut self, stage: StageName) {
+        match stage {
+            StageName::Extract => {
+                self.document = None;
+                self.language = None;
+            }
+            StageName::Understand => {
+                self.topic = None;
+                self.claims.clear();
+                self.queries.clear();
+            }
+            StageName::Retrieve => {
+                self.context.clear();
+                self.sources.clear();
+            }
+            StageName::Story => {
+                for c in &mut self.context {
+                    c.similarity = None;
+                    c.in_story = None;
+                    c.story_reason = None;
+                }
+            }
+            StageName::SignalsSingle => self
+                .evidence
+                .retain(|e| e.family.dimension() != Dimension::Single),
+            StageName::SignalsCoordinated => self
+                .evidence
+                .retain(|e| e.family.dimension() != Dimension::Coordinated),
+            StageName::Score => self.scores = None,
+            StageName::Explain => self.explanation = None,
+        }
     }
 
     fn append_evidence(
@@ -172,9 +231,17 @@ impl Analysis {
             (false, Some(c), _) if (0.0..=1.0).contains(&c) => {}
             (false, c, _) => return Err(invalid(format!("confidence {c:?} is not in [0, 1]"))),
         }
-        for id in score.breakdown.iter().flat_map(|b| &b.evidence_ids) {
-            if !self.evidence.iter().any(|e| &e.id == id) {
-                return Err(invalid(format!("breakdown cites unknown evidence `{id}`")));
+        for b in &score.breakdown {
+            if b.family.dimension() != dimension {
+                return Err(invalid(format!(
+                    "breakdown family {:?} belongs to the other dimension",
+                    b.family
+                )));
+            }
+            for id in &b.evidence_ids {
+                if !self.evidence.iter().any(|e| &e.id == id) {
+                    return Err(invalid(format!("breakdown cites unknown evidence `{id}`")));
+                }
             }
         }
         Ok(())
@@ -184,6 +251,9 @@ impl Analysis {
     fn unverifiable(&self, e: &Evidence) -> Option<String> {
         if !e.value.is_finite() {
             return Some("value is not a finite number".into());
+        }
+        if e.source_refs.is_empty() {
+            return Some("it cites no source".into());
         }
         for r in &e.source_refs {
             match r {
@@ -216,6 +286,24 @@ impl Analysis {
         }
         None
     }
+
+    /// Every text a quotation may come from: the document, the context and evidence details.
+    fn quotable(&self) -> Vec<&str> {
+        let document = self
+            .document
+            .iter()
+            .flat_map(|d| d.title.iter().chain(&d.paragraphs));
+        let context = self.context.iter().flat_map(|c| {
+            let claim = c.fact_check.iter().map(|f| &f.claim);
+            c.title.iter().chain([&c.text]).chain(claim)
+        });
+        let evidence = self.evidence.iter().map(|e| &e.detail);
+        document
+            .chain(context)
+            .chain(evidence)
+            .map(String::as_str)
+            .collect()
+    }
 }
 
 fn unique_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<(), ApplyError> {
@@ -226,6 +314,37 @@ fn unique_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<(), ApplyError> 
         }
     }
     Ok(())
+}
+
+/// Quotations in LLM-written `text`: passages of at least [`MIN_QUOTE_CHARS`] characters inside
+/// double quotes or guillemets, without the punctuation at their edges.
+fn quotations(text: &str) -> Vec<&str> {
+    // Opening mark and the marks that close it, across the conventions of European languages.
+    const fn closes(open: char, c: char) -> bool {
+        matches!(
+            (open, c),
+            ('"', '"') | ('“' | '”', '”') | ('„', '“' | '”') | ('«', '»') | ('»', '«')
+        )
+    }
+    let mut found = vec![];
+    let mut open: Option<(usize, char)> = None;
+    for (i, c) in text.char_indices() {
+        match open {
+            Some((start, mark)) if closes(mark, c) => {
+                let quote = text[start..i]
+                    .trim_matches(|c: char| c.is_whitespace() || ".,;:!?…".contains(c));
+                if quote.chars().count() >= MIN_QUOTE_CHARS {
+                    found.push(quote);
+                }
+                open = None;
+            }
+            None if matches!(c, '"' | '“' | '”' | '„' | '«' | '»') => {
+                open = Some((i + c.len_utf8(), c));
+            }
+            _ => {}
+        }
+    }
+    found
 }
 
 /// The text at `span`, if the span is valid. Offsets are Unicode code points.
@@ -290,6 +409,8 @@ mod tests {
             text: text.into(),
             language: Some("en".into()),
             retrieved_by: "google_news".into(),
+            tracking_ids: vec![],
+            fact_check: None,
             similarity: None,
             in_story: None,
             story_reason: None,
@@ -305,6 +426,13 @@ mod tests {
             detail: "d".into(),
             source_refs,
         }
+    }
+
+    fn cited() -> Vec<SourceRef> {
+        vec![SourceRef::Context {
+            id: "ctx1".into(),
+            quote: None,
+        }]
     }
 
     fn claim(id: &str, text: &str, span: Span) -> Claim {
@@ -412,13 +540,13 @@ mod tests {
         let single = StagePatch::Signals(
             Dimension::Single,
             SignalsPatch {
-                evidence: vec![evidence("e1", Family::Tone, vec![])],
+                evidence: vec![evidence("e1", Family::Tone, cited())],
             },
         );
         let coordinated = StagePatch::Signals(
             Dimension::Coordinated,
             SignalsPatch {
-                evidence: vec![evidence("e1", Family::Timing, vec![])],
+                evidence: vec![evidence("e1", Family::Timing, cited())],
             },
         );
         a.apply(single).unwrap();
@@ -457,6 +585,7 @@ mod tests {
                             url: "javascript:alert(1)".into(),
                         }],
                     ),
+                    evidence("c5", Family::Timing, vec![]),
                 ],
             },
         );
@@ -465,8 +594,8 @@ mod tests {
             a.evidence.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
             ["c1"]
         );
-        assert_eq!(report.dropped.len(), 3);
-        assert!(report.summary().unwrap().starts_with("dropped 3: "));
+        assert_eq!(report.dropped.len(), 4);
+        assert!(report.summary().unwrap().starts_with("dropped 4: "));
     }
 
     #[test]
@@ -514,24 +643,30 @@ mod tests {
     }
 
     #[test]
-    fn score_breakdown_must_cite_existing_evidence() {
-        let mut a = record();
-        let mut single = score(Some(0.7), false, None);
-        single.breakdown = vec![Contribution {
-            family: Family::Tone,
+    fn score_breakdown_must_cite_existing_evidence_of_its_dimension() {
+        let contribution = |family, id: &str| Contribution {
+            family,
             contribution: 1.2,
-            evidence_ids: vec!["missing".into()],
-        }];
-        let patch = StagePatch::Score(ScorePatch {
-            scores: Scores {
-                single,
-                coordinated: score(None, true, Some("none")),
-            },
-        });
-        assert!(matches!(
-            a.apply(patch),
-            Err(ApplyError::InvalidScore { .. })
-        ));
+            evidence_ids: vec![id.into()],
+        };
+        let cases = [
+            (contribution(Family::Tone, "s1"), true),
+            (contribution(Family::Tone, "missing"), false),
+            (contribution(Family::TextReuse, "s1"), false),
+        ];
+        for (entry, ok) in cases {
+            let mut a = record();
+            a.evidence = vec![evidence("s1", Family::Tone, cited())];
+            let mut single = score(Some(0.7), false, None);
+            single.breakdown = vec![entry.clone()];
+            let patch = StagePatch::Score(ScorePatch {
+                scores: Scores {
+                    single,
+                    coordinated: score(None, true, Some("none")),
+                },
+            });
+            assert_eq!(a.apply(patch).is_ok(), ok, "{entry:?}");
+        }
     }
 
     #[test]
@@ -551,5 +686,40 @@ mod tests {
         let report = a.apply(patch).unwrap();
         assert_eq!(a.explanation.unwrap().reasons.len(), 1);
         assert_eq!(report.dropped, ["2 reasons without valid evidence"]);
+    }
+
+    #[test]
+    fn explanations_may_only_quote_verbatim_text() {
+        let mut a = record();
+        a.evidence = vec![evidence("s1", Family::Tone, cited())];
+        let reason = |text: &str| Reason {
+            text: text.into(),
+            evidence_ids: vec!["s1".into()],
+        };
+        let patch = StagePatch::Explain(ExplainPatch {
+            explanation: Explanation {
+                summary: "The text claims that «the minister stole millions».".into(),
+                reasons: vec![
+                    // Verbatim in the document; the comma inside the quotes is ignored.
+                    reason("It says “il governo mente,” without a source."),
+                    // Verbatim in a context item.
+                    reason("Others wrote \"Wire copy about the same event.\""),
+                    // Too short to be a quotation.
+                    reason("A \"loaded\" word."),
+                    reason("It says \"the government always lies\"."),
+                ],
+            },
+        });
+        let report = a.apply(patch).unwrap();
+        let explanation = a.explanation.unwrap();
+        assert_eq!(explanation.reasons.len(), 3);
+        assert!(
+            explanation
+                .reasons
+                .iter()
+                .all(|r| !r.text.contains("always"))
+        );
+        assert_eq!(explanation.summary, "");
+        assert_eq!(report.dropped.len(), 2, "{:?}", report.dropped);
     }
 }

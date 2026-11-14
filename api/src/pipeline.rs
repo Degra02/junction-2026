@@ -1,14 +1,24 @@
 //! Runs the stages of one analysis against the worker, persisting and broadcasting each step.
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    collections::{HashMap, VecDeque},
+    convert::Infallible,
+    sync::{Arc, Mutex, PoisonError},
+    time::Duration,
+};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use futures_util::future::join_all;
-use junction_contracts::{Analysis, AnalysisEvent, AnalysisStatus, StageName, StepState};
-use tokio::sync::Semaphore;
+use junction_contracts::{Analysis, AnalysisEvent, AnalysisStatus, StageName, Step, StepState};
+use tokio::{
+    sync::Semaphore,
+    time::{Instant, MissedTickBehavior},
+};
 use tokio_util::task::TaskTracker;
+use uuid::Uuid;
 
 use crate::{
+    config::Config,
     db::Db,
     events::Hub,
     worker::{StageOutcome, WorkerClient},
@@ -25,29 +35,54 @@ const SCHEDULE: &[&[StageName]] = &[
     &[StageName::Explain],
 ];
 
+/// How often the worker is asked for the progress notes of the running stages.
+const PROGRESS_POLL: Duration = Duration::from_secs(1);
+
 #[derive(Clone)]
 pub struct Pipeline {
     db: Db,
     worker: WorkerClient,
     hub: Hub,
-    permits: Arc<Semaphore>,
+    /// Analyses running at once.
+    slots: Arc<Semaphore>,
+    /// Model stages running at once, across analyses: CPU inference is the bottleneck, while
+    /// the I/O stages (LLM calls, retrieval) of different analyses overlap freely.
+    inference: Arc<Semaphore>,
+    /// Analyses waiting for a slot, oldest first.
+    queue: Arc<Mutex<VecDeque<Uuid>>>,
+    limits: Arc<Limits>,
     tasks: TaskTracker,
 }
 
+struct Limits {
+    stage_timeout: Duration,
+    analysis_timeout: Duration,
+    disabled: Vec<StageName>,
+}
+
 impl Pipeline {
-    pub fn new(db: Db, worker: WorkerClient, hub: Hub, max_concurrent: usize) -> Self {
+    pub fn new(db: Db, worker: WorkerClient, hub: Hub, config: &Config) -> Self {
         Self {
             db,
             worker,
             hub,
-            permits: Arc::new(Semaphore::new(max_concurrent.max(1))),
+            slots: Arc::new(Semaphore::new(config.max_concurrent_analyses.max(1))),
+            inference: Arc::new(Semaphore::new(config.max_concurrent_inference.max(1))),
+            queue: Arc::default(),
+            limits: Arc::new(Limits {
+                stage_timeout: config.stage_timeout,
+                analysis_timeout: config.analysis_timeout,
+                disabled: config.stages_disabled.clone(),
+            }),
             tasks: TaskTracker::new(),
         }
     }
 
-    /// Starts a persisted, queued analysis in the background.
+    /// Starts a persisted, queued analysis in the background. Steps that are not pending (kept
+    /// from the analysis this one re-runs) are left as they are.
     pub fn spawn(&self, analysis: Analysis) {
         self.hub.open(analysis.id);
+        self.queue().push_back(analysis.id);
         let this = self.clone();
         self.tasks.spawn(async move { this.run(analysis).await });
     }
@@ -55,6 +90,12 @@ impl Pipeline {
     /// Background tasks, for tests and shutdown.
     pub const fn tasks(&self) -> &TaskTracker {
         &self.tasks
+    }
+
+    /// Place of a waiting analysis in the queue (1 = next to start); `None` once it started.
+    pub fn queue_position(&self, id: Uuid) -> Option<u32> {
+        let place = self.queue().iter().position(|queued| *queued == id)?;
+        u32::try_from(place + 1).ok()
     }
 
     /// Marks analyses interrupted by a restart as failed, so clients stop waiting and a new
@@ -78,35 +119,48 @@ impl Pipeline {
     }
 
     async fn run(&self, mut a: Analysis) {
-        let Ok(_permit) = self.permits.clone().acquire_owned().await else {
+        let id = a.id;
+        let slot = self.slots.acquire().await;
+        self.leave_queue(id);
+        let Ok(_slot) = slot else {
             return;
         };
-        let id = a.id;
+        let deadline = Instant::now() + self.limits.analysis_timeout;
         a.status = AnalysisStatus::Running;
         self.persist(&a).await;
 
         for group in SCHEDULE {
             let mut runnable = Vec::with_capacity(group.len());
+            let mut changed = false;
             for &stage in *group {
-                if let Some(reason) = skip_reason(stage, &a) {
+                if a.step(stage).state != StepState::Pending {
+                    continue;
+                }
+                changed = true;
+                if let Some(reason) = self.skip_reason(stage, &a, deadline) {
                     self.set_step(&mut a, stage, StepState::Skipped, None, Some(reason));
                 } else {
                     self.set_step(&mut a, stage, StepState::Running, None, None);
                     runnable.push(stage);
                 }
             }
-            self.persist(&a).await;
+            if changed {
+                self.persist(&a).await;
+            }
             if runnable.is_empty() {
                 continue;
             }
 
             let snapshot = &a;
-            let started = Instant::now();
-            let outcomes = join_all(runnable.iter().map(|&stage| async move {
-                let outcome = self.worker.run_stage(stage, snapshot).await;
-                (stage, outcome, started.elapsed())
-            }))
-            .await;
+            let calls = join_all(
+                runnable
+                    .iter()
+                    .map(|&stage| self.call(stage, snapshot, deadline)),
+            );
+            let outcomes = tokio::select! {
+                outcomes = calls => outcomes,
+                never = self.relay_progress(snapshot) => match never {},
+            };
 
             for (stage, outcome, elapsed) in outcomes {
                 let ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
@@ -146,6 +200,68 @@ impl Pipeline {
         );
     }
 
+    /// Calls the worker for one stage; the time a model stage waits for its turn is not part
+    /// of the returned duration.
+    async fn call(
+        &self,
+        stage: StageName,
+        a: &Analysis,
+        deadline: Instant,
+    ) -> (StageName, StageOutcome, Duration) {
+        let _turn = if is_model_stage(stage) {
+            self.inference.acquire().await.ok()
+        } else {
+            None
+        };
+        let started = Instant::now();
+        // Whole milliseconds, so a timeout capped by the budget reads "timed out after 1.5s".
+        let left = deadline.saturating_duration_since(started).as_millis();
+        let left = Duration::from_millis(u64::try_from(left).unwrap_or(u64::MAX));
+        let outcome = if left.is_zero() {
+            StageOutcome::Failed("the analysis ran out of time".into())
+        } else {
+            let timeout = self.limits.stage_timeout.min(left);
+            self.worker.run_stage(stage, a, timeout).await
+        };
+        (stage, outcome, started.elapsed())
+    }
+
+    /// Forwards the progress notes of the running stages ("14 sources so far") as step events.
+    /// They are live-only: the step's final `detail` comes from its patch.
+    async fn relay_progress(&self, a: &Analysis) -> Infallible {
+        let mut tick = tokio::time::interval_at(Instant::now() + PROGRESS_POLL, PROGRESS_POLL);
+        tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut shown: HashMap<StageName, String> = HashMap::new();
+        loop {
+            tick.tick().await;
+            for (stage, note) in self.worker.progress(a.id).await {
+                let step = a.step(stage);
+                if step.state == StepState::Running && shown.get(&stage) != Some(&note) {
+                    let step = Step {
+                        detail: Some(note.clone()),
+                        ..step.clone()
+                    };
+                    self.hub.send(a.id, AnalysisEvent::Step { step });
+                    shown.insert(stage, note);
+                }
+            }
+        }
+    }
+
+    /// Why `stage` cannot run on the current record, if it cannot.
+    fn skip_reason(&self, stage: StageName, a: &Analysis, deadline: Instant) -> Option<String> {
+        if self.limits.disabled.contains(&stage) {
+            return Some("switched off by the operator".into());
+        }
+        match stage {
+            StageName::Extract => None,
+            _ if a.document.is_none() => Some("needs the extracted document".into()),
+            _ if Instant::now() >= deadline => Some("the analysis ran out of time".into()),
+            StageName::Explain if a.scores.is_none() => Some("needs the scores".into()),
+            _ => None,
+        }
+    }
+
     fn set_step(
         &self,
         a: &mut Analysis,
@@ -168,27 +284,68 @@ impl Pipeline {
             tracing::error!(id = %a.id, error = ?e, "saving analysis failed");
         }
     }
+
+    /// Removes `id` from the queue and tells the analyses behind it their new place.
+    fn leave_queue(&self, id: Uuid) {
+        let mut queue = self.queue();
+        queue.retain(|queued| *queued != id);
+        for (place, waiting) in queue.iter().enumerate() {
+            if let Ok(position) = u32::try_from(place + 1) {
+                self.hub.send(*waiting, AnalysisEvent::Queue { position });
+            }
+        }
+    }
+
+    fn queue(&self) -> std::sync::MutexGuard<'_, VecDeque<Uuid>> {
+        self.queue.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
-/// Why `stage` cannot run on the current record, if it cannot.
-fn skip_reason(stage: StageName, a: &Analysis) -> Option<String> {
-    match stage {
-        StageName::Extract => None,
-        _ if a.document.is_none() => Some("needs the extracted document".into()),
-        StageName::Explain if a.scores.is_none() => Some("needs the scores".into()),
-        _ => None,
+/// A copy of the finished analysis `source` that runs again from `from`: the output of the
+/// earlier stages is kept, `from` and every stage scheduled with or after it start over.
+pub fn rerun_record(
+    source: Analysis,
+    from: StageName,
+    id: Uuid,
+    pipeline_version: String,
+    now: DateTime<Utc>,
+) -> Analysis {
+    let mut a = Analysis {
+        id,
+        schema_version: junction_contracts::SCHEMA_VERSION,
+        pipeline_version,
+        created_at: now,
+        updated_at: now,
+        status: AnalysisStatus::Queued,
+        queue_position: None,
+        error: None,
+        ..source
+    };
+    let first = SCHEDULE
+        .iter()
+        .position(|group| group.contains(&from))
+        .expect("every stage is scheduled");
+    for &stage in SCHEDULE[first..].iter().copied().flatten() {
+        a.clear_output(stage);
+        *a.step_mut(stage) = Step::pending(stage);
     }
+    a
+}
+
+/// Stages that run models on the CPU.
+const fn is_model_stage(stage: StageName) -> bool {
+    matches!(
+        stage,
+        StageName::Story | StageName::SignalsSingle | StageName::SignalsCoordinated
+    )
 }
 
 /// `done` needs a document and scores; otherwise `failed` with the reason of the stage that
 /// produced nothing.
 fn final_status(a: &Analysis) -> (AnalysisStatus, Option<String>) {
     let why = |stage: StageName, what: &str| {
-        let step = a.steps.iter().find(|s| s.name == stage);
-        let cause = step
-            .and_then(|s| s.error.clone())
-            .unwrap_or_else(|| "no output".into());
-        Some(format!("{what}: {stage} {cause}"))
+        let cause = a.step(stage).error.as_deref().unwrap_or("no output");
+        Some(format!("{what} ({stage}): {cause}"))
     };
     if a.document.is_none() {
         (

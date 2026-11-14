@@ -96,12 +96,13 @@ impl TestApp {
 
     /// Reads SSE events until the server closes the stream.
     pub async fn read_events(&self, id: Uuid) -> Vec<AnalysisEvent> {
-        let response = self
-            .http
-            .get(self.url(&format!("/api/analyses/{id}/events")))
-            .send()
+        self.read_event_stream(&format!("/api/analyses/{id}/events"))
             .await
-            .expect("request");
+    }
+
+    /// Reads the SSE stream at `path` until the server closes it.
+    pub async fn read_event_stream(&self, path: &str) -> Vec<AnalysisEvent> {
+        let response = self.http.get(self.url(path)).send().await.expect("request");
         assert_eq!(response.status(), 200);
         assert_eq!(
             response.headers()["content-type"],
@@ -168,10 +169,16 @@ pub fn test_config(dir: &TempDir, worker_url: &str) -> Config {
         database_path: dir.path().join("app.db"),
         worker_url: worker_url.parse().expect("worker url"),
         stage_timeout: Duration::from_secs(2),
+        analysis_timeout: Duration::from_secs(30),
+        worker_connect_wait: Duration::ZERO,
         max_concurrent_analyses: 1,
+        max_concurrent_inference: 1,
         max_input_chars: 1_000,
         rate_limit_per_minute: 0,
+        max_analyses_per_hour: 0,
         trust_proxy: false,
+        stages_disabled: vec![],
+        backup_interval: Duration::ZERO,
         metrics_path: dir.path().join("metrics.json"),
         pipeline_version: "test".into(),
     }
@@ -239,9 +246,19 @@ pub fn valid_patch(stage: StageName) -> Value {
                 text: "Critics say the minister lied about the budget.".into(),
                 language: Some("en".into()),
                 retrieved_by: "google_news".into(),
+                tracking_ids: vec!["G-ABC123".into()],
+                fact_check: None,
                 similarity: None,
                 in_story: None,
                 story_reason: None,
+            }],
+            sources: vec![SourceProfile {
+                domain: "news.example".into(),
+                registered_at: None,
+                first_cert_at: None,
+                outlet_type: Some(OutletType::National),
+                country: Some("GB".into()),
+                known_network: None,
             }],
             detail: Some("1 source".into()),
         }),

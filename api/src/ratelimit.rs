@@ -1,36 +1,56 @@
-//! Per-client-IP limit on new analyses: protects LLM and scraping spend on the public URL.
+//! Limits on new analyses: per client address and for the whole service. They protect LLM and
+//! scraping spend on the public URL; cached results and reads are never limited.
 
 use std::{
-    net::{IpAddr, SocketAddr},
+    convert::Infallible,
+    net::{IpAddr, Ipv6Addr, SocketAddr},
     num::NonZeroU32,
     sync::Arc,
 };
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
-    http::HeaderMap,
-    middleware::Next,
-    response::{IntoResponse, Response},
+    extract::{ConnectInfo, FromRequestParts},
+    http::{HeaderMap, request::Parts},
 };
-use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter as Governor};
+use governor::{DefaultDirectRateLimiter, DefaultKeyedRateLimiter, Quota, RateLimiter as Governor};
 
-use crate::error::ApiError;
+use crate::{AppState, error::ApiError};
 
 #[derive(Clone)]
 pub struct RateLimiter {
-    limiter: Option<Arc<DefaultKeyedRateLimiter<IpAddr>>>,
+    per_client: Option<Arc<DefaultKeyedRateLimiter<IpAddr>>>,
+    global: Option<Arc<DefaultDirectRateLimiter>>,
     trust_proxy: bool,
 }
 
 impl RateLimiter {
-    /// `per_minute == 0` disables the limit.
-    pub fn new(per_minute: u32, trust_proxy: bool) -> Self {
-        let limiter =
+    /// `per_minute` new analyses per client and `per_hour` in total; 0 disables either limit.
+    pub fn new(per_minute: u32, per_hour: u32, trust_proxy: bool) -> Self {
+        let per_client =
             NonZeroU32::new(per_minute).map(|n| Arc::new(Governor::keyed(Quota::per_minute(n))));
+        let global =
+            NonZeroU32::new(per_hour).map(|n| Arc::new(Governor::direct(Quota::per_hour(n))));
         Self {
-            limiter,
+            per_client,
+            global,
             trust_proxy,
         }
+    }
+
+    /// Spends one new analysis from the client's budget and from the service's.
+    pub fn check(&self, client: Option<IpAddr>) -> Result<(), ApiError> {
+        if let (Some(limiter), Some(ip)) = (&self.per_client, client) {
+            if limiter.check_key(&bucket(ip)).is_err() {
+                return Err(ApiError::RateLimited);
+            }
+            if limiter.len() > 10_000 {
+                limiter.retain_recent();
+            }
+        }
+        if self.global.as_ref().is_some_and(|g| g.check().is_err()) {
+            return Err(ApiError::Busy);
+        }
+        Ok(())
     }
 
     /// Client address: the last `X-Forwarded-For` hop when behind our proxy (Caddy replaces
@@ -46,20 +66,31 @@ impl RateLimiter {
     }
 }
 
-pub async fn limit(State(rl): State<RateLimiter>, request: Request, next: Next) -> Response {
-    if let Some(limiter) = &rl.limiter {
-        let peer = request
-            .extensions()
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|c| c.0);
-        if let Some(ip) = rl.client_ip(request.headers(), peer) {
-            if limiter.check_key(&ip).is_err() {
-                return ApiError::RateLimited.into_response();
-            }
-            if limiter.len() > 10_000 {
-                limiter.retain_recent();
-            }
+/// The key a client is limited by: its IPv4 address, or its IPv6 /64 (one subscriber owns the
+/// whole prefix and can rotate through it freely).
+fn bucket(ip: IpAddr) -> IpAddr {
+    match ip.to_canonical() {
+        IpAddr::V6(v6) => {
+            let s = v6.segments();
+            IpAddr::V6(Ipv6Addr::new(s[0], s[1], s[2], s[3], 0, 0, 0, 0))
         }
+        v4 @ IpAddr::V4(_) => v4,
     }
-    next.run(request).await
+}
+
+/// Extractor for the address new analyses are limited by; `None` when it is unknown.
+pub struct ClientIp(pub Option<IpAddr>);
+
+impl FromRequestParts<AppState> for ClientIp {
+    type Rejection = Infallible;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> impl Future<Output = Result<Self, Infallible>> + Send {
+        let peer = parts.extensions.get::<ConnectInfo<SocketAddr>>();
+        let peer = peer.map(|connect| connect.0);
+        let client = state.rate_limiter.client_ip(&parts.headers, peer);
+        std::future::ready(Ok(Self(client)))
+    }
 }
