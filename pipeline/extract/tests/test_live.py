@@ -152,3 +152,82 @@ def test_site_behind_a_javascript_challenge_gives_an_article_or_a_plain_reason()
         assert "paste its text" in str(e) or "refused" in str(e)
     else:
         assert patch.language is not None and patch.language.code == "ru"
+
+
+# --- social media posts ----------------------------------------------------------------------
+# Posts that have been public for years (X, Telegram, Reddit) or are picked at run time
+# (Bluesky, Mastodon), so the tests do not rot.
+
+
+def _post(url: str):
+    return run_url(url).document
+
+
+def test_an_x_post():
+    document = _post("https://twitter.com/jack/status/20?s=20")
+    assert document.paragraphs == ["just setting up my twttr"]
+    assert document.author == "@jack" and document.outlet is None
+    assert document.url == "https://x.com/jack/status/20"
+    assert document.published_at.date().isoformat() == "2006-03-21"
+
+
+def test_an_x_post_made_after_2010_has_its_exact_time():
+    document = _post("https://x.com/jack/status/801270269184647168")
+    assert document.published_at.isoformat().startswith("2016-11-23T03:44:53")
+    assert "just setting up my twttr" in document.paragraphs[0]
+
+
+def test_a_deleted_x_post_gives_a_plain_reason():
+    with pytest.raises(StageError, match="private, deleted or only visible after logging in"):
+        _post("https://x.com/jack/status/1")
+
+
+def test_a_telegram_post():
+    document = _post("https://t.me/s/durov/342")
+    assert document.url == "https://t.me/durov/342" and document.author == "Pavel Durov"
+    assert len(document.paragraphs) >= 5 and document.published_at.year == 2024
+    with pytest.raises(StageError, match="private, deleted"):
+        _post("https://t.me/durov/99999999")
+
+
+def test_a_bluesky_post():
+    feed = httpx.get(
+        "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed",
+        params={"actor": "bsky.app", "limit": 30, "filter": "posts_no_replies"},
+        timeout=20,
+    ).json()["feed"]
+    post = next(
+        f["post"]
+        for f in feed
+        if f["post"]["author"]["handle"] == "bsky.app" and f["post"]["record"].get("text")
+    )
+    document = _post(f"https://bsky.app/profile/bsky.app/post/{post['uri'].rsplit('/', 1)[1]}")
+    assert "\n\n".join(document.paragraphs).split() == post["record"]["text"].split()
+    assert document.author == "@bsky.app" and document.published_at is not None
+
+
+def test_a_mastodon_post():
+    statuses = httpx.get(
+        "https://mastodon.social/api/v1/timelines/tag/news",
+        params={"limit": 30},
+        headers={"User-Agent": USER_AGENT},
+        timeout=20,
+    ).json()
+    status = next(s for s in statuses if s["url"].startswith("https://mastodon.social/@"))
+    document = _post(status["url"])
+    assert document.paragraphs and document.author.endswith("@mastodon.social")
+    assert document.url == status["url"] and document.outlet is None
+
+
+def test_a_reddit_post():
+    # Reddit turns many addresses away (HTTP 429); with the Oxylabs key the feed is still read.
+    try:
+        document = _post("https://old.reddit.com/r/cs50/comments/y7dleo/whatever_the_slug/")
+    except StageError as e:
+        if scraper.enabled() or "did not answer" not in str(e):
+            raise
+        pytest.skip("Reddit refused this address and no OXYLABS_TOKEN is set")
+    assert document.title == "CS50 Python problem set 2 Just setting up my twttr"
+    assert document.author == "u/Mav3r1ck-13" and document.published_at.year == 2022
+    assert document.url.startswith("https://www.reddit.com/r/cs50/comments/y7dleo/")
+    assert document.paragraphs[0].startswith("I am new to coding")
