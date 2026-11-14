@@ -5,8 +5,9 @@ Works from the record only: no models, no network I/O. Families and values:
 - `text_reuse` / `copied_passages`: number of distinct other outlets whose text contains a
   large share of the document's word 5-grams. Syndication is the main false positive (plan
   §12): passages that also appear in wire copy are removed first, and outlets typed as news
-  agencies, fact-checkers, national or local newsrooms never count as copiers (established
-  newsrooms republishing the same text within minutes is agency copy even when the agency's
+  agencies, fact-checkers, satire sites, national or local newsrooms never count as copiers
+  (established newsrooms republishing the same text within minutes is agency copy even when the
+  agency's
   own item was not retrieved). Passages the document quotes are not its own text and are
   removed too: a fact-check quoting a hoax is not a copy of it.
 - `timing` / `copies_within_window`: number of those copies published within WINDOW of the
@@ -15,9 +16,9 @@ Works from the record only: no models, no network I/O. Families and values:
   analytics or ad IDs of the document (or, without document IDs, of another copying site).
 - `infrastructure` / `young_copying_domains`: copying domains registered less than
   YOUNG_DAYS before the document.
-- `known_networks` / `listed_domain`: the document's outlet or a copying outlet is on a
-  documented list (`sources[].known_network`, e.g. VIGINUM Portal Kombat). Value = listed
-  domains.
+- `known_networks` / `listed_domain`: the document's outlet, a copying outlet or another
+  same-story outlet is on a documented list (`sources[].known_network`, e.g. VIGINUM Portal
+  Kombat). Value = listed domains.
 """
 
 from collections import defaultdict
@@ -48,6 +49,7 @@ YOUNG_DAYS = 180
 _NOT_COPIERS = {
     OutletType.wire_service,
     OutletType.fact_checker,
+    OutletType.satire,
     OutletType.national,
     OutletType.local,
 }
@@ -232,15 +234,27 @@ def known_network_evidence(
 ) -> list[Evidence]:
     profiles = _profiles(analysis)
     own = _domain(analysis.document.outlet) if analysis.document else None
-    domains = ([own] if own else []) + [_domain(c.outlet) or "" for c in copies]
+    copy_domains = {_domain(c.outlet) or "" for c in copies}
+    story_domains = [
+        _domain(c.outlet) or ""
+        for c in analysis.context
+        if c.in_story is True and c.fact_check is None
+    ]
+    candidates = ([own] if own else []) + [_domain(c.outlet) or "" for c in copies] + story_domains
+    domains = list(dict.fromkeys(d for d in candidates if d))
     listed = [(d, profiles[d].known_network) for d in domains if d in profiles]
     listed = [(d, network) for d, network in listed if network]
     if not listed:
         return []
     networks = ", ".join(sorted({str(n).replace("_", " ") for _, n in listed}))
-    who = "The site itself" if listed[0][0] == own else "A site copying it"
     if len(listed) > 1:
         who = f"{len(listed)} sites involved"
+    elif listed[0][0] == own:
+        who = "The site itself"
+    elif listed[0][0] in copy_domains:
+        who = "A site copying it"
+    else:
+        who = "Another site covering the story"
     return [
         Evidence(
             id=next_id(),

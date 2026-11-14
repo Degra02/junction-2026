@@ -86,6 +86,7 @@ STRENGTH: dict[tuple[Family, str], Callable[[float], float]] = {
     (Family.source_profile, "outlet_national"): lambda _: -0.2,
     (Family.source_profile, "outlet_wire_service"): lambda _: -0.5,
     (Family.source_profile, "outlet_fact_checker"): lambda _: -1.0,
+    (Family.source_profile, "outlet_satire"): lambda _: -1.0,
     # coordinated: counts of sites.
     (Family.text_reuse, "copied_passages"): _saturating(2.0),
     (Family.timing, "copies_within_window"): _saturating(2.0),

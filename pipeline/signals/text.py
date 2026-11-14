@@ -3,7 +3,14 @@
 import re
 import unicodedata
 
-from pipeline.common.contracts import Analysis, ContextItem, ContextRef, DocumentRef, Span
+from pipeline.common.contracts import (
+    Analysis,
+    ContextItem,
+    ContextRef,
+    DocumentRef,
+    OutletType,
+    Span,
+)
 
 # A sentence: text up to and including its closing punctuation, or up to a line break.
 _SENTENCE = re.compile(r"[^\n.!?…。！？]+[.!?…。！？]*[\"'”’»)\]]*")
@@ -105,11 +112,12 @@ def contains(haystack: str, needle: str) -> bool:
 
 def story_peers(analysis: Analysis, limit: int) -> list[ContextItem]:
     """Independent coverage of the same event, most similar first: kept by `story` (or not
-    judged yet), not fact-checks, not from the document's outlet, and not copies of the
-    document (half or more of its sentences verbatim). Copies are the coordinated dimension's
-    evidence; counted here they would confirm the document with its own words."""
+    judged yet), not fact-checks, not satire sites, not from the document's outlet, and not
+    copies of the document (half or more of its sentences verbatim). Copies are the coordinated
+    dimension's evidence; counted here they would confirm the document with its own words."""
     document = analysis.document
     outlet = document.outlet if document else None
+    satire = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
     own = [
         _fold(paragraph[s:e])
         for paragraph in (document.paragraphs if document else [])
@@ -120,7 +128,7 @@ def story_peers(analysis: Analysis, limit: int) -> list[ContextItem]:
     for item in analysis.context:
         if item.in_story is False or item.fact_check is not None or not item.text.strip():
             continue
-        if outlet is not None and item.outlet == outlet:
+        if item.outlet in satire or (outlet is not None and item.outlet == outlet):
             continue
         text = _fold(item.text)
         if own and 2 * sum(sentence in text for sentence in own) >= len(own):

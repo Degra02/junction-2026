@@ -5,7 +5,14 @@ from itertools import count
 import numpy as np
 import pytest
 
-from pipeline.common.contracts import Analysis, ContextRef, DocumentRef, Evidence, Family
+from pipeline.common.contracts import (
+    Analysis,
+    ContextRef,
+    DocumentRef,
+    Evidence,
+    Family,
+    OutletType,
+)
 from pipeline.common.fixtures import example_analysis
 from pipeline.signals.claims import (
     claim_support_evidence,
@@ -81,6 +88,10 @@ def test_peers_exclude_copies_fact_checks_unrelated_items_and_own_outlet() -> No
     copy.text = analysis.document.paragraphs[2] + " The rest is new reporting."
     # One of the document's four sentences is a quote, not a copy.
     assert [p.id for p in story_peers(analysis, 10)] == ["ctx2", "ctx1"]
+    next(
+        s for s in analysis.sources if s.domain == "patriot-voice.example"
+    ).outlet_type = OutletType.satire
+    assert [p.id for p in story_peers(analysis, 10)] == ["ctx1"]
 
 
 def test_passages_are_exact_substrings() -> None:
@@ -150,6 +161,26 @@ def test_a_fact_check_is_not_evidence_against_its_own_article() -> None:
         analysis.claims, analysis.context, fake_nli, ids(), own_outlet="factcheck.example"
     )
     assert found == []
+
+
+def test_cross_lingual_fact_check_matches_via_debunking_verdict() -> None:
+    analysis = example_analysis()
+    check = next(c for c in analysis.context if c.fact_check is not None)
+    assert check.fact_check is not None
+    # Reviewed claim is in German (no word overlap, no direct entailment in fake_nli), while the
+    # verdict sentence "The draft does not ban private wells." contradicts both "ban" claims.
+    check.fact_check.claim = "Die Regierung plant ein ban der Brunnen bis Januar"
+    [matched] = fact_check_evidence(analysis.claims, analysis.context, fake_nli, ids())
+    assert (matched.signal, matched.value) == ("rated_false", 1.0)
+    assert matched.source_refs[0].root.span == analysis.claims[0].span
+    assert_refs_valid(analysis, [matched])
+
+    # A document asserting the true negation is agreed with, never matched as rated_false.
+    assert analysis.document is not None
+    analysis.document.paragraphs[0] = "The draft does not ban private wells."
+    analysis.claims[0].text = "The draft does not ban private wells."
+    analysis.claims[0].span.end = len(analysis.document.paragraphs[0])
+    assert fact_check_evidence(analysis.claims[:1], analysis.context, fake_nli, ids()) == []
 
 
 def test_quotations_are_masked_in_any_script() -> None:

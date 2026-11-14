@@ -112,3 +112,35 @@ def test_fact_check_quoting_the_hoax_is_not_a_copy() -> None:
         "Verdict: False. The draft law requires registration by 2028 and bans nothing.",
     ]
     assert find_copies(analysis) == []
+
+
+def test_satire_outlet_is_not_a_copier() -> None:
+    analysis = example_analysis()
+    for domain in ("patriot-voice.example", "free-nation-news.example"):
+        next(s for s in analysis.sources if s.domain == domain).outlet_type = OutletType.satire
+    assert find_copies(analysis) == []
+
+
+def test_sister_language_edition_in_story_counts_toward_known_network() -> None:
+    analysis = example_analysis()
+    # Clear verbatim copies: ctx2 is now a French translation covering the same story.
+    analysis.sources[0].known_network = "portal_kombat"
+    next(
+        s for s in analysis.sources if s.domain == "patriot-voice.example"
+    ).known_network = "portal_kombat"
+    for item in analysis.context:
+        if item.id == "ctx2":
+            item.text = "Le gouvernement interdira les puits privés dès janvier selon ce texte."
+            item.in_story = True
+        elif item.id == "ctx3":
+            item.text = "Unrelated text with no shared phrases."
+            item.in_story = False
+    assert find_copies(analysis) == []
+    listed = by_signal(analysis)["listed_domain"]
+    assert listed.value == 2.0 and "2 sites involved" in listed.detail
+
+    # Pasted text (no document outlet) still catches the listed sister site in the story.
+    assert analysis.document is not None
+    analysis.document.outlet = None
+    pasted_listed = by_signal(analysis)["listed_domain"]
+    assert pasted_listed.value == 1.0 and "Another site covering the story" in pasted_listed.detail

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pipeline.common.contracts import Evidence, Family, LanguageSupport, UrlRef
+from pipeline.common.contracts import Evidence, Family, LanguageSupport, OutletType, UrlRef
 from pipeline.common.fixtures import example_analysis
 from pipeline.score import SUPPORTED_CAP, WEIGHTS, run
 from pipeline.score.families import COORDINATED, SINGLE, family_values
@@ -168,3 +168,28 @@ def test_corroboration_and_calm_tone_point_away(signal: str, value: float, expec
         if v.family == family
     ]
     assert found.value == pytest.approx(expected)
+
+
+def test_satire_outlet_abstains_single_and_maps_negative_strength() -> None:
+    [profile_val] = [
+        v
+        for v in family_values(
+            [evidence("s1", Family.source_profile, "outlet_satire", 1.0)], SINGLE
+        )
+        if v.family == Family.source_profile
+    ]
+    assert profile_val.value == pytest.approx(-1.0)
+
+    analysis = example_analysis()
+    own_profile = next(s for s in analysis.sources if s.domain == "daily-truth.example")
+    own_profile.outlet_type = OutletType.satire
+    scores = run(analysis).scores
+    assert scores.single.abstained and scores.single.confidence is None
+    assert scores.single.reason is not None and "satire" in scores.single.reason
+
+    # Satire items in context do not count toward the 3 related news reports needed to compare.
+    non_satire = example_analysis()
+    non_satire.evidence = [e for e in non_satire.evidence if e.family != Family.fact_checks]
+    for domain in ("patriot-voice.example", "free-nation-news.example"):
+        next(s for s in non_satire.sources if s.domain == domain).outlet_type = OutletType.satire
+    assert run(non_satire).scores.single.abstained
