@@ -319,12 +319,14 @@ def test_a_post_as_a_context_item():
     item = social.post_item("ctx7", found)
     assert item.id == "ctx7" and item.retrieved_by == "reddit" and item.outlet == "reddit.com"
     assert item.title == "Post by u/alice on Reddit in r/news"
+    assert item.author == "u/alice"  # copies are counted per account
     assert item.text == f"Harbour sold?\n\n{SENTENCE}"  # quotes in evidence are cut from this
     assert item.published_at.isoformat() == "2026-11-14T10:00:00+00:00"
     assert item.language == "en" and item.tracking_ids == [] and item.fact_check is None
     assert item.in_story is None  # story's job
     anonymous = social.post_item("ctx1", post("telegram", None, url="https://t.me/chan_nel/7"))
     assert anonymous.title == "Post on Telegram" and anonymous.outlet == "t.me"
+    assert anonymous.author is None
 
 
 def test_adapter_names_are_the_platforms():
