@@ -14,8 +14,8 @@ interface CandidateMatch {
 
 /**
  * Neutral dimension names mandated by the `explain` prompt across supported languages.
- * Matched first as `plain` so words like "propaganda" or "coordinated campaign" inside a
- * dimension's fixed title never trigger a false red highlight on a 5% clean article.
+ * Claimed first as `plain` so words like "propaganda" or "coordinated campaign" inside a
+ * dimension's fixed title never trigger a false red color on a 5% clean article.
  */
 const PROTECTED_DIMENSION_PHRASES: readonly RegExp[] = [
   /\bsigns of propaganda in the content itself\b/gi,
@@ -30,67 +30,66 @@ const PROTECTED_DIMENSION_PHRASES: readonly RegExp[] = [
   /\bseñales de una campaña coordinada\b/gi,
 ];
 
+/** Concise low-probability / clean keywords (rendered in bold green). */
 const LOW_SIGNAL_PATTERNS: readonly RegExp[] = [
-  // Negations first so "no copied passages" / "not contradicted" stay green, never red.
-  /\bno (?:signals|signs|evidence|indications|copied passages|shared tracking IDs|matches)(?: of [a-z -]{2,28})?(?: (?:were|was) found)?\b/gi,
+  // Negated phrases first so "no copied passages" / "not contradicted" stay green, never red.
+  /\bno (?:signals|signs|evidence|indications|copied passages|shared tracking IDs|matches)\b/gi,
   /\b(?:not|never) (?:contradicted|rated false|flagged)\b/gi,
-  /\b(?:very )?low (?:confidence|probability|likelihood|percentage|score|baseline)\b/gi,
+  /\b(?:very )?low (?:confidence|probability|likelihood|percentage|score)\b/gi,
   /\b(?:minimal|negligible|few) (?:signs|signals|evidence)\b/gi,
-  /\b(?:corroborated|supported|confirmed) by\b/gi,
+  /\b(?:corroborated|supported|confirmed)\b/gi,
   /\brated (?:true|accurate|correct)\b/gi,
   // Italian
-  /\bnon sono stati trovati segnali\b/gi,
   /\bnessun(?:a|o)? (?:segnale|evidenza|prova|passaggio copiato|contraddizione)\b/gi,
+  /\bnon sono stati trovati segnali\b/gi,
   /\b(?:molto )?bass[ao] (?:confidenza|probabilità|percentuale|punteggio)\b/gi,
-  /\b(?:confermat[oaie]|supportat[oaie]|corroborat[oaie]) da\b/gi,
+  /\b(?:confermat[oaie]|supportat[oaie]|corroborat[oaie])\b/gi,
   /\bvalutat[oaie] (?:ver[oa]|corrett[oa])\b/gi,
   // German / French / Spanish / Dutch / Polish / Portuguese
-  /\bkeine (?:Signale|Hinweise|Belege|kopierten Passagen)(?: gefunden)?\b/gi,
+  /\bkeine (?:Signale|Hinweise|Belege|kopierten Passagen)\b/gi,
   /\b(?:sehr )?(?:geringe|niedrige)[rn]? (?:Konfidenz|Wahrscheinlichkeit|Prozent\w*)\b/gi,
-  /\baucun(?:e)? (?:signal|indice|preuve)(?: n['’]a été trouvé)?\b/gi,
+  /\baucun(?:e)? (?:signal|indice|preuve)\b/gi,
   /\bfaible (?:confiance|probabilité|pourcentage)\b/gi,
+  /\b(?:sin|ninguna) señal(?:es)?\b/gi,
   /\bno se encontraron señales\b/gi,
-  /\bninguna señal\b/gi,
   /\bbaja (?:confianza|probabilidad)\b/gi,
-  /\bgeen signalen(?: gevonden)?\b/gi,
+  /\bgeen signalen\b/gi,
   /\b(?:brak|żadnych) sygnałów\b/gi,
-  /\bnão foram encontrados sinais\b/gi,
+  /\b(?:nenhum sinal|sem sinais)\b/gi,
 ];
 
+/** Concise abstention / insufficient-context keywords (rendered in bold amber). */
 const CAUTION_PATTERNS: readonly RegExp[] = [
-  /\babstained(?: from evaluating)?\b/gi,
+  /\babstained\b/gi,
   /\bnot enough evidence\b/gi,
-  /\black of (?:comparable |independent |other |sufficient )?(?:reports|sources|coverage|evidence|items)\b/gi,
   /\black of\b/gi,
-  /\btoo few (?:comparable |independent |other )?(?:reports|sources|items)\b/gi,
-  /\binsufficient (?:evidence|coverage|reports|sources)\b/gi,
+  /\btoo few\b/gi,
+  /\binsufficient\b/gi,
   /\bhumour or satire\b/gi,
-  /\bsatire publication\b/gi,
-  /\bevidence points both ways\b/gi,
+  /\bsatire\b/gi,
   // Multilingual abstentions
   /\bsi è astenut[oa]\b/gi,
-  /\bmancanza di (?:report|fonti|copertura|prove)(?: comparabili)?\b/gi,
   /\bmancanza di\b/gi,
   /\bprove insufficienti\b/gi,
-  /\bhat sich enthalten\b/gi,
-  /\bMangel an (?:vergleichbaren )?(?:Berichten|Quellen|Belegen)\b/gi,
-  /\bnicht genügend Belege\b/gi,
+  /\btroppo poch[ei]\b/gi,
+  /\benthalten\b/gi,
+  /\bMangel an\b/gi,
+  /\bnicht genügend\b/gi,
   /\bs['’]est abstenue?\b/gi,
-  /\bmanque de (?:rapports|sources|preuves)(?: comparables)?\b/gi,
+  /\bmanque de\b/gi,
   /\bpreuves insuffisantes\b/gi,
   /\bse abstuvo\b/gi,
-  /\bfalta de (?:informes|fuentes|pruebas)(?: comparables)?\b/gi,
-  /\bpruebas insuficientes\b/gi,
+  /\bfalta de\b/gi,
+  /\binsuficientes?\b/gi,
 ];
 
+/** Concise high-probability / strong manipulation keywords (rendered in bold red). */
 const HIGH_SIGNAL_PATTERNS: readonly RegExp[] = [
-  /\b(?:very )?high (?:confidence|probability|likelihood|score)\b/gi,
-  /\bhighly (?:likely|probable|charged)\b/gi,
-  /\b(?:strong|substantial|clear|significant|pronounced|elevated) (?:signs|signals|evidence|indications)\b/gi,
-  /\b(?:multiple |repeated )?persuasion techniques\b/gi,
-  /\bfar more emotionally charged\b/gi,
-  /\bmore emotionally charged than\b/gi,
-  /\bcontradict(?:ed|s)(?: by)?\b/gi,
+  /\b(?:very )?high(?:ly)? (?:confidence|probability|likelihood|probable|likely|score)\b/gi,
+  /\b(?:strong|substantial|clear|significant|pronounced|elevated) (?:signs|signals|evidence|indications|probability)\b/gi,
+  /\bpersuasion techniques\b/gi,
+  /\bemotionally charged\b/gi,
+  /\bcontradict(?:ed|s)\b/gi,
   /\brated (?:false|inaccurate|misleading|pants on fire|mostly false|unproven)\b/gi,
   /\b(?:debunked|fabricated|hoax)\b/gi,
   /\bcopied passages\b/gi,
@@ -100,19 +99,19 @@ const HIGH_SIGNAL_PATTERNS: readonly RegExp[] = [
   /\b(?:molto )?alt[ao] (?:confidenza|probabilità|punteggio)\b/gi,
   /\b(?:forti|chiari|evidenti) (?:segnali|indizi)\b/gi,
   /\btecniche di persuasione\b/gi,
-  /\bcontraddett[oaie](?: da)?\b/gi,
+  /\bcontraddett[oaie]\b/gi,
   /\bvalutat[oaie] (?:fals[oa]|fuorviante|inesatt[oa])\b/gi,
   /\bsmentit[oaie]\b/gi,
   /\bpassaggi copiati\b/gi,
   /\b(?:hohe|starke)[rn]? (?:Konfidenz|Wahrscheinlichkeit|Anzeichen|Hinweise)\b/gi,
-  /\bals falsch(?: eingestuft| bewertet)?\b/gi,
+  /\bals falsch\b/gi,
   /\bwidersprochen\b/gi,
   /\b(?:forte|haute) (?:confiance|probabilité)\b/gi,
   /\bforts? signes\b/gi,
   /\bjugé(?:e|s)? (?:faux|fausse|trompeur)\b/gi,
   /\b(?:alta|fuerte) (?:confianza|probabilidad)\b/gi,
   /\bfuertes señales\b/gi,
-  /\bcalificad[oa] como (?:fals[oa]|engaños[oa])\b/gi,
+  /\b(?:falso|engañoso)\b/gi,
 ];
 
 const PERCENTAGE_PATTERN = /\b(\d{1,3}(?:[.,]\d+)?)\s*%/g;
@@ -161,12 +160,6 @@ function collectPercentageMatches(text: string): CandidateMatch[] {
   return out;
 }
 
-/**
- * Splits a summary paragraph into plain and semantically highlighted spans:
- * - `low` (green/teal): low percentages (<30%), "no signals", corroboration phrases
- * - `caution` (amber): abstentions, "lack of comparable reports", moderate 30-59% scores
- * - `high` (red): high percentages (>=60%), "strong signs", contradicted/rated-false claims, networks
- */
 export function segmentSummaryHighlights(text: string): SummarySegment[] {
   if (!text) return [];
 
@@ -182,11 +175,14 @@ export function segmentSummaryHighlights(text: string): SummarySegment[] {
     return [{ text, tone: "plain" }];
   }
 
-  // Sort by priority first (protected neutral dimension phrases claim their span before inner
-  // words can match), then earliest start, then longest span.
   const byPriority = candidates
     .slice()
-    .sort((a, b) => a.priority - b.priority || a.start - b.start || b.end - b.start - (a.end - a.start));
+    .sort(
+      (a, b) =>
+        a.priority - b.priority ||
+        a.start - b.start ||
+        b.end - b.start - (a.end - a.start),
+    );
 
   const chosen: CandidateMatch[] = [];
   for (const cand of byPriority) {
@@ -210,7 +206,6 @@ export function segmentSummaryHighlights(text: string): SummarySegment[] {
     segments.push({ text: text.slice(cursor), tone: "plain" });
   }
 
-  // Merge adjacent plain segments.
   const merged: SummarySegment[] = [];
   for (const seg of segments) {
     if (!seg.text) continue;
