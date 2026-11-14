@@ -333,7 +333,7 @@ export function CoverageView({
     { id: "fact_checks", label: "Fact-checks", count: factChecks.length },
     { id: "domains", label: "Outlets", count: sources.length },
     ...(excludedItems.length > 0
-      ? [{ id: "excluded" as const, label: "Dropped", count: excludedItems.length }]
+      ? [{ id: "excluded" as const, label: "Other events", count: excludedItems.length }]
       : []),
   ];
 
@@ -510,7 +510,7 @@ export function CoverageView({
                 )}
 
                 {item.story_reason && item.in_story === false && (
-                  <p className="text-xs text-[var(--fg-muted)]">Dropped: {item.story_reason}</p>
+                  <p className="text-xs text-[var(--fg-muted)]">Not the same event: {item.story_reason}</p>
                 )}
               </li>
             );

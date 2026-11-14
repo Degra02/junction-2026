@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ExternalLink, Minus, Search, X } from "lucide-react";
 import type { ActivityLog } from "../hooks/useAnalysisStream";
-import { rerunAnalysis } from "../lib/api";
+import { describeError, rerunAnalysis } from "../lib/api";
 import type { Analysis, ContextItem, Family, StageName, Step } from "../lib/contracts";
 import { cleanDomain } from "../lib/evidence";
 import { formatDurationMs, formatPct, formatShortDate } from "../lib/format";
@@ -21,6 +21,7 @@ import { GENTLE_SPRING } from "../lib/motion";
 import { SECTION_LABEL, buttonClass, tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
 import { Favicon, FaviconStack } from "./ui/Favicon";
+import { Hint } from "./ui/Hint";
 
 type Mode = "live" | "replay" | "log";
 
@@ -128,11 +129,12 @@ function StageDetail({ analysis, step, notes }: Readonly<{ analysis: Analysis; s
           )}
           {lang && (
             <span>
-              · {languageName(lang.code)}{" "}
-              <span className="text-[var(--fg-muted)]">({LANGUAGE_SUPPORT_LABELS[lang.support].badge.toLowerCase()})</span>
+              · {languageName(lang.code)} · {LANGUAGE_SUPPORT_LABELS[lang.support].badge.toLowerCase()}
             </span>
           )}
-          <span className="font-mono-num text-xs text-[var(--fg-muted)]">· {doc.paragraphs.length} ¶</span>
+          <span className="text-[var(--fg-muted)]">
+            · {doc.paragraphs.length} {doc.paragraphs.length === 1 ? "paragraph" : "paragraphs"}
+          </span>
         </div>
       );
     }
@@ -270,6 +272,7 @@ function LedgerRow({
   mode,
   last,
   maxMs,
+  sameErrorAsAbove,
 }: Readonly<{
   analysis: Analysis;
   step: Step;
@@ -278,6 +281,8 @@ function LedgerRow({
   mode: Mode;
   last: boolean;
   maxMs: number;
+  /** A skipped step with the same reason as the one above: the reason is not repeated. */
+  sameErrorAsAbove: boolean;
 }>) {
   const meta = STAGE_LABELS[step.name];
   const running = step.state === "running";
@@ -285,9 +290,11 @@ function LedgerRow({
   const done = step.state === "done";
   const label = running
     ? meta.active
-    : step.name === "extract" && analysis.input.kind === "text"
-      ? "Read the text"
-      : meta.label;
+    : step.state === "failed"
+      ? `${meta.active} failed`
+      : step.name === "extract" && analysis.input.kind === "text"
+        ? "Read the text"
+        : meta.label;
   // The latest note is the headline while running; earlier ones stay as a short trail.
   const current = running ? notes[notes.length - 1] : undefined;
   const trail = running ? notes.slice(-4, -1) : [];
@@ -306,18 +313,21 @@ function LedgerRow({
       <StepIcon state={step.state} />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-baseline justify-between gap-3 min-h-5">
-          <span
-            className={cn(
-              "text-sm",
-              running && "shimmer font-medium text-[var(--fg-primary)]",
-              done && "text-[var(--fg-primary)]",
-              pending && "text-[var(--fg-muted)]",
-              step.state === "failed" && "text-[var(--danger)] font-medium",
-              step.state === "skipped" && "text-[var(--fg-muted)] line-through decoration-[var(--border-strong)]",
-            )}
-          >
-            {label}
-          </span>
+          <Hint content={STAGE_LABELS[step.name].help} side="top">
+            <span
+              tabIndex={0}
+              className={cn(
+                "text-sm cursor-help",
+                running && "shimmer font-medium text-[var(--fg-primary)]",
+                done && "text-[var(--fg-primary)]",
+                pending && "text-[var(--fg-muted)]",
+                step.state === "failed" && "text-[var(--danger)] font-medium",
+                step.state === "skipped" && "text-[var(--fg-muted)] line-through decoration-[var(--border-strong)]",
+              )}
+            >
+              {label}
+            </span>
+          </Hint>
           <span className="flex items-center gap-2 shrink-0 font-mono-num text-xs text-[var(--fg-muted)]">
             {mode === "log" && step.duration_ms != null && (
               <span className="hidden sm:block w-16 h-1 rounded-full bg-[var(--bg-subtle)] overflow-hidden">
@@ -373,7 +383,7 @@ function LedgerRow({
         {done && step.detail && step.name !== "retrieve" && step.name !== "story" && (
           <p className="text-xs text-[var(--fg-muted)]">{step.detail}</p>
         )}
-        {(step.state === "failed" || step.state === "skipped") && step.error && (
+        {(step.state === "failed" || step.state === "skipped") && step.error && !sameErrorAsAbove && (
           <p className={cn("text-xs", step.state === "failed" ? "text-[var(--danger)]" : "text-[var(--fg-muted)]")}>
             {step.error}
           </p>
@@ -403,6 +413,9 @@ export function RunLedger({
           mode={mode}
           last={i === steps.length - 1}
           maxMs={maxMs}
+          sameErrorAsAbove={
+            i > 0 && step.state === "skipped" && steps[i - 1]?.state === "skipped" && steps[i - 1]?.error === step.error
+          }
         />
       ))}
     </ol>
@@ -557,7 +570,9 @@ export function RunProgress({
           <span className="inline-flex items-center gap-2 font-medium text-[var(--fg-secondary)]">
             <span className="live-dot" aria-hidden="true" />
             {queued
-              ? `Queued · ${analysis.queue_position ?? 1} ahead`
+              ? analysis.queue_position && analysis.queue_position > 1
+                ? `Queued · ${analysis.queue_position - 1} ahead of you`
+                : "Queued · starting next"
               : replay
                 ? "Replaying a stored run"
                 : "Analyzing"}
@@ -633,7 +648,7 @@ export function RerunControl({ analysisId }: Readonly<{ analysisId: string }>) {
       const created = await rerunAnalysis(analysisId, stage);
       navigate(`/analyses/${created.id}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Could not start the re-run.");
+      setError(describeError(err));
       setBusy(false);
     }
   }

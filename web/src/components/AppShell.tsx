@@ -6,6 +6,7 @@ import { getHealth } from "../lib/api";
 import type { Health } from "../lib/contracts";
 import { buttonClass } from "../lib/ui";
 import { cn } from "../lib/utils";
+import { HowItWorks } from "./HowItWorks";
 import { usePointerEffects } from "../hooks/usePointerEffects";
 import { useTheme } from "../hooks/useTheme";
 
@@ -115,6 +116,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                 className={({ isActive }) =>
                   cn(
                     NAV_LINK,
+                    "hidden sm:inline-flex",
                     isActive
                       ? "text-[var(--fg-primary)]"
                       : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
@@ -128,6 +130,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                 className={({ isActive }) =>
                   cn(
                     NAV_LINK,
+                    "hidden sm:inline-flex",
                     isActive
                       ? "text-[var(--fg-primary)]"
                       : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
@@ -149,6 +152,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
               >
                 Benchmarks
               </NavLink>
+              <HowItWorks triggerClassName={cn(NAV_LINK, "text-[var(--fg-muted)] hover:text-[var(--fg-primary)] cursor-pointer")} />
               <button
                 type="button"
                 onClick={toggleTheme}

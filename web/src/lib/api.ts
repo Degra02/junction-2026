@@ -39,6 +39,38 @@ async function parseError(res: Response): Promise<ApiClientError> {
   );
 }
 
+/**
+ * What went wrong and what to do next, in plain words, for any error a request can throw.
+ * Server messages are lower-case fragments ("the text is empty"); this makes them sentences
+ * and adds the way out.
+ */
+export function describeError(err: unknown): string {
+  if (!(err instanceof ApiClientError)) {
+    return "Can't reach the service. Check your connection and try again.";
+  }
+  switch (err.code) {
+    case "rate_limited":
+      return "Too many new analyses from your connection. Wait a minute and try again; the examples still work.";
+    case "busy":
+      return "The service reached its hourly limit of new analyses. Earlier results and the examples still work.";
+    case "not_found":
+      return "This analysis no longer exists. Start a new one.";
+  }
+  if (err.status === 502 || err.status === 503) {
+    return "The service is restarting. Try again in a moment.";
+  }
+  if (err.code === "invalid_input" && /url/i.test(err.message)) {
+    const reason = /^not a valid url/i.test(err.message) ? "That link is not valid" : capitalize(err.message);
+    return `${reason}. Check the link, or paste the article text instead.`;
+  }
+  return `${capitalize(err.message)}.`;
+}
+
+function capitalize(text: string): string {
+  const t = text.trim().replace(/\.$/, "");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 export async function createAnalysis(
   input: Input,
   options?: { readonly force?: boolean },

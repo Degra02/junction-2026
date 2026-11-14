@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { AnalysisInputForm, type PrefillValue } from "../components/AnalysisInputForm";
 import { DemoPresets } from "../components/DemoPresets";
+import { RecentAnalyses } from "../components/RecentAnalyses";
 import type { DemoPreset } from "../data/presets";
 import { GENTLE_SPRING } from "../lib/motion";
 
@@ -77,14 +78,15 @@ export function HomePage(_props: Readonly<HomePageProps>) {
       >
         <AnalysisInputForm prefill={prefill} />
         <DemoPresets onSelectPreset={handleSelectPreset} />
-        <div className="pt-2 text-center">
+        <RecentAnalyses />
+        <p className="text-center">
           <Link
             to="/extension"
-            className="inline-flex items-center gap-1.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors"
+            className="text-xs text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors"
           >
-            <span>Check stories directly from any article or feed with the browser extension →</span>
+            Check stories from any page with the browser extension →
           </Link>
-        </div>
+        </p>
       </motion.div>
     </div>
   );

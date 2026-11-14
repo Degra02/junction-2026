@@ -6,14 +6,14 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import * as Popover from "@radix-ui/react-popover";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Check, ChevronDown, Loader2, X } from "lucide-react";
-import { ApiClientError, createAnalysis } from "../lib/api";
+import { createAnalysis, describeError } from "../lib/api";
 import type { InputKind } from "../lib/contracts";
 import { cleanDomain } from "../lib/evidence";
-import { detectInputKind } from "../lib/format";
+import { detectInputKind, withScheme } from "../lib/format";
 import { EXPLANATION_LANGUAGE_OPTIONS } from "../lib/labels";
 import { buttonClass } from "../lib/ui";
 import { cn } from "../lib/utils";
@@ -40,8 +40,16 @@ const MODE_OPTIONS: readonly { readonly id: "auto" | InputKind; readonly label: 
 const MENU_ITEM =
   "w-full flex items-center justify-between gap-2 h-8 px-2.5 rounded-md text-[13px] text-left transition-colors cursor-pointer";
 
+/** The API's default `MAX_INPUT_CHARS`; longer text is refused there. */
+const MAX_TEXT_CHARS = 50_000;
+/** Below this many words the analysis rarely finds other reports to compare. */
+const SHORT_TEXT_WORDS = 12;
+
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
 export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const inputId = useId();
   const customLangId = useId();
   const errorId = useId();
@@ -49,13 +57,21 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
   const autoSubmittedNonceRef = useRef<number | null>(null);
 
   const [value, setValue] = useState("");
-  const [kindOverride, setKindOverride] = useState<"auto" | InputKind>("auto");
+  const [kindOverride, setKindOverride] = useState<"auto" | InputKind>(() => {
+    const mode = searchParams.get("mode");
+    return mode === "text" || mode === "url" ? mode : "auto";
+  });
   const [langChoice, setLangChoice] = useState("");
   const [customLang, setCustomLang] = useState("");
   const [force, setForce] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modeOpen, setModeOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  // Text the user had before an example or Clear replaced it, for Undo.
+  const [replaced, setReplaced] = useState<{ text: string; by: "example" | "clear" } | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     if (!prefill) return;
@@ -64,6 +80,8 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
     const nextLang = (prefill.lang ?? "").trim().toLowerCase();
     const knownCodes = new Set(EXPLANATION_LANGUAGE_OPTIONS.map((o) => o.code));
 
+    const previous = valueRef.current;
+    setReplaced(previous.trim() && previous !== nextValue ? { text: previous, by: "example" } : null);
     setValue(nextValue);
     setKindOverride(nextKind);
     if (nextLang) {
@@ -82,23 +100,18 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
       const clean = nextValue.trim();
       const resolvedKind: InputKind = nextKind === "auto" ? detectInputKind(clean) : nextKind;
       if (!clean) return;
-      if (resolvedKind === "url" && !/^https?:\/\/\S+$/i.test(clean)) {
-        setError("That is not a full http(s) link. Switch to Text to analyse it as text.");
+      const submitted = resolvedKind === "url" ? withScheme(clean) : clean;
+      if (resolvedKind === "url" && !/^https?:\/\/\S+$/i.test(submitted)) {
+        setError("That is not a link. Switch to Text to analyse it as text.");
         return;
       }
       setSubmitting(true);
-      createAnalysis({
-        kind: resolvedKind,
-        value: clean,
-        explanation_language: nextLang || null,
-      })
+      createAnalysis({ kind: resolvedKind, value: submitted, explanation_language: nextLang || null })
         .then((created) => {
           navigate(`/analyses/${created.id}`, { replace: true });
         })
         .catch((err: unknown) => {
-          setError(
-            err instanceof ApiClientError ? err.message : "Could not reach the analysis service.",
-          );
+          setError(describeError(err));
           setSubmitting(false);
         });
       return;
@@ -106,6 +119,24 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
 
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [prefill, navigate]);
+
+  // Arriving with ?mode=text (e.g. "Paste the text instead" after a page could not be read).
+  useEffect(() => {
+    if (searchParams.get("mode")) textareaRef.current?.focus();
+  }, [searchParams]);
+
+  // "/" focuses the composer from anywhere on the page, as on GitHub or YouTube.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      textareaRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   // Grow with the content between ~3 and ~9 lines.
   useEffect(() => {
@@ -118,9 +149,12 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
   const trimmed = value.trim();
   const effectiveKind: InputKind = kindOverride === "auto" ? detectInputKind(trimmed) : kindOverride;
   const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+  const charCount = Array.from(trimmed).length;
   const urlDomain = effectiveKind === "url" && trimmed ? cleanDomain(trimmed) : "";
   const resolvedLanguage = langChoice === "__custom__" ? customLang.trim().toLowerCase() : langChoice;
   const singleLineUrl = effectiveKind === "url" && !trimmed.includes("\n");
+  const tooLong = effectiveKind === "text" && charCount > MAX_TEXT_CHARS;
+  const shortText = effectiveKind === "text" && wordCount > 0 && wordCount < SHORT_TEXT_WORDS;
 
   async function submitCurrentInput() {
     setError(null);
@@ -129,8 +163,13 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
       textareaRef.current?.focus();
       return;
     }
-    if (effectiveKind === "url" && !/^https?:\/\/\S+$/i.test(trimmed)) {
-      setError("That is not a full http(s) link. Switch to Text to analyse it as text.");
+    const submitted = effectiveKind === "url" ? withScheme(trimmed) : trimmed;
+    if (effectiveKind === "url" && !/^https?:\/\/\S+$/i.test(submitted)) {
+      setError("That is not a link. Switch to Text to analyse it as text.");
+      return;
+    }
+    if (tooLong) {
+      setError(`The text has ${charCount.toLocaleString("en")} characters; the limit is ${MAX_TEXT_CHARS.toLocaleString("en")}. Shorten it, or paste the article's link instead.`);
       return;
     }
     if (langChoice === "__custom__" && resolvedLanguage && !/^[a-z]{2,3}$/i.test(resolvedLanguage)) {
@@ -141,16 +180,12 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
     setSubmitting(true);
     try {
       const created = await createAnalysis(
-        {
-          kind: effectiveKind,
-          value: trimmed,
-          explanation_language: resolvedLanguage || null,
-        },
+        { kind: effectiveKind, value: submitted, explanation_language: resolvedLanguage || null },
         { force },
       );
       navigate(`/analyses/${created.id}`);
     } catch (err: unknown) {
-      setError(err instanceof ApiClientError ? err.message : "Could not reach the analysis service.");
+      setError(describeError(err));
       setSubmitting(false);
     }
   }
@@ -177,7 +212,9 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
         : "Text"
     : effectiveKind === "url"
       ? urlDomain || "Link"
-      : `Text · ${wordCount} ${wordCount === 1 ? "word" : "words"}`;
+      : charCount > MAX_TEXT_CHARS * 0.8
+        ? `Text · ${charCount.toLocaleString("en")} / ${MAX_TEXT_CHARS.toLocaleString("en")} characters`
+        : `Text · ${wordCount} ${wordCount === 1 ? "word" : "words"}`;
 
   return (
     <form onSubmit={handleSubmit} noValidate className="w-full space-y-2">
@@ -193,31 +230,46 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
+              setReplaced(null);
               if (error) setError(null);
             }}
             onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             disabled={submitting}
             aria-invalid={error ? "true" : "false"}
             aria-describedby={error ? errorId : undefined}
+            aria-keyshortcuts="/"
             placeholder="Paste an article link or any text…"
             className={cn(
               "block w-full resize-none bg-transparent border-0 outline-none focus-visible:outline-none px-4 pt-4 pb-2 pr-11 text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] leading-relaxed",
               singleLineUrl && trimmed ? "font-mono-num text-[13px]" : "text-[15px]",
             )}
           />
-          {value.length > 0 && !submitting && (
+          {value.length > 0 && !submitting ? (
             <button
               type="button"
               onClick={() => {
+                setReplaced({ text: value, by: "clear" });
                 setValue("");
                 setError(null);
                 textareaRef.current?.focus();
               }}
               aria-label="Clear"
+              title="Clear"
               className={buttonClass("ghost", "icon", "absolute top-2.5 right-2.5 h-7 w-7")}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
+          ) : (
+            !focused && (
+              <kbd
+                title="Press / to type here"
+                className="hidden sm:inline-flex absolute top-3.5 right-3.5 h-5 min-w-5 items-center justify-center rounded border border-[var(--border-subtle)] px-1 font-mono-num text-[11px] text-[var(--fg-muted)]"
+              >
+                /
+              </kbd>
+            )
           )}
         </div>
 
@@ -338,11 +390,11 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
 
           <div className="flex items-center gap-2.5 shrink-0">
             <kbd className="hidden sm:inline text-[11px] font-mono-num text-[var(--fg-muted)]">
-              {singleLineUrl ? "↵" : "⌘↵"}
+              {singleLineUrl ? "↵" : IS_MAC ? "⌘↵" : "Ctrl ↵"}
             </kbd>
             <button
               type="submit"
-              disabled={submitting || !trimmed}
+              disabled={submitting || !trimmed || tooLong}
               className={buttonClass("primary", "md", "px-3.5")}
             >
               {submitting ? (
@@ -358,9 +410,10 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
         </div>
       </div>
 
-      <AnimatePresence>
-        {error && (
+      <AnimatePresence initial={false} mode="popLayout">
+        {error ? (
           <motion.p
+            key="error"
             id={errorId}
             role="alert"
             initial={{ opacity: 0, y: -4 }}
@@ -370,7 +423,39 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
           >
             {error}
           </motion.p>
-        )}
+        ) : replaced !== null ? (
+          <motion.p
+            key="undo"
+            role="status"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="px-1 flex items-center gap-1.5 text-[13px] text-[var(--fg-muted)]"
+          >
+            {replaced.by === "clear" ? "Text cleared." : "Your text was replaced by the example."}
+            <button
+              type="button"
+              onClick={() => {
+                setValue(replaced.text);
+                setReplaced(null);
+                textareaRef.current?.focus();
+              }}
+              className="font-medium text-[var(--fg-primary)] underline underline-offset-2 decoration-[var(--border-strong)] hover:decoration-[var(--fg-primary)] cursor-pointer"
+            >
+              Undo
+            </button>
+          </motion.p>
+        ) : shortText ? (
+          <motion.p
+            key="short"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="px-1 text-[13px] text-[var(--fg-muted)]"
+          >
+            Short texts rarely match other reports. A full paragraph or the article's link works better.
+          </motion.p>
+        ) : null}
       </AnimatePresence>
     </form>
   );

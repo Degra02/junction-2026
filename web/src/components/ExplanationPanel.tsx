@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { createAnalysis } from "../lib/api";
+import { createAnalysis, describeError } from "../lib/api";
 import type {
   ContextItem,
   DocumentData,
@@ -16,6 +16,7 @@ import { EXPLANATION_LANGUAGE_OPTIONS, languageName } from "../lib/labels";
 import { buttonClass, SECTION_LABEL } from "../lib/ui";
 import { cn } from "../lib/utils";
 import { CitationChip } from "./CitationChip";
+import { Hint } from "./ui/Hint";
 
 export interface ExplanationPanelProps {
   readonly explanation: Explanation | null | undefined;
@@ -64,7 +65,7 @@ export function ExplanationPanel({
       });
       navigate(`/analyses/${created.id}`);
     } catch (err: unknown) {
-      setLangError(err instanceof Error ? err.message : "Could not switch language.");
+      setLangError(describeError(err));
     } finally {
       setSwitchingLang(false);
     }
@@ -89,14 +90,16 @@ export function ExplanationPanel({
         <div className="flex items-center gap-1 -mr-2.5">
           {switchingLang && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--fg-muted)]" aria-hidden="true" />}
           {canSwitchToContentLang && contentLang && (
-            <button
-              type="button"
-              disabled={switchingLang}
-              onClick={() => void switchExplanationLanguage(contentLang)}
-              className={buttonClass("ghost", "sm")}
-            >
-              Read in {languageName(contentLang)}
-            </button>
+            <Hint content={`Runs the analysis again with the summary in ${languageName(contentLang)} (about a minute).`}>
+              <button
+                type="button"
+                disabled={switchingLang}
+                onClick={() => void switchExplanationLanguage(contentLang)}
+                className={buttonClass("ghost", "sm")}
+              >
+                Explain in {languageName(contentLang)}
+              </button>
+            </Hint>
           )}
 
           <Popover.Root>
@@ -117,7 +120,8 @@ export function ExplanationPanel({
                 sideOffset={6}
                 className="z-50 glass-popover rounded-xl p-1 w-48 outline-none"
               >
-                <div className={cn(SECTION_LABEL, "px-2 py-1.5")}>Summary language</div>
+                <div className={cn(SECTION_LABEL, "px-2 pt-1.5")}>Explain in</div>
+                <p className="px-2 pb-1.5 text-[11px] text-[var(--fg-muted)]">Runs the analysis again.</p>
                 {EXPLANATION_LANGUAGE_OPTIONS.map((opt) => {
                   const code = opt.code || "en";
                   const active = code === currentExpLang;
@@ -125,10 +129,14 @@ export function ExplanationPanel({
                     <button
                       key={code}
                       type="button"
+                      disabled={active}
+                      aria-current={active ? "true" : undefined}
                       onClick={() => void switchExplanationLanguage(opt.code)}
                       className={cn(
-                        "w-full flex items-center justify-between gap-2 px-2 h-7 rounded-md text-[13px] text-left cursor-pointer transition-colors hover:bg-[var(--bg-hover)]",
-                        active ? "text-[var(--fg-primary)] font-medium" : "text-[var(--fg-secondary)]",
+                        "w-full flex items-center justify-between gap-2 px-2 h-7 rounded-md text-[13px] text-left transition-colors",
+                        active
+                          ? "text-[var(--fg-primary)] font-medium cursor-default"
+                          : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] cursor-pointer",
                       )}
                     >
                       <span>{opt.label}</span>
