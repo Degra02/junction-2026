@@ -36,6 +36,7 @@ spec:
       containers:
         - name: api
           image: ghcr.io/degra02/junction-2026-api
+          imagePullPolicy: Always
           args: [serve]
           ports:
             - name: http

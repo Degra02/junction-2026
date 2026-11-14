@@ -18,6 +18,7 @@ spec:
       containers:
         - name: caddy
           image: ghcr.io/degra02/junction-2026-caddy
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 80

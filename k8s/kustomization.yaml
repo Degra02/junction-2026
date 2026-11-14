@@ -70,10 +70,6 @@ patches:
           spec:
             imagePullSecrets:
               - name: ghcr-pull-secret
-            containers:
-              # will target all containers, cause `name` is not set in `target`
-              - name: placeholder
-                imagePullPolicy: Always
     target:
       kind: Deployment
 
