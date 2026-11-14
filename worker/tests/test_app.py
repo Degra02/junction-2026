@@ -4,9 +4,11 @@ import threading
 from collections.abc import Iterator
 
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 
 from pipeline.common.contracts import Analysis, StageName
+from worker import __main__ as worker_main
 from worker import stages
 from worker.app import app
 from worker.stages import StageSpec
@@ -198,3 +200,25 @@ def test_health_lists_every_stage_and_why_one_failed_to_load(client: TestClient)
         "score": (True, None),
         "explain": (True, None),
     }
+
+
+def test_entrypoint_ignores_kubernetes_worker_service_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Kubernetes injects WORKER_PORT=tcp://<ip>:8001 for a Service named `worker`.
+    monkeypatch.setenv("WORKER_HOST", "10.96.0.10")
+    monkeypatch.setenv("WORKER_PORT", "tcp://10.96.0.10:8001")
+    monkeypatch.delenv("STAGE_WORKER_HOST", raising=False)
+    monkeypatch.delenv("STAGE_WORKER_PORT", raising=False)
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        uvicorn, "run", lambda app_path, **kw: calls.append({"app": app_path, **kw})
+    )
+
+    worker_main.main()
+    monkeypatch.setenv("STAGE_WORKER_HOST", "0.0.0.0")
+    monkeypatch.setenv("STAGE_WORKER_PORT", "9001")
+    worker_main.main()
+
+    assert calls == [
+        {"app": "worker.app:app", "host": "127.0.0.1", "port": 8001, "workers": 1},
+        {"app": "worker.app:app", "host": "0.0.0.0", "port": 9001, "workers": 1},
+    ]

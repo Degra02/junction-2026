@@ -5,11 +5,17 @@ import os
 
 import uvicorn
 
-if __name__ == "__main__":
+
+def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+    # Avoid WORKER_*: Kubernetes injects WORKER_PORT=tcp://... for the `worker` Service.
     uvicorn.run(
         "worker.app:app",
-        host=os.environ.get("WORKER_HOST", "127.0.0.1"),
-        port=int(os.environ.get("WORKER_PORT", "8001")),
+        host=os.environ.get("STAGE_WORKER_HOST", "127.0.0.1"),
+        port=int(os.environ.get("STAGE_WORKER_PORT", "8001")),
         workers=1,
     )
+
+
+if __name__ == "__main__":
+    main()

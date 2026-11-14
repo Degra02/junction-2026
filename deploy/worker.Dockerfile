@@ -21,8 +21,8 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev
 RUN useradd --uid 10001 --create-home app && mkdir -p /models && chown app /models
 USER app
 ENV PATH="/app/.venv/bin:$PATH" \
-    WORKER_HOST=0.0.0.0 \
-    WORKER_PORT=8001 \
+    STAGE_WORKER_HOST=0.0.0.0 \
+    STAGE_WORKER_PORT=8001 \
     HF_HOME=/models \
     TOKENIZERS_PARALLELISM=false
 EXPOSE 8001
