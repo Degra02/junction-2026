@@ -1,0 +1,188 @@
+"""The pure parts of retrieve: registry, VIGINUM list, matching, feed parsing, records, RDAP."""
+
+import json
+from datetime import UTC, datetime
+
+import pytest
+
+from pipeline.common.contracts import OutletType
+from pipeline.extract.article import Article
+from pipeline.extract.meta import ClaimReview, PageMeta
+from pipeline.retrieve import registry as registry_module
+from pipeline.retrieve.articles import record_from
+from pipeline.retrieve.feeds import FeedItem, parse_feed
+from pipeline.retrieve.match import Query, rank, terms
+from pipeline.retrieve.registry import Feed, load_registry, parse
+from pipeline.retrieve.sources import first_certificate, rdap_registration, registrable
+from pipeline.retrieve.viginum import parse as parse_viginum
+
+
+def test_lookup_takes_the_longest_listed_domain():
+    reg = parse(
+        {
+            "wire_service": [{"domain": "afp.com", "country": "FR"}],
+            "fact_checker": [{"domain": "factcheck.afp.com", "country": "FR"}],
+            "national": [{"domain": "repubblica.it", "country": "IT"}],
+        }
+    )
+    assert reg.lookup("factcheck.afp.com").outlet_type == OutletType.fact_checker
+    assert reg.lookup("www.afp.com").outlet_type == OutletType.wire_service
+    assert reg.lookup("bologna.repubblica.it").domain == "repubblica.it"
+    assert reg.lookup("notrepubblica.it") is None
+    assert reg.lookup(None) is None
+
+
+def test_the_shipped_registry_is_well_formed():
+    reg = load_registry()
+    assert len(reg) > 100
+    assert reg.feeds(), "the feeds adapter needs feeds"
+    for outlet, feed in reg.feeds():
+        assert feed.url.startswith("https://"), outlet.domain
+        assert len(feed.language) == 2, outlet.domain
+    data = json.loads(registry_module.DATA.read_text(encoding="utf-8"))
+    assert "partisan" not in data, "D9: no political-bias ratings"
+    for entries in data.values():
+        for entry in entries:
+            assert "/" not in entry["domain"] and entry["domain"] == entry["domain"].lower()
+            assert entry["country"] is None or len(entry["country"]) == 2
+    # Lyreplus's syndication guard and the state-agency ruling depend on these.
+    assert reg.lookup("ansa.it").outlet_type == OutletType.wire_service
+    assert reg.lookup("tass.ru").outlet_type == OutletType.state_affiliated
+    assert reg.lookup("fullfact.org").outlet_type == OutletType.fact_checker
+
+
+def test_a_domain_listed_twice_is_an_error():
+    with pytest.raises(ValueError, match="twice"):
+        parse({"national": [{"domain": "a.it"}], "local": [{"domain": "a.it"}]})
+
+
+def test_viginum_list_is_read_defanged():
+    listing = parse_viginum(
+        "﻿domain,create date,first seen,type\n"
+        "pravda-de[.]com,22/02/2023,,domain\n"
+        "news[.]example[.]org,31/02/2023,,subdomain\n"
+    )
+    assert listing.match("pravda-de.com") == "pravda-de.com"
+    assert listing.match("www.pravda-de.com") == "pravda-de.com"
+    assert listing.match("sub.news.example.org") == "news.example.org"
+    assert listing.match("example.org") is None
+    assert listing.created["pravda-de.com"] == datetime(2023, 2, 22, tzinfo=UTC)
+    assert listing.created["news.example.org"] is None  # 31 February: unreadable, not guessed
+
+
+def test_terms_fold_case_accents_and_stems():
+    assert terms("Perché i MIGRANTI arrivano") == {"arriva", "migran"}
+    assert terms("Migrants in 2026") == {"migran", "2026"}
+
+
+def _item(title: str, language: str, url: str = "https://paper.example/a") -> FeedItem:
+    return FeedItem(url, title, "", "2026-11-14T10:00:00+00:00", "paper.example", language)
+
+
+def test_rank_compares_a_query_only_with_items_in_its_language():
+    items = [
+        _item("Garante privacy, multa da 805 milioni a Meta", "it", "https://a.example/1"),
+        # Spanish "garantías" and "multa": false friends of the Italian query.
+        _item("Garantías y multa por el DNI digital", "es", "https://b.example/2"),
+        # Italian "fine" is "end", not a penalty.
+        _item("La fine della guerra in Italia", "it", "https://c.example/3"),
+    ]
+    queries = [Query("Garante privacy multa", "it"), Query("Italian privacy watchdog fine", "en")]
+    assert [h.item.url for h in rank(items, queries)] == ["https://a.example/1"]
+
+
+def test_rank_needs_two_shared_words():
+    items = [_item("Meta multata", "it")]
+    assert rank(items, [Query("Garante privacy multa", "it")]) == []
+
+
+RSS = b"""<?xml version="1.0"?><rss version="2.0"><channel><title>Paper</title>
+<item><title>Tram line &amp; bus</title><link>https://www.paper.example/tram?utm_source=rss</link>
+<description>&lt;p&gt;The council &lt;b&gt;approved&lt;/b&gt; it.&lt;/p&gt;</description>
+<pubDate>Tue, 10 Nov 2026 17:05:00 +0100</pubDate></item>
+<item><title>No link</title></item>
+</channel></rss>"""
+
+
+def test_parse_feed():
+    [item] = parse_feed(RSS, Feed("https://paper.example/rss", "en"))
+    assert item.title == "Tram line & bus"
+    assert item.summary == "The council approved it."
+    assert item.outlet == "paper.example"
+    assert item.published_at == "2026-11-10T16:05:00+00:00"
+    assert item.language == "en"
+
+
+def _article(**meta) -> Article:
+    return Article(
+        url="https://checker.example/a",
+        title="Did the government ban wells?",
+        author=None,
+        published_at="2026-11-12T08:00:00+01:00",
+        site_name=None,
+        language="en",
+        paragraphs=["We looked at the draft law.", "It registers wells; it bans none."],
+        meta=PageMeta(**meta),
+    )
+
+
+def test_a_claimreview_page_becomes_a_fact_check_item():
+    review = ClaimReview(
+        claim_reviewed="The government will ban private wells",
+        rating="False",
+        rating_value=1,
+        best_rating=5,
+        worst_rating=1,
+        reviewer="Checker",
+        claimant=None,
+        url=None,
+        date_published=None,
+        language="en",
+    )
+    record = record_from(
+        _article(claim_reviews=[review], tracking_ids={"ga4": ["G-X1"]}),
+        "https://c.example/a",
+        None,
+    )
+    assert record is not None
+    assert record.fact_check == {
+        "claim": "The government will ban private wells",
+        "rating": "False",
+        "publisher": "Checker",
+    }
+    assert record.text.startswith("The government will ban private wells\n\nWe looked at")
+    assert record.tracking_ids == ["G-X1"]
+    assert record.published_at == "2026-11-12T07:00:00+00:00"
+
+
+def test_a_paywalled_page_never_enters_the_context():
+    assert record_from(_article(paywalled=True), "https://c.example/a", None) is None
+
+
+def test_feed_date_is_the_fallback_publication_time():
+    article = _article()
+    article.published_at = None
+    record = record_from(article, "https://c.example/a", "2026-11-13T09:00:00+00:00")
+    assert record.published_at == "2026-11-13T09:00:00+00:00"
+    assert record.fact_check is None
+    assert record.text == "We looked at the draft law.\n\nIt registers wells; it bans none."
+
+
+def test_rdap_and_certificate_dates():
+    rdap = {
+        "events": [
+            {"eventAction": "last changed"},
+            {"eventAction": "registration", "eventDate": "2025-10-01T12:00:00Z"},
+        ]
+    }
+    assert rdap_registration(json.dumps(rdap).encode()) == datetime(2025, 10, 1, 12, tzinfo=UTC)
+    assert rdap_registration(b"not json") is None
+    certs = [{"not_before": "2025-10-03T00:00:00"}, {"not_before": "2025-10-02T05:00:00"}, {}]
+    assert first_certificate(json.dumps(certs).encode()) == datetime(2025, 10, 2, 5, tzinfo=UTC)
+    assert first_certificate(b"[]") is None
+
+
+def test_registrable_domain():
+    assert registrable("bologna.repubblica.it") == "repubblica.it"
+    assert registrable("news.bbc.co.uk") == "bbc.co.uk"
+    assert registrable("localhost") is None

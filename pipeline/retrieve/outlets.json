@@ -1,0 +1,202 @@
+{
+  "wire_service": [
+    {"domain": "ansa.it", "country": "IT", "feeds": [
+      {"url": "https://www.ansa.it/sito/ansait_rss.xml", "language": "it"},
+      {"url": "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml", "language": "it"},
+      {"url": "https://www.ansa.it/sito/notizie/politica/politica_rss.xml", "language": "it"},
+      {"url": "https://www.ansa.it/english/news/english_nr_rss.xml", "language": "en"}
+    ]},
+    {"domain": "adnkronos.com", "country": "IT", "feeds": [
+      {"url": "https://www.adnkronos.com/RSS_Ultimora.xml", "language": "it"}
+    ]},
+    {"domain": "agi.it", "country": "IT", "feeds": [
+      {"url": "https://www.agi.it/cronaca/rss", "language": "it"}
+    ]},
+    {"domain": "askanews.it", "country": "IT"},
+    {"domain": "reuters.com", "country": "GB"},
+    {"domain": "apnews.com", "country": "US"},
+    {"domain": "afp.com", "country": "FR"},
+    {"domain": "dpa.com", "country": "DE"},
+    {"domain": "efe.com", "country": "ES"},
+    {"domain": "europapress.es", "country": "ES"},
+    {"domain": "lusa.pt", "country": "PT"},
+    {"domain": "pap.pl", "country": "PL"},
+    {"domain": "anp.nl", "country": "NL"},
+    {"domain": "apa.at", "country": "AT"},
+    {"domain": "belga.be", "country": "BE"},
+    {"domain": "stt.fi", "country": "FI"},
+    {"domain": "tt.se", "country": "SE"},
+    {"domain": "ntb.no", "country": "NO"},
+    {"domain": "ritzau.dk", "country": "DK"},
+    {"domain": "interfax.ru", "country": "RU"},
+    {"domain": "interfax.com.ua", "country": "UA"},
+    {"domain": "kyodonews.net", "country": "JP"}
+  ],
+  "state_affiliated": [
+    {"domain": "tass.ru", "country": "RU"},
+    {"domain": "tass.com", "country": "RU"},
+    {"domain": "ria.ru", "country": "RU"},
+    {"domain": "sputniknews.com", "country": "RU"},
+    {"domain": "sputnikglobe.com", "country": "RU"},
+    {"domain": "rt.com", "country": "RU"},
+    {"domain": "xinhuanet.com", "country": "CN"},
+    {"domain": "news.cn", "country": "CN"},
+    {"domain": "cgtn.com", "country": "CN"},
+    {"domain": "globaltimes.cn", "country": "CN"},
+    {"domain": "belta.by", "country": "BY"},
+    {"domain": "irna.ir", "country": "IR"},
+    {"domain": "aa.com.tr", "country": "TR"},
+    {"domain": "ukrinform.ua", "country": "UA"},
+    {"domain": "ukrinform.net", "country": "UA"}
+  ],
+  "fact_checker": [
+    {"domain": "fullfact.org", "country": "GB", "feeds": [
+      {"url": "https://fullfact.org/feed/all/", "language": "en"}
+    ]},
+    {"domain": "snopes.com", "country": "US", "feeds": [
+      {"url": "https://www.snopes.com/feed/", "language": "en"}
+    ]},
+    {"domain": "maldita.es", "country": "ES", "feeds": [
+      {"url": "https://maldita.es/feed/", "language": "es"}
+    ]},
+    {"domain": "correctiv.org", "country": "DE", "feeds": [
+      {"url": "https://correctiv.org/feed/", "language": "de"}
+    ]},
+    {"domain": "euvsdisinfo.eu", "country": null, "feeds": [
+      {"url": "https://euvsdisinfo.eu/feed/", "language": "en"}
+    ]},
+    {"domain": "pagellapolitica.it", "country": "IT"},
+    {"domain": "facta.news", "country": "IT"},
+    {"domain": "politifact.com", "country": "US"},
+    {"domain": "factcheck.org", "country": "US"},
+    {"domain": "leadstories.com", "country": "US"},
+    {"domain": "checkyourfact.com", "country": "US"},
+    {"domain": "factcheck.afp.com", "country": "FR"},
+    {"domain": "factuel.afp.com", "country": "FR"},
+    {"domain": "newtral.es", "country": "ES"},
+    {"domain": "poligrafo.sapo.pt", "country": "PT"},
+    {"domain": "dpa-factchecking.com", "country": "DE"},
+    {"domain": "mimikama.org", "country": "AT"},
+    {"domain": "demagog.org.pl", "country": "PL"},
+    {"domain": "faktisk.no", "country": "NO"},
+    {"domain": "stopfake.org", "country": "UA"},
+    {"domain": "logically.ai", "country": "GB"}
+  ],
+  "national": [
+    {"domain": "bbc.co.uk", "country": "GB", "feeds": [
+      {"url": "https://feeds.bbci.co.uk/news/world/rss.xml", "language": "en"},
+      {"url": "https://feeds.bbci.co.uk/news/rss.xml", "language": "en"}
+    ]},
+    {"domain": "bbc.com", "country": "GB"},
+    {"domain": "theguardian.com", "country": "GB", "feeds": [
+      {"url": "https://www.theguardian.com/world/rss", "language": "en"},
+      {"url": "https://www.theguardian.com/uk-news/rss", "language": "en"}
+    ]},
+    {"domain": "dw.com", "country": "DE", "feeds": [
+      {"url": "https://rss.dw.com/rdf/rss-en-all", "language": "en"}
+    ]},
+    {"domain": "euronews.com", "country": null, "feeds": [
+      {"url": "https://www.euronews.com/rss", "language": "en"}
+    ]},
+    {"domain": "france24.com", "country": "FR", "feeds": [
+      {"url": "https://www.france24.com/en/rss", "language": "en"}
+    ]},
+    {"domain": "aljazeera.com", "country": "QA", "feeds": [
+      {"url": "https://www.aljazeera.com/xml/rss/all.xml", "language": "en"}
+    ]},
+    {"domain": "aljazeera.net", "country": "QA", "feeds": [
+      {"url": "https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9", "language": "ar"}
+    ]},
+    {"domain": "npr.org", "country": "US", "feeds": [
+      {"url": "https://feeds.npr.org/1001/rss.xml", "language": "en"}
+    ]},
+    {"domain": "repubblica.it", "country": "IT", "feeds": [
+      {"url": "https://www.repubblica.it/rss/homepage/rss2.0.xml", "language": "it"}
+    ]},
+    {"domain": "corriere.it", "country": "IT", "feeds": [
+      {"url": "https://xml2.corriereobjects.it/rss/homepage.xml", "language": "it"}
+    ]},
+    {"domain": "open.online", "country": "IT", "feeds": [
+      {"url": "https://www.open.online/feed/", "language": "it"}
+    ]},
+    {"domain": "tagesschau.de", "country": "DE", "feeds": [
+      {"url": "https://www.tagesschau.de/index~rss2.xml", "language": "de"}
+    ]},
+    {"domain": "spiegel.de", "country": "DE", "feeds": [
+      {"url": "https://www.spiegel.de/schlagzeilen/index.rss", "language": "de"}
+    ]},
+    {"domain": "elpais.com", "country": "ES", "feeds": [
+      {"url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada", "language": "es"}
+    ]},
+    {"domain": "publico.pt", "country": "PT", "feeds": [
+      {"url": "https://feeds.feedburner.com/PublicoRSS", "language": "pt"}
+    ]},
+    {"domain": "lemonde.fr", "country": "FR", "feeds": [
+      {"url": "https://www.lemonde.fr/rss/une.xml", "language": "fr"}
+    ]},
+    {"domain": "nos.nl", "country": "NL", "feeds": [
+      {"url": "https://feeds.nos.nl/nosnieuwsalgemeen", "language": "nl"}
+    ]},
+    {"domain": "tvn24.pl", "country": "PL", "feeds": [
+      {"url": "https://tvn24.pl/najnowsze.xml", "language": "pl"}
+    ]},
+    {"domain": "yle.fi", "country": "FI", "feeds": [
+      {"url": "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss", "language": "fi"},
+      {"url": "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS", "language": "en"}
+    ]},
+    {"domain": "pravda.com.ua", "country": "UA", "feeds": [
+      {"url": "https://www.pravda.com.ua/rss/", "language": "uk"}
+    ]},
+    {"domain": "meduza.io", "country": "LV", "feeds": [
+      {"url": "https://meduza.io/rss/all", "language": "ru"}
+    ]},
+    {"domain": "rainews.it", "country": "IT"},
+    {"domain": "ilpost.it", "country": "IT"},
+    {"domain": "lastampa.it", "country": "IT"},
+    {"domain": "ilsole24ore.com", "country": "IT"},
+    {"domain": "ilfattoquotidiano.it", "country": "IT"},
+    {"domain": "ilgiornale.it", "country": "IT"},
+    {"domain": "ilmessaggero.it", "country": "IT"},
+    {"domain": "avvenire.it", "country": "IT"},
+    {"domain": "tgcom24.mediaset.it", "country": "IT"},
+    {"domain": "tg24.sky.it", "country": "IT"},
+    {"domain": "fanpage.it", "country": "IT"},
+    {"domain": "today.it", "country": "IT"},
+    {"domain": "editorialedomani.it", "country": "IT"},
+    {"domain": "nytimes.com", "country": "US"},
+    {"domain": "washingtonpost.com", "country": "US"},
+    {"domain": "wsj.com", "country": "US"},
+    {"domain": "bloomberg.com", "country": "US"},
+    {"domain": "cnn.com", "country": "US"},
+    {"domain": "nbcnews.com", "country": "US"},
+    {"domain": "cbsnews.com", "country": "US"},
+    {"domain": "abcnews.go.com", "country": "US"},
+    {"domain": "foxnews.com", "country": "US"},
+    {"domain": "politico.com", "country": "US"},
+    {"domain": "politico.eu", "country": null},
+    {"domain": "independent.co.uk", "country": "GB"},
+    {"domain": "telegraph.co.uk", "country": "GB"},
+    {"domain": "ft.com", "country": "GB"},
+    {"domain": "economist.com", "country": "GB"},
+    {"domain": "sky.com", "country": "GB"},
+    {"domain": "faz.net", "country": "DE"},
+    {"domain": "sueddeutsche.de", "country": "DE"},
+    {"domain": "zeit.de", "country": "DE"},
+    {"domain": "welt.de", "country": "DE"},
+    {"domain": "zdf.de", "country": "DE"},
+    {"domain": "lefigaro.fr", "country": "FR"},
+    {"domain": "liberation.fr", "country": "FR"},
+    {"domain": "francetvinfo.fr", "country": "FR"},
+    {"domain": "elmundo.es", "country": "ES"},
+    {"domain": "abc.es", "country": "ES"},
+    {"domain": "lavanguardia.com", "country": "ES"},
+    {"domain": "rtve.es", "country": "ES"},
+    {"domain": "hs.fi", "country": "FI"},
+    {"domain": "is.fi", "country": "FI"},
+    {"domain": "iltalehti.fi", "country": "FI"},
+    {"domain": "svt.se", "country": "SE"},
+    {"domain": "dn.se", "country": "SE"},
+    {"domain": "nrk.no", "country": "NO"},
+    {"domain": "kyivindependent.com", "country": "UA"}
+  ]
+}
