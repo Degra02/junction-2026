@@ -33,3 +33,10 @@ Format: `- <day HH:MM> — <decision> — <owner>`
 - Sat 03:20 — Rust tests run with cargo-nextest; pre-commit runs rustfmt + clippy `-D warnings` when Rust files are staged — Degra02
 - Sat 03:20 — Deploy: images built in GitHub Actions, pushed to GHCR, pulled on the VPS over SSH (`deploy/`); Caddy terminates TLS; nothing compiles on the VPS — Degra02
 - Sat 03:20 — Ownership: `worker/` and `pipeline/common/` (generated contracts, shared clients) belong to the integrator — Degra02
+- Sat 12:20 — Contract: `retrieve` carries everything fetched from the web: `context[].tracking_ids`, `context[].fact_check` (claim, rating, publisher) and `sources[]` (per-domain registration date, first certificate, outlet type, country, known network); signal stages do no network I/O — Degra02
+- Sat 12:20 — Contract validation: evidence needs at least one source ref; a breakdown family must belong to its score's dimension; quotations (12+ characters in double quotes or guillemets) in the explanation must be verbatim in the document, the context or an evidence detail — Degra02
+- Sat 12:20 — Cache: only analyses without a failed step are reused; `?force=true` runs again; `POST /api/analyses/{id}/rerun?from=<stage>` re-runs from a stage on the stored earlier output; `events?replay=true` plays a finished analysis back — Degra02
+- Sat 12:20 — Stage errors: only `StageError` messages reach the public record; other exceptions show their type, details stay in the worker log — Degra02
+- Sat 12:20 — Limits: 30 new analyses/min per client (IPv4 address or IPv6 /64) and 600/h in total, cached results free; 4 analyses at once, 1 model stage at a time; 300 s budget per analysis; `STAGES_DISABLED` kill switch — Degra02
+- Sat 12:20 — Shared Python helpers in `pipeline/common/`: `llm` (the one client, `openai` SDK), `spans`, `errors`, `progress`, `net`, `fixtures`; torch resolves from the CPU wheel index — Degra02
+- Sat 12:20 — Web: `web/` builds with `bun run build` into `web/dist`, served by Caddy at `/`; the UI calls `/api/...` on the same origin — Degra02

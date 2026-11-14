@@ -111,7 +111,8 @@ No component may assume one language:
 Every stage reads and writes one analysis record, so each workstream can be built and tested alone with fixtures. The source of truth is the Rust crate `contracts/` (field docs included); `mise run contracts` generates `contracts/openapi.json`, the pydantic models in `pipeline/common/contracts.py` and the TypeScript types in `contracts/ts/api.d.ts`. Overview:
 ```text
 Analysis
-  id, schema_version, pipeline_version, created_at, updated_at, status, error, steps[] (name, state, duration_ms, detail, error)
+  id, schema_version, pipeline_version, created_at, updated_at, status, queue_position, error,
+  steps[] (name, state, duration_ms, detail, error)
   input        { kind: text|url, value }
   language     { code, confidence, support: evaluated|supported|unsupported }          ← extract
   document     { url, outlet, published_at, title, author, paragraphs[], outbound_links[], tracking_ids[] }  ← extract
@@ -119,13 +120,15 @@ Analysis
   claims[]     { id, text, span { paragraph, start, end } }  (verbatim, code points)    ← understand
   queries[]    { text, language }                                                       ← understand
   context[]    { id, url, outlet, published_at, title, text, language, retrieved_by,    ← retrieve
+                 tracking_ids[], fact_check { claim, rating, publisher },               ← retrieve
                  similarity, in_story, story_reason }                                   ← story
+  sources[]    { domain, registered_at, first_cert_at, outlet_type, country, known_network }  ← retrieve
   evidence[]   { id, family, signal, value, detail, source_refs[] (document span | context id + quote | url) }  ← signals_*
   scores       { single: Score, coordinated: Score }                                    ← score
   Score        { confidence, abstained, reason, breakdown[] { family, contribution, evidence_ids[] } }
   explanation  { summary, reasons[] { text, evidence_ids[] } }                          ← explain
 ```
-Each stage returns a patch of only its own fields; the API validates it before merging (duplicate IDs, wrong dimension or an invalid score fail the step; non-verbatim claims, dangling sources and reasons without evidence are dropped and reported in the step's `detail`).
+Each stage returns a patch of only its own fields; the API validates it before merging (duplicate IDs, wrong dimension or an invalid score fail the step; non-verbatim claims and quotations, evidence without a valid source and reasons without evidence are dropped and reported in the step's `detail`).
 
 ## 5. Confidence score (what the judges asked for)
 - **Families**, scored separately for the two dimensions:

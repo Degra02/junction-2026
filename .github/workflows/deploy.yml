@@ -7,6 +7,8 @@ name: deploy
 #            DEPLOY_DIR (default /opt/junction)
 #   secrets: DEPLOY_SSH_KEY (private key), DEPLOY_KNOWN_HOSTS (`ssh-keyscan <host>` output)
 # The VPS keeps its own .env (secrets) in DEPLOY_DIR and is logged in to ghcr.io.
+# Once web/package.json exists, the deploy also runs `bun run build` in web/ and copies
+# web/dist to DEPLOY_DIR/web, which Caddy serves at the root.
 
 on:
   push:
@@ -96,20 +98,39 @@ jobs:
           chmod 600 ~/.ssh/id_deploy ~/.ssh/known_hosts
       - name: Copy compose files
         run: |
-          ssh -i ~/.ssh/id_deploy "$USER_AT_HOST" "mkdir -p '$DIR'"
+          ssh -i ~/.ssh/id_deploy "$USER_AT_HOST" "mkdir -p '$DIR/web'"
           scp -i ~/.ssh/id_deploy deploy/compose.yaml deploy/Caddyfile "$USER_AT_HOST:$DIR/"
+      - if: hashFiles('web/package.json') != ''
+        uses: jdx/mise-action@v5
+        with:
+          install_args: bun
+      - name: Build and copy the web UI
+        if: hashFiles('web/package.json') != ''
+        run: |
+          (cd web && bun install --frozen-lockfile && bun run build)
+          # In place: Caddy has the directory mounted, so it must not be replaced.
+          tar -C web/dist -cf - . | ssh -i ~/.ssh/id_deploy "$USER_AT_HOST" \
+            "set -e; find '$DIR/web' -mindepth 1 -delete; tar -C '$DIR/web' -xf -"
       - name: Pull and restart
         run: |
           ssh -i ~/.ssh/id_deploy "$USER_AT_HOST" "set -e; cd '$DIR'; touch .env
             printf 'IMAGE_TAG=%s\nIMAGE_REPO=%s\n' '$TAG' '$REPO' > release.env
             docker compose --env-file .env --env-file release.env pull
             docker compose --env-file .env --env-file release.env up -d --remove-orphans
+            docker compose --env-file .env --env-file release.env exec -T caddy \
+              caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
             docker image prune -f"
       - name: Smoke check
+        # Healthy means the API answers, the worker is up (it listens only once its models are
+        # loaded) and no stage failed to import: a deploy that breaks the pipeline goes red.
         run: |
-          for i in $(seq 1 30); do
-            if curl -fsS "https://$HOST/api/health"; then exit 0; fi
+          for i in $(seq 1 72); do
+            health=$(curl -fsS "https://$HOST/api/health" || true)
+            if jq -e '.worker != null and all(.worker.stages[]; .error == null)' <<<"$health" >/dev/null; then
+              echo "$health"
+              exit 0
+            fi
             sleep 5
           done
-          echo "health check failed after 150 s" >&2
+          echo "not healthy after 6 minutes; last answer: $health" >&2
           exit 1

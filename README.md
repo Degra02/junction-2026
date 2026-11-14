@@ -1,6 +1,6 @@
 # Junction 2026
 
-Team workspace for Junction 2026 (Espoo, 13–15 Nov 2026). Project to be defined at the event — see `SPEC.md`.
+Team workspace for Junction 2026 (Espoo, 13–15 Nov 2026), Hostinger challenge "Decode the Noise". A pipeline that takes one piece of online content and shows how strongly it carries signs of propaganda by its author and of coordinated propaganda: a confidence score per dimension, built from evidence gathered live about the same event, with every source shown. Plan: `docs/plan.md`.
 
 ## Quickstart
 ```sh
@@ -13,13 +13,13 @@ mise run dev                   # worker :8001 + API :8080, docs at http://127.0.
 ## Layout
 | Path | Purpose |
 |---|---|
-| `api/` | Rust (axum) API: jobs, SQLite, SSE progress, patch validation; drives the worker |
-| `contracts/` | Rust contract types (source of truth) and the generated `openapi.json` and TS types |
+| `api/` | Rust (axum) API: jobs, queue, SQLite, SSE progress, patch validation, cache, re-runs, replays, usage stats; drives the worker |
+| `contracts/` | Rust contract types (source of truth), the generated `openapi.json` and TS types, and `fixtures/analysis.json` (the example record stages are tested against) |
 | `worker/` | Python FastAPI stage worker: `POST /stages/{name}` calls `pipeline.<stage>.run` |
-| `pipeline/` | Pipeline stages, one package per owner; `pipeline/common/contracts.py` is generated |
+| `pipeline/` | Pipeline stages, one package per owner. `pipeline/common/`: generated `contracts.py`, the LLM client (`llm`), span locator (`spans`), `StageError`, progress notes, URL guard (`net`), fixture loader |
 | `deploy/` | Dockerfiles, Compose, Caddyfile, VPS runbook |
 | `plans/` | Integrator stack, backend comparison, implementation practices |
-| `SPEC.md` | Problem, demo moment, scope — filled Friday evening |
+| `SPEC.md` | Problem, demo moment, scope (being rewritten from `docs/plan.md`) |
 | `DECISIONS.md` | Append-only decision log |
 | `AGENTS.md` / `CLAUDE.md` | Rules for coding agents |
 | `docs/junction-2026.md` | Event schedule, judging, sponsors, challenges |
@@ -34,4 +34,4 @@ mise run dev                   # worker :8001 + API :8080, docs at http://127.0.
 | `.github/workflows/` | `ci.yml`: `mise run check`; `deploy.yml`: images to GHCR, SSH deploy from `main` |
 
 ## License
-Junction submissions are open-sourced under MIT; add a `LICENSE` with the team names before submitting.
+MIT, see `LICENSE` (Junction submissions are open-sourced under MIT). The copyright line lists GitHub handles; replace them with full names before submitting if the team prefers.

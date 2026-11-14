@@ -4,9 +4,12 @@ Owner: Degra02 (integrator). Status: **implemented** on `degra/platform` (Sat 14
 
 Deviations from the proposal below, decided while building:
 - Stage name `signals_coordinated` (not `signals_coord`); no separate `worker.openapi.json`: the stage patch schemas are components of `contracts/openapi.json`.
-- Rate limiting uses `governor` directly in a 30-line middleware (JSON 429 body, last `X-Forwarded-For` hop when `TRUST_PROXY=true`) instead of `tower_governor`.
+- Rate limiting uses `governor` directly (JSON 429 body, last `X-Forwarded-For` hop when `TRUST_PROXY=true`, one bucket per IPv4 address or IPv6 /64) instead of `tower_governor`. It is checked in the handler after the cache lookup, so cached results are free, and a second, service-wide hourly limit caps spend.
 - Images: `cargo-chef` → `distroless/cc-debian13:nonroot`; worker on `uv:python3.14-trixie-slim`; Caddy 2.11.
 - Language ID in Rust (`lingua`) not built: `language` is set by `extract` until the team agrees.
+- Two semaphores instead of one: `MAX_CONCURRENT_ANALYSES` (4) analyses at once, `MAX_CONCURRENT_INFERENCE` (1) model stage at a time across them, so the I/O stages of different analyses overlap.
+- No `mise run deploy:models`: the worker fills `hf-cache` the first time a stage loads its models (`deploy/README.md`).
+- Built beyond the proposal after the Sat review (`DECISIONS.md`, Sat 12:20): re-run from a stage, replay of a finished analysis, queue position, live progress notes from stages, `GET /api/stats`, `STAGES_DISABLED`, a total time budget per analysis, periodic `VACUUM INTO` backups, and `pipeline/common/` helpers (`llm`, `spans`, `errors`, `progress`, `net`, `fixtures`).
 
 ## Shape
 The pipeline (models, retrieval, LLM stages) is Python and owned by teammates. Rust is a thin, typed orchestrator: HTTP, job lifecycle, persistence, progress streaming, guards. It drives one long-running Python worker **per stage** over HTTP/JSON.

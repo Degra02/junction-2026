@@ -1,7 +1,6 @@
-# Production stack on the VPS. Files next to it: Caddyfile, .env (secrets, from the team vault)
-# and release.env (IMAGE_TAG, written by the deploy workflow).
+# Production stack on the VPS. Files next to it: Caddyfile, web/ (the UI build), .env (secrets,
+# from the team vault) and release.env (IMAGE_TAG, written by the deploy workflow).
 #   docker compose --env-file .env --env-file release.env up -d
-# Local smoke test with locally built images: see `mise run deploy:local`.
 name: junction
 
 services:
@@ -16,6 +15,8 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Static build of web/, copied here by the deploy workflow; empty until the UI ships.
+      - ./web:/srv:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -30,8 +31,18 @@ services:
       WORKER_URL: http://worker:8001
       TRUST_PROXY: "true"
       PIPELINE_VERSION: ${IMAGE_TAG:-latest}
-      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-10}
+      # Stage calls wait this long for a worker that is still loading its models after a deploy.
+      WORKER_CONNECT_WAIT_SECS: ${WORKER_CONNECT_WAIT_SECS:-180}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      MAX_ANALYSES_PER_HOUR: ${MAX_ANALYSES_PER_HOUR:-600}
       STAGE_TIMEOUT_SECS: ${STAGE_TIMEOUT_SECS:-120}
+      ANALYSIS_TIMEOUT_SECS: ${ANALYSIS_TIMEOUT_SECS:-300}
+      MAX_CONCURRENT_ANALYSES: ${MAX_CONCURRENT_ANALYSES:-4}
+      MAX_CONCURRENT_INFERENCE: ${MAX_CONCURRENT_INFERENCE:-1}
+      # Kill switch: comma-separated stages to skip, e.g. STAGES_DISABLED=explain in .env.
+      STAGES_DISABLED: ${STAGES_DISABLED:-}
+      # Copies of the database in the api-data volume (backups/, newest four kept).
+      BACKUP_INTERVAL_MINS: ${BACKUP_INTERVAL_MINS:-15}
       RUST_LOG: ${RUST_LOG:-info}
     volumes:
       - api-data:/app/data
@@ -52,7 +63,7 @@ services:
       - path: .env
         required: false
     environment:
-      # 2 vCPU: one inference at a time, using both cores.
+      # 2 vCPU: one inference at a time (the API's MAX_CONCURRENT_INFERENCE), using both cores.
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
     volumes:

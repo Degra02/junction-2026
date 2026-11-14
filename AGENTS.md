@@ -3,7 +3,7 @@
 48h hackathon, team of 4, every person drives coding agents. Speed matters, but `main` must always demo.
 
 ## Read first
-- `SPEC.md` — the problem, the demo moment, what is out of scope. Do not build beyond it.
+- `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` still shows the superseded Friday spec until mosearc rewrites it from the plan.
 - `DECISIONS.md` — decisions already made. Do not relitigate them; ask the integrator.
 - `docs/` — event facts, sponsors, playbook, setup.
 
@@ -48,15 +48,35 @@ The Rust API (`api/`) runs the stages in order and calls the Python worker (`wor
 
 - Signature: `def run(analysis: Analysis) -> XPatch` (or `async def` for I/O-bound work), types from `pipeline.common.contracts`. CPU-bound code must be a plain `def`: the worker runs it in a thread.
 - Until the function exists the step shows "not implemented yet" and the rest still runs. Load models at import time; the worker imports every stage at startup.
-- The API validates every patch: duplicate IDs, an evidence family outside the stage's dimension or an invalid score fail the step; claims that are not verbatim at their span, evidence citing unknown context or non-verbatim quotes, and reasons without valid evidence IDs are dropped and listed in the step's `detail`.
+- The API validates every patch. These fail the step: duplicate IDs (claims, context, evidence, `sources[].domain`), an evidence family or a score breakdown family outside the stage's dimension, an invalid score. These are dropped and listed in the step's `detail`: claims that are not verbatim at their span; evidence with no source ref, an unknown context ID or a non-verbatim quote; reasons without valid evidence IDs; reasons (and the summary, which is blanked) containing a quotation that is not verbatim in the document, the context or an evidence detail. A quotation is 12 or more characters inside double quotes or guillemets.
+- Everything fetched from the web comes from `retrieve`: `context[]` (each item with its `tracking_ids`, and `fact_check` when it is a fact-check) and `sources[]` (one profile per outlet domain: registration date, first certificate, outlet type, country, known network). Signal stages compute from the record only and do no network I/O.
 - Field meanings are documented in `contracts/src/analysis.rs` and in the generated `pipeline/common/contracts.py`. Need a new field? Ask the integrator.
+
+### Shared helpers (`pipeline/common/`, integrator-owned)
+- `llm`: `ask_json(Schema, system=..., user=...)`, `ask_text(...)` and their `_async` variants. The only LLM client; analysed content goes in `user`, never in `system`.
+- `spans`: `claim(document, "cl1", passage)` and `locate(document, passage)` return the exact code-point span of a passage. Never ask a model for offsets.
+- `errors.StageError("plain message")`: the only exception text users see. Any other exception is public as its type only ("the stage failed (TimeoutError)"), with the details in the worker log. Never put keys or request URLs in a `StageError`.
+- `progress.report("9 sources so far")`: a live note under the running step in the UI.
+- `net.assert_public_url(url)`: call before fetching the analysed URL and on every redirect hop.
+- `fixtures.example_analysis()`: a finished example `Analysis` (`contracts/fixtures/analysis.json`) to test a stage without the others.
+
+### Iterating on a stage
+- `POST /api/analyses/{id}/rerun?from=<stage>` runs a finished analysis again from that stage on the stored output of the earlier ones (new ID): change a signal, the combiner or the explanation and compare on the same retrieved context.
+- `POST /api/analyses?force=true` ignores the result cache. A result with a failed step is never reused.
+- Eval runs go against a local API with the limits off: see "Local" in `deploy/README.md`.
 
 ## Secrets
 - Read keys from the environment (`.env`, loaded by mise). Never print, log, hard-code, or commit them.
 - The repo is published under MIT at submission. Anything committed is public.
 
 ## Model calls
-- One OpenAI-compatible client configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`; switching provider is a config change, not a code change.
+- One OpenAI-compatible client, `pipeline/common/llm.py`, configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`; switching provider is a config change, not a code change.
+
+## Web UI (`web/`)
+- `bun run build` must write the static site to `web/dist`; the deploy copies it to the VPS and Caddy serves it at `/` with `index.html` as the fallback.
+- Call the API with relative URLs (`/api/...`); in development proxy `/api` to `http://127.0.0.1:8080` (there is no CORS). Types: `contracts/ts/api.d.ts`.
+- Progress: `new EventSource("/api/analyses/{id}/events")` sends `snapshot`, `queue`, `step` and `done`; add `?replay=true` to play a finished analysis back for the demo.
+- Span offsets count code points: highlight with `Array.from(paragraph).slice(start, end)`, not `paragraph.slice`.
 
 ## Definition of done
 - You ran it: the command, test, or demo path that exercises the change, with output.
