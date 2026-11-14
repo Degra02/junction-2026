@@ -13,7 +13,7 @@ name: deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, k8s]
   pull_request:
     paths:
       - "api/**"
