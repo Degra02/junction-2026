@@ -33,5 +33,5 @@ evals/results/
 # Rust
 target/
 
-# Local runtime data (SQLite)
-data/
+# Local runtime data (SQLite, DATABASE_PATH default data/app.db); root only, web/src/data/ is source
+/data/

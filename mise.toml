@@ -64,6 +64,18 @@ run = "uv run --frozen python -m propaganda_eval.cli"
 description = "Run worker and API together (Ctrl-C stops both)"
 depends = ["worker:dev", "api:dev"]
 
+# --- Web UI: web/ ----------------------------------------------------------------
+
+[tasks."web:dev"]
+description = "Web UI on :5173, /api proxied to the local API (VITE_API_TARGET=https://the4thlover.tech for live data)"
+dir = "web"
+run = ["bun install --frozen-lockfile", "bun run dev"]
+
+[tasks."web:build"]
+description = "Typecheck the web UI against contracts/ts/api.d.ts and build web/dist (the caddy image runs the same)"
+dir = "web"
+run = ["bun install --frozen-lockfile", "bun run build"]
+
 # --- Contracts -----------------------------------------------------------------
 
 [tasks.contracts]
