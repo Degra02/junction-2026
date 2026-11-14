@@ -11,9 +11,10 @@ For each dimension (single-actor, coordinated):
 3. `breakdown` lists every family of the dimension with its contribution `coef_f × value_f`
    (log-odds, the weights shown to the user) and its evidence IDs, strongest first.
 
-Abstains ("Not enough evidence", no confidence) when the language is unsupported, when too little
-context was found, or when strong evidence points both ways. For languages that are supported
-but not evaluated the confidence is capped at SUPPORTED_CAP (D2).
+Abstains ("Not enough evidence", no confidence) when the language is unsupported, when the
+source is a satire publication (single-actor), when too little context was found, or when strong
+evidence points both ways. For languages that are supported but not evaluated the confidence is
+capped at SUPPORTED_CAP (D2).
 """
 
 import json
@@ -27,6 +28,7 @@ from pipeline.common.contracts import (
     Contribution,
     Family,
     LanguageSupport,
+    OutletType,
     Score,
     ScorePatch,
     Scores,
@@ -117,11 +119,29 @@ def _common_abstention(analysis: Analysis) -> str | None:
     return None
 
 
+def _is_satire(analysis: Analysis) -> bool:
+    outlet = analysis.document.outlet if analysis.document else None
+    if outlet and any(
+        s.domain == outlet and s.outlet_type == OutletType.satire for s in analysis.sources
+    ):
+        return True
+    return any(
+        e.family == Family.source_profile and e.signal == "outlet_satire" for e in analysis.evidence
+    )
+
+
 def _single_abstention(analysis: Analysis, values: list[FamilyValue]) -> str | None:
     if reason := _common_abstention(analysis):
         return reason
+    if _is_satire(analysis):
+        return "The source is a satire publication, not factual news reporting."
     fact_checked = any(v.family == Family.fact_checks and v.value != 0 for v in values)
-    related = [c for c in analysis.context if c.in_story is not False and c.fact_check is None]
+    satire_domains = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
+    related = [
+        c
+        for c in analysis.context
+        if c.in_story is not False and c.fact_check is None and c.outlet not in satire_domains
+    ]
     if not fact_checked and len(related) < MIN_RELATED:
         return (
             f"Only {len(related)} other report{'s' if len(related) != 1 else ''} on the same "

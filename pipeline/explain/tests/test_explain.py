@@ -56,6 +56,8 @@ def test_misquoting_summary_is_blanked() -> None:
 def test_digest_carries_scores_and_strongest_evidence_first() -> None:
     payload = json.loads(digest(example_analysis()))
     assert payload["scores"]["single"]["confidence"] == 0.86
+    assert payload["scores"]["single"]["evidence_count"] == 5
+    assert payload["scores"]["coordinated"]["evidence_count"] == 3
     ids = [e["id"] for e in payload["evidence"]]
     by_id = {e.id: abs(strength(e) or 0.0) for e in example_analysis().evidence}
     ranked = [by_id[i] for i in ids]

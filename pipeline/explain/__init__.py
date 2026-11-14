@@ -67,8 +67,9 @@ call it an estimate, never a calibrated score, a probability or a measured accur
 
 Write:
 - summary: one or two short sentences on what the evidence shows, giving each dimension's \
-confidence as a percentage or saying that it abstained. Never call the content "propaganda" or \
-"not propaganda" as a verdict; describe what was found.
+confidence as a percentage or saying that it abstained. When a dimension has "evidence_count": \
+0, say that its low percentage means no signals of that dimension were found in the coverage. \
+Never call the content "propaganda" or "not propaganda" as a verdict; describe what was found.
 - reasons: up to {MAX_REASONS}, most important first, each one plain sentence a non-expert \
 understands, with "evidence_ids": the IDs of the evidence items it is based on (at least one, \
 only IDs from the digest). Prefer concrete facts from the evidence details (how many sites, \
@@ -270,6 +271,7 @@ def _score(score: Score, weights: DimensionWeights) -> dict[str, object]:
     return {
         "confidence": score.confidence,
         "calibrated": weights.calibrated,
+        "evidence_count": sum(len(b.evidence_ids) for b in score.breakdown),
         "contributions": {
             b.family.value: b.contribution for b in score.breakdown if b.contribution
         },

@@ -9,8 +9,10 @@
 - `claim_support` / `unaddressed`: value 1.0 when none of at least MIN_PEERS sources
   addresses the claim.
 - `fact_checks` / `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0): a
-  published fact-check that matches a key claim. Ratings outside the vocabulary below are
-  skipped rather than guessed.
+  published fact-check that matches a key claim (by entailment/overlap with the reviewed claim,
+  or, for false/misleading ratings across languages or phrasings, when the fact-checker's own
+  debunking verdict contradicts the claim in both directions). Ratings outside the vocabulary
+  below are skipped rather than guessed.
 
 NLI is cross-lingual: a claim in Italian is checked against English coverage and vice versa.
 
@@ -48,6 +50,7 @@ MIN_PEERS = 3
 # A fact-check matches a claim when either entails the other this strongly, or on word overlap.
 FACT_CHECK_ENTAIL = 0.5
 FACT_CHECK_OVERLAP = 0.6
+VERDICT_PASSAGES = 6
 _MAX_REFS = 4
 
 # Checked in order; the first match wins. Lower-case substrings of the published rating.
@@ -261,13 +264,24 @@ def fact_check_evidence(
             for j, claim in enumerate(claims)
         ]
         j = int(np.argmax(scores))
+        verdict_quote: str | None = None
         if (
             probabilities[k, j] < FACT_CHECK_ENTAIL
             and _overlap_score(check.fact_check.claim, claims[j].text) < FACT_CHECK_OVERLAP
         ):
-            continue
+            if signal[0] not in {"rated_false", "rated_misleading"}:
+                continue
+            matched = _verdict_match(check, claims, nli)
+            if matched is None:
+                continue
+            j, verdict_quote = matched
         rating = check.fact_check.rating
         publisher = check.fact_check.publisher or check.outlet or "A fact-checker"
+        quote = (
+            verdict_quote
+            if verdict_quote and verdict_quote in check.text
+            else (rating if rating in check.text else None)
+        )
         evidence.append(
             Evidence(
                 id=next_id(),
@@ -277,11 +291,53 @@ def fact_check_evidence(
                 detail=f"{publisher} rated this claim “{rating}”.",
                 source_refs=[
                     DocumentRef(kind="document", span=claims[j].span),
-                    context_ref(check, rating if rating in check.text else None),
+                    context_ref(check, quote),
                 ],
             )
         )
     return evidence
+
+
+def _verdict_match(check: ContextItem, claims: Sequence[Claim], nli: Nli) -> tuple[int, str] | None:
+    """`(claim_index, verdict_passage)` when a passage of `check` debunks both the reviewed
+    claim (`>= DECISIVE` two-way contradiction) and a document claim (`>= CONTRADICTION`
+    two-way contradiction). Catches cross-lingual or differently scoped phrasings of the same
+    hoax while rejecting the quoted hoax line itself and unrelated claims in roundup articles.
+    """
+    assert check.fact_check is not None
+    candidates: list[str] = []
+    if check.title and check.title.strip():
+        candidates.append(check.title.strip())
+    for window in sentence_windows(check.text):
+        if window not in candidates:
+            candidates.append(window)
+        if len(candidates) >= VERDICT_PASSAGES:
+            break
+    if not candidates:
+        return None
+    reviewed = check.fact_check.claim
+    vs_reviewed = nli([(p, reviewed) for p in candidates] + [(reviewed, p) for p in candidates])
+    n_cand = len(candidates)
+    verdicts = [
+        candidates[i]
+        for i in range(n_cand)
+        if min(float(vs_reviewed[i, CONTRADICT]), float(vs_reviewed[n_cand + i, CONTRADICT]))
+        >= DECISIVE
+    ]
+    if not verdicts:
+        return None
+    pairs = [(v, claim.text) for v in verdicts for claim in claims]
+    forward = nli(pairs)
+    suspects = [i for i, probs in enumerate(forward) if probs[CONTRADICT] >= CONTRADICTION]
+    if not suspects:
+        return None
+    backward = nli([(pairs[i][1], pairs[i][0]) for i in suspects])
+    best: tuple[float, int, str] | None = None
+    for i, probs in zip(suspects, backward, strict=True):
+        both = min(float(forward[i, CONTRADICT]), float(probs[CONTRADICT]))
+        if both >= CONTRADICTION and (best is None or both > best[0]):
+            best = (both, i % len(claims), pairs[i][0])
+    return (best[1], best[2]) if best else None
 
 
 def _overlap_score(a: str, b: str) -> float:

@@ -2,43 +2,34 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branches: `lyreplus/<topic>`, one per round. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 17:15 (after #15). Live on <https://the4thlover.tech> as `sha-db83470`.
+Updated: Sat 18:45.
 
 ## Status
 
 | Stage | Entry point | State on `main` |
 |---|---|---|
 | understand | `pipeline/understand/__init__.py: run` (async) | Done. One-fact claims located verbatim, queries in the content's language + English. Real LLM (`gemini-3.1-flash-lite`) |
-| signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers, two-way NLI claim support, fact-check matching, source profile. Real models |
-| signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams, quotes and agency copy excluded), timing, shared tracking IDs, young domains, known networks |
-| score | `pipeline/score/__init__.py: run` | Done with **hand-set prior weights** (`weights.json`, `n = 0`). Fit CLI ready (`pipeline/score/fit.py`): waits for `evals/results/fit.jsonl` from a run with retrieve live |
-| explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; says the confidences are uncalibrated estimates until the fit; writes in `input.explanation_language` (D14) |
+| signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers (satire excluded), two-way NLI claim support, fact-check matching (reviewed claim + debunking-verdict fallback across languages), source profile (`satire` included) |
+| signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams; quotes, agencies, fact-checkers, satire sites and newsrooms excluded), timing, shared tracking IDs, young domains, known networks (`own` + copies + `in_story` sister sites) |
+| score | `pipeline/score/__init__.py: run` | Done with **hand-set prior weights** (`weights.json`, `n = 0`). Satire outlets abstain on `single`; `outlet_satire` maps to −1.0. Fit CLI ready (`pipeline/score/fit.py`), waiting for `evals/results/fit.jsonl` |
+| explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; discloses uncalibrated priors; explains zero-evidence low baselines (`evidence_count: 0`); writes in `input.explanation_language` (D14) |
 
-What works today: every stage runs; quotations are not scored as the author's words; agency copy is not a network; mainstream reports score ~0.2, the invented propaganda control 0.98. What does not yet: **without `retrieve` on `main` every live analysis abstains** ("not enough evidence"), and on real coverage the single-actor score abstains on articles carrying debunked claims (no coverage or fact-check found in today's feeds). Details: "First run on real coverage".
+### VPS speed & live demo check (Sat 18:30, `sha-151a062`)
+- `/api/stats` over 25 finished analyses (18 with `retrieve` + `story`): **`signals_single` p50 3.1 s, p95 33.0 s** (limit 120 s); full analysis **p50 21.9 s, p95 65.7 s** (limit 300 s). No model or paragraph cap downgrade needed.
+- Demo items tested on VPS:
+  - `fcd_de_002` (`achgut.com`, German climate hoax): Oxylabs news search found the English Climate Feedback debunk (`science.feedback.org`, rating `Inaccurate`). Direct claim entailment missed across languages (`E = 0.001`), so `fact_check_evidence` now also matches when a debunking verdict passage of the fact-check contradicts both the reviewed claim (`≥ 0.6`) and a document claim (`≥ 0.9` both ways): **`fcd_de_002` goes from abstain → `single = 0.832`**, while the BR24 debunk `fc_de_005` still gets zero false matches (`max = 0.178`).
+  - `pk_de_002` (`deutsch.news-pravda.com`): `coordinated = 0.622` via `known_networks`; `ctx = 0` because Google/Oxylabs news does not index `*.news-pravda.com` (sister-site RSS feeds are needed for cross-edition context; `known_networks` now also counts `in_story` sister sites across languages).
 
-## Requests to the team (Sat 17:15)
+### Why a zero-evidence dimension with ≥ 3 context items shows a low baseline (`0.076`), not an abstention
+Answered for `docs/next-steps.md` (Lyreplus #1, ANSA run `01a1dadf-ae67-…`):
+- Yes, `0.076 = σ(-2.5)`: for `coordinated` it is `σ(intercept)` (`-2.5 + 0`), and for `single` on ANSA it was `σ(-2.0 + 1.0 × (-0.5)) = σ(-2.5)` (`intercept + outlet_wire_service`) — identical by coincidence of the hand-set priors; they diverge once `weights.json` is fitted.
+- **Do not abstain when ≥ 3 items were checked and 0 signals fired**: (1) checking 5 related reports and finding zero copied passages, zero shared trackers and no listed network *is* evidence of low coordination (whereas `< 3` items already abstains because we could not check); (2) none of the four coordinated families emits "negative" `Evidence` items, so abstaining on zero evidence would abstain on **100% of true negatives** (`mainstream`, `hard_wire_copy`, `hard_press_releases`, `hard_fact_checks`), leaving `tn = 0` (FPR unmeasurable) and giving `fit.py` **zero negative rows**. Instead, `explain` now receives `evidence_count` per dimension and states that a low percentage with `evidence_count = 0` means no signals of that dimension were found in the coverage.
 
-What the AI-core stages need from the others, most important first. Each item says what breaks without it and how to check it.
+## Remaining requests to the team (Sat 18:45)
 
-### ck-lithium: retrieve and story
-1. **Merge `ck-lithium/retrieve`** (9 commits ahead, 5 behind `main`). Until then context is empty on the VPS and every score abstains.
-2. **Fact-check lookup per claim** (Google Fact Check Tools API, `GOOGLE_FACTCHECK_API_KEY`, plan §4 and D8). On 20 real items, 0 context items had `fact_check`. It is the only way an old article with a debunked claim gets a score: the single-actor dimension abstains with fewer than 3 related reports **unless** a fact-check matched a claim. Item shape: `fact_check = {claim, rating, publisher}`, `text` = reviewed claim + verdict, `outlet` = the fact-checker's domain. Check: `fcd_*` items in `evals/labelled.jsonl` get a `fact_checks / rated_false` evidence item.
-3. **Search beyond today's feeds**: exact-phrase search for distinctive sentences and an archive/search adapter (Oxylabs D7, GDELT, Gemini grounding D15). 14 of 20 items had zero context; Pravda-network articles never got their sister-site copies, so text reuse, timing and infrastructure never fired and coordinated rests on the VIGINUM list alone. Check: a `pk_*` item gets ≥ 1 context item on another `*.news-pravda.com` or listed domain.
-4. **Type mainstream outlets** (`national` / `local`; `local` is never emitted today). Untyped outlets count as possible copiers in `coordinated.py`; rte.ie, wtop.com, gov.uk were untyped. `registered_at` was null for 7 big domains (ansa.it, tagesschau.de, rte.ie…): the domain-age signal is lost there.
-5. **Story threshold**: at 0.845 a story mixed different events of one topic ("three killed in Russian strikes" inside the story about the NATO offer), which is where false NLI contradictions come from. Prefer precision: when unsure, out of the story.
-6. **Frontend (D14)**: a selector for the explanation language (default English, option: the content language `analysis.language.code`), sent as `explanation_language` in `POST /api/analyses`. Show `scores.<dimension>.reason` when `abstained`, and the explanation summary as written (it already carries the "preliminary estimates" sentence).
-
-### mosearc: evals and metrics
-1. **Abstentions are not misses in `metrics.py` today**: an abstained positive leaves the recall denominator, and an empty denominator prints `0.000`. With today's retrieve the single-actor numbers would read "recall 0.000 [0.00, 1.00], abstain 0.81". Publish coverage (scored / labelled) next to recall, precision and FPR, and `n/a` for empty denominators.
-2. **Coordinated without `known_networks`**: the VIGINUM list both labels `viginum_pravda` and is the `known_networks` signal, so the coordinated AUC is about 1 by construction. Report the number without that family next to the headline (`weights.json → cv.ablation.known_networks.auc_without` after the fit; the runner's `ablation` is a re-score with the same weights, not a refit). Same caution for `fact_checks` on `fact_checker_debunk` and `outlet_fact_checker` on `hard_fact_checks`.
-3. **Run order**: `fit.jsonl` must come from a run with retrieve live and with #15 deployed (the signal scales changed: techniques are now a share of paragraphs). Older records can be refreshed with `POST /api/analyses/{id}/rerun?from=signals_single`. Then I run `python -m pipeline.score.fit evals/results/fit.jsonl`, commit `weights.json`, and the metrics should be recomputed after that.
-4. Demo items: choose ones with ≥ 3 related reports (mainstream stories) for the single-actor beat, and a Pravda-network item for coordinated; the debunked-claim items abstain until request ck-lithium 2 lands.
-
-### Degra02: integrator
-1. **Fixture scale**: `contracts/fixtures/analysis.json` has `techniques / manipulative_wording = 0.87`; the value is now a share of paragraphs (fixture: 1 of 3 paragraphs, counted as 4 → `0.25`). Tests still pass (strength is clipped); the fixture just reads wrong.
-2. **`satire` outlet type** in `OutletType`, so retrieve can mark satire sites and score can stop them (today satire abstains only because nothing else covers it).
-3. **VPS run for the fit** (per `docs/next-steps.md`): after retrieve is deployed, hand over `evals/results/fit.jsonl` and `predictions.jsonl`. Measure `signals_single` there (`/api/stats`): laptop p50 14 s, max 44 s with 4 analyses at once; the stage timeout is 120 s.
-4. Decision for the team: NLI claim support still produces false contradictions on real coverage (7 of 50 pairs at ≥ 0.9 both ways). A stronger verifier would be an LLM call per (claim, passage) with verbatim quote checks; that is network I/O in a signal stage and goes beyond D5, so it needs a decision. Without it, the fit decides how much `claim_support` counts.
+- **Degra02**: (1) set `GOOGLE_FACTCHECK_API_KEY` on the VPS and recreate `worker`; (2) run the 284-item eval and hand over `evals/results/fit.jsonl` so I can fit and commit `weights.json`.
+- **ck-lithium**: (1) merge `ck-lithium/satire` (`outlets.json` satire list — AI core's satire guard is ready here); (2) `web/` frontend (`explanation_language` selector, `scores.<dim>.reason` on abstention, `/api/metrics`).
+- **mosearc**: after `GOOGLE_FACTCHECK_API_KEY` and this PR land, re-run the `demo-script.md` inputs (`fcd_de_002` already scores `0.832` with this PR even via Oxylabs!) and recompute `evals/metrics.json` after `weights.json` is fitted.
 
 ```mermaid
 flowchart LR
@@ -96,13 +87,13 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 | tone | `tone_vs_peers` | z-score of the document's emotional charge vs story peers, `[-5, 5]` (positive = more charged) | ≥3 story peers | most charged paragraph + up to 3 peers |
 | claim_support | `contradicted` | (contradicting + 1) / (addressing + 2): the contradicting share, smoothed so one source moves it little, `(0, 1)` | ≥1 peer supports the claim (entailment ≥ 0.6) or contradicts it (contradiction ≥ 0.9 in **both** directions) | claim span + contradicting passages (quoted) + supporting peers |
 | claim_support | `unaddressed` | 1.0 | ≥3 peers judged, none addresses the claim | claim span |
-| fact_checks | `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0) | rating value | a `context[].fact_check` matches a claim (NLI entailment ≥ 0.5 either way, or ≥60% word overlap) and its rating is in the vocabulary (`claims.RATINGS`, several languages) | claim span + fact-check item (quote = rating when verbatim) |
+| fact_checks | `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0) | rating value | a `context[].fact_check` matches a claim — by NLI entailment ≥ 0.5 / ≥60% word overlap with `fact_check.claim`, or (for false/misleading ratings across languages) when a debunking verdict passage contradicts `fact_check.claim` (≥ 0.6 both ways) and the claim (≥ 0.9 both ways) | claim span + fact-check item (quote = verdict or rating when verbatim) |
 | source_profile | `domain_age_days` | days from registration (or first certificate) to publication | `sources[]` has the document's outlet with a date | RDAP or crt.sh URL |
 | source_profile | `outlet_<type>` | 1.0 | `sources[].outlet_type` set | outlet URL |
 
 Details:
 - **Emotional charge** of a text = mean over its paragraphs of the max probability among Loaded Language, Appeal to Fear, Name Calling, Exaggeration. Peers use their first 3 chunks (~400 chars). Spread floored at 0.05 so near-identical peers don't explode the z-score.
-- **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not the document's outlet, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
+- **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not satire sites, not the document's outlet, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
 - **Claim support** sends NLI the 4 two-sentence windows of each peer that share most words with the claim. Single sentences lose context: measured, "The draft does not ban private wells." alone → neutral 0.976; with the preceding sentence → contradiction 0.964. A peer that contains the claim verbatim is a quote, skipped for that claim. A contradiction counts only when passage → claim and claim → passage both reach 0.9: the NLI model treats two moments of one story as a contradiction (see "First run on real coverage").
 - **Quotations are not the author's words** (`text.mask_quotations`, `text.own_words`): passages inside `"…"`, `“…”`, `„…“`, `«…»`, `‘…’` are replaced by `…` before the technique model reads the document and the peers. A text that is mostly quotation (a pasted post in quote marks) keeps its words. Trade-off: scare quotes (so-called “experts”) are masked too.
 - **Fact-checks from the document's own outlet** are skipped: a fact-checker's article is not rated False by its own review.
@@ -116,10 +107,10 @@ Details:
 | timing | `copies_within_window` | copies published within 6 h of the document (or of the earliest copy when the document has no date) | ≥1 (≥2 without document date) | the copies |
 | infrastructure | `shared_tracking_id` | largest number of other domains carrying one of the document's GA/GTM/AdSense IDs (without document IDs: an ID shared by ≥2 copying sites) | ≥1 such domain | carrying items |
 | infrastructure | `young_copying_domains` | copying domains registered < 180 days before the article | ≥1 | RDAP URLs |
-| known_networks | `listed_domain` | listed domains among the document outlet and the copies | `sources[].known_network` set | outlet URLs |
+| known_networks | `listed_domain` | listed domains among the document outlet, the copies and `in_story` items | `sources[].known_network` set | outlet URLs |
 
 - **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped).
-- **Syndication guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream outlets; untyped outlets still count as copiers.
+- **Syndication & satire guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `satire`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream and satire outlets; untyped outlets still count as copiers.
 - **Quotations** are removed from the document before shingling: a fact-check quoting a hoax is not a copy of it.
 - Exact 5-gram sets instead of MinHash: with ≤30 context items exact is cheap and has no false matches.
 
@@ -129,7 +120,7 @@ Per dimension:
 
 $$\text{confidence} = \sigma\Big(b + \sum_f w_f \cdot v_f\Big)$$
 
-- $v_f \in [-1, 1]$: family value = strength of its strongest signal (`families.STRENGTH`). Positive points toward propaganda, negative away (a fact-checker rating the claim true −1, outlet is a news agency −0.5, fact-checker −1, national −0.2). Unknown signals are ignored with a log warning: **add a STRENGTH entry when you add a signal.**
+- $v_f \in [-1, 1]$: family value = strength of its strongest signal (`families.STRENGTH`). Positive points toward propaganda, negative away (a fact-checker rating the claim true −1, outlet is a news agency −0.5, fact-checker −1, satire −1, national −0.2). Unknown signals are ignored with a log warning: **add a STRENGTH entry when you add a signal.**
 - Counts saturate: copies/timing $1 - e^{-n/2}$, shared tracking ID $1 - e^{-n}$; domain age $1 - \log_{10}(d+1)/\log_{10}3650$ (15 days → 0.66, 1 year → 0.28); unaddressed claim 0.2; techniques $2 \times$ share of paragraphs, clipped to 1 (half the paragraphs saturates).
 - Signed signals: tone $z/3$ clipped to $[-0.5, 1]$ (calmer than the peers points away, weakly); claim support $2v - 1$ clipped to $[-0.6, 1]$ with $v$ = smoothed contradicting share (1 of 1 → 0.33, 8 of 8 → 0.8, split 0, 0 of 4 → −0.6). Both floors stay above −0.7, so they never trigger the disagreement abstention alone.
 - `breakdown`: every family of the dimension in fixed order, `contribution = w_f · v_f` (log-odds), `evidence_ids` strongest first (empty when no evidence). Shown even when abstaining.
@@ -143,7 +134,7 @@ Prior weights (`weights.json`, `source` says they are priors):
 
 Abstentions (`confidence: null`, `reason` shown as "Not enough evidence"):
 - both: no text; `language.support == unsupported`;
-- single: fewer than 3 related reports (in story, not fact-checks) and no fact-check match;
+- single: `OutletType.satire` ("satire publication, not factual news reporting"); fewer than 3 non-satire related reports (in story, not fact-checks) and no fact-check match;
 - coordinated: no copies and no listed domain, and fewer than 3 non-fact-check items found;
 - either: a family ≥ 0.7 and another ≤ −0.7 ("evidence points both ways").
 
@@ -164,7 +155,7 @@ One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analys
 
 ## explain
 
-- One `llm.ask_json_async` call (max 1000 output tokens: non-Latin scripts need more). The `user` message is a JSON digest: both scores (confidence + non-zero contributions, or the abstention reason), the 20 strongest evidence items (`id`, family, signal, detail; ranked by `|strength|`), the title and the claims. The system prompt forbids outside knowledge, invented numbers, verdict labels (D4) and non-verbatim quotes.
+- One `llm.ask_json_async` call (max 1000 output tokens: non-Latin scripts need more). The `user` message is a JSON digest: both scores (confidence, `calibrated`, `evidence_count`, non-zero contributions, or the abstention reason), the 20 strongest evidence items (`id`, family, signal, detail; ranked by `|strength|`), the title and the claims. The system prompt forbids outside knowledge, invented numbers, verdict labels (D4) and non-verbatim quotes, and tells the model to explain `evidence_count = 0` as "no signals found in the coverage".
 - Output: a 1–2 sentence summary and up to 3 reasons, each with evidence IDs.
 - The stage applies the API's rules itself (`check`): unknown evidence IDs are removed and a reason left with none is dropped; a reason whose quotation (≥12 chars inside `"…"`, `“…”`, `„…“`, `«…»`) is not verbatim in the document, context or an evidence detail is dropped; a misquoting summary is blanked. `quotations` mirrors `contracts/src/apply.rs`.
 - No evidence at all → no LLM call; the summary says nothing was found and repeats the abstention reasons.
@@ -294,20 +285,20 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## What the other stages must provide
 
-- **extract**: `document.paragraphs`, `outlet` (domain), `published_at`, `tracking_ids`; `language.support` drives abstention and the confidence cap (`EVALUATED_LANGUAGES` is empty on `main`: every language is `supported`, capped at 0.85).
-- **retrieve**: `context[].text` (full body, not a snippet: claim support and copy detection read it), `outlet`, `published_at`, `tracking_ids`, `fact_check`; `sources[]` for the document outlet **and** every context outlet, with `outlet_type` (`wire_service` for agencies, `national`/`local` for mainstream newsrooms, `fact_checker`) and `known_network`.
+- **extract**: `document.paragraphs`, `outlet` (domain), `published_at`, `tracking_ids`; `language.support` drives abstention and the confidence cap (`EVALUATED_LANGUAGES` lists `en, de, fr, it, es, nl`).
+- **retrieve**: `context[].text` (full body, not a snippet: claim support and copy detection read it), `outlet`, `published_at`, `tracking_ids`, `fact_check`; `sources[]` for the document outlet **and** every context outlet, with `outlet_type` (`wire_service` for agencies, `national`/`local` for mainstream newsrooms, `fact_checker`, `satire`) and `known_network`.
 - **story**: `in_story` and `similarity`; items with `in_story = false` are ignored by tone and claim support.
 
 ## Open items (AI core)
 
-1. Fit the combiner once `fit.jsonl` exists; commit `weights.json` with `cv`. The priors sentence disappears from explanations by itself.
-2. Re-check every signal on real retrieve output with ck-lithium once retrieve is on `main`; re-run the demo items with `rerun?from=signals_single` after each change.
-3. Satire with coverage: needs the `satire` outlet type (Degra02 2).
-4. `claim_support` noise on multi-event stories (Degra02 4).
+1. Fit the combiner once `evals/results/fit.jsonl` is handed over; commit `weights.json` with `cv`. The priors sentence disappears from explanations by itself.
+2. Re-run the demo items with `rerun?from=signals_single` after each signal or weight change and compare with mosearc.
+3. Optional team decision: LLM claim verifier vs keeping NLI + fitted weight for `claim_support`.
 
 ## Changelog
 
-- Sat 17:15 — status and per-person requests at the top of this file.
+- Sat 18:45 — satire guard (`OutletType.satire` abstains single, −1.0 strength, excluded from copiers and story peers); cross-lingual fact-check verdict matching (`fcd_de_002` 0.832); `known_networks` includes `in_story` sister sites; `explain` `evidence_count` + baseline-score rationale; VPS speed verified (`/api/stats`).
+- Sat 17:15 (#17) — status and per-person requests at the top of this file.
 - Sat 17:00 (#15) — first run on real coverage: technique value = share of paragraphs (short texts count as 4), two-way NLI contradiction, smoothed claim support, one-fact claims; fit leaves abstained items out, per-family refit ablation and leak warning; explain reads `input.explanation_language` from the contract.
 - Sat 16:30 — D14: explanation in the reader's language; fixed sentences per language; clearer outlet-type wording.
 - Sat 16:00 — explain discloses prior (uncalibrated) confidences; `DimensionWeights.calibrated`.
