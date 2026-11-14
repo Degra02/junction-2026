@@ -378,6 +378,7 @@ mod tests {
             Input {
                 kind: InputKind::Text,
                 value: "x".into(),
+                explanation_language: None,
             },
             "test".into(),
             Utc::now(),

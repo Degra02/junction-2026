@@ -4,7 +4,7 @@
 
 ## Read first
 - `docs/next-steps.md` — **your current tasks**, per person, updated by the integrator every round. Start here.
-- `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` still shows the superseded Friday spec until mosearc rewrites it from the plan.
+- `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` is the product spec derived from it.
 - `DECISIONS.md` — decisions already made. Do not relitigate them; ask the integrator.
 - `docs/ai-core.md` — signal catalogue with value scales, scoring formula, models, and what `extract`, `retrieve` and `story` must provide for the signals.
 - `docs/` — event facts, sponsors, setup. `docs/[DEPRECATED]playbook.md` is superseded by this file and `docs/next-steps.md`.

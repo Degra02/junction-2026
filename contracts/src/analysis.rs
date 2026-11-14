@@ -143,6 +143,11 @@ pub struct Input {
     pub kind: InputKind,
     /// The pasted text, or the article URL.
     pub value: String,
+    /// Language the reader wants the explanation in (D14): ISO 639-1 code, e.g. `it`; null
+    /// means English. The API lowercases it and drops a region (`pt-BR` → `pt`). Quotations
+    /// stay in their original language.
+    #[serde(default)]
+    pub explanation_language: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
