@@ -1,8 +1,8 @@
 # AI core: understand, signals, score, explain
 
-Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branch: `lyreplus/ai-core`. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
+Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branches: `lyreplus/<topic>`, one per round. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 15:30.
+Updated: Sat 16:00.
 
 ## Status
 
@@ -140,6 +140,7 @@ One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analys
 - Output: a 1–2 sentence summary and up to 3 reasons, each with evidence IDs.
 - The stage applies the API's rules itself (`check`): unknown evidence IDs are removed and a reason left with none is dropped; a reason whose quotation (≥12 chars inside `"…"`, `“…”`, `„…“`, `«…»`) is not verbatim in the document, context or an evidence detail is dropped; a misquoting summary is blanked. `quotations` mirrors `contracts/src/apply.rs`.
 - No evidence at all → no LLM call; the summary says nothing was found and repeats the abstention reasons.
+- **Uncalibrated confidences are disclosed** (`docs/next-steps.md`: never claim calibration before the fit). Each non-abstained score in the digest carries `calibrated` (`WEIGHTS.<dimension>.calibrated`, true once `pipeline.score.fit` wrote `n > 0`); the prompt says to call uncalibrated numbers estimates; and `PRIORS_NOTE` ("These percentages are preliminary estimates from hand-set weights, not yet calibrated on labelled data.") is appended to the summary whenever such a confidence is shown, independent of the model's wording. After the fit the note disappears by itself.
 
 ## LLM cost (AI Router)
 
@@ -169,7 +170,7 @@ An analysis makes 2 calls (understand, explain). Recommended default: `LLM_MODEL
 
 ## Results so far
 
-Measured on a dev laptop (AMD Ryzen 5 240, 12 threads). **Not measured on the VPS (2 vCPU) yet.**
+Measured on a dev laptop (AMD Ryzen 5 240, 12 threads) unless marked VPS.
 
 | Measurement | Result |
 |---|---|
@@ -177,6 +178,9 @@ Measured on a dev laptop (AMD Ryzen 5 240, 12 threads). **Not measured on the VP
 | `run_single` on the example analysis (3 paragraphs, 1 peer, 2 claims) | 0.9 s |
 | `run_coordinated` | milliseconds |
 | understand on a 3-paragraph Italian text (AI Router) | 3 verbatim claims with correct spans; 3 `it` + 3 `en` queries |
+| **VPS** (`the4thlover.tech`, 2 vCPU, `sha-052088a`, no retrieve): 3-paragraph Italian text | extract 31 ms, understand 1.8 s, signals_single 0.62 s (techniques only: no peers, so no NLI), explain 1.5 s; both dimensions abstain (0 context items) |
+
+VPS projection for a full analysis [inference, not measured]: the technique model costs ~0.2 s per text on the VPS (0.62 s / 3 paragraphs); 30 paragraphs + 10 peers × 3 chunks ≈ 12 s, plus NLI for 5 claims × 10 peers × 4 windows. Re-measure with `/api/stats` once retrieve is live.
 
 Example analysis (`contracts/fixtures/analysis.json`), chain run_single → run_coordinated → score with real models:
 
@@ -248,6 +252,7 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Changelog
 
+- Sat 16:00 — explain discloses prior (uncalibrated) confidences; `DimensionWeights.calibrated`.
 - Sat 15:30 — language spot check (D6); hard negatives: quotations masked, claims only asserted ones, own fact-checks skipped, newsrooms as syndication, signed tone and claim support.
 - Sat 15:00 — explain stage; LLM cost measurements.
 - Sat 14:00 — score stage, fit CLI, this document.

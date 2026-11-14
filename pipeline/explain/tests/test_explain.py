@@ -88,3 +88,44 @@ def test_no_evidence_no_llm_call(monkeypatch: pytest.MonkeyPatch) -> None:
     explanation = asyncio.run(explain.run(analysis)).explanation
     assert explanation.reasons == []
     assert "coordinated: Only 1 other item was found online." in explanation.summary
+
+
+def _run_with(monkeypatch: pytest.MonkeyPatch, analysis, summary: str) -> str:
+    async def fake_ask(*_: object, **__: object) -> Draft:
+        return draft(summary, ("A fact-checker rated the claim False.", ["s4"]))
+
+    monkeypatch.setattr(explain.llm, "ask_json_async", fake_ask)
+    return asyncio.run(explain.run(analysis)).explanation.summary
+
+
+def test_prior_confidences_are_disclosed_whatever_the_model_writes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert not explain.WEIGHTS.single.calibrated  # committed weights are still priors
+    payload = json.loads(digest(example_analysis()))
+    assert payload["scores"]["single"]["calibrated"] is False
+    summary = _run_with(monkeypatch, example_analysis(), "Single-actor signs: 86%.")
+    assert summary == f"Single-actor signs: 86%. {explain.PRIORS_NOTE}"
+    # A misquoting summary is blanked; the note still stands alone.
+    blanked = _run_with(
+        monkeypatch, example_analysis(), 'It says "this text is not in the record".'
+    )
+    assert blanked == explain.PRIORS_NOTE
+
+
+def test_no_note_when_nothing_uncalibrated_is_shown(monkeypatch: pytest.MonkeyPatch) -> None:
+    analysis = example_analysis()
+    assert analysis.scores is not None
+    for score in (analysis.scores.single, analysis.scores.coordinated):
+        score.abstained, score.confidence, score.reason = True, None, "Too little coverage."
+    assert _run_with(monkeypatch, analysis, "Both dimensions abstained.") == (
+        "Both dimensions abstained."
+    )
+    fitted = explain.WEIGHTS.single.model_copy(update={"n": 120})
+    coordinated = explain.WEIGHTS.coordinated.model_copy(update={"n": 60})
+    monkeypatch.setattr(
+        explain,
+        "WEIGHTS",
+        explain.WEIGHTS.model_copy(update={"single": fitted, "coordinated": coordinated}),
+    )
+    assert _run_with(monkeypatch, example_analysis(), "Signs: 86%.") == "Signs: 86%."
