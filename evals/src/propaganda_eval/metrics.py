@@ -1,12 +1,17 @@
 """Evaluation metrics aligned with the pipeline (plan §5, §8).
 
 Two dimensions scored separately: single, coordinated. Per dimension:
-  - precision, recall, F1, FPR, with Wilson 95% intervals (small labelled sets);
+  - precision, recall, F1, FPR on the items that got a score, with Wilson 95% intervals;
+  - coverage next to each: the share of the labelled items (of that class for recall and FPR)
+    that got a score, and `recall_all`, which counts abstained and failed positives as misses.
+    A recall of 1.0 on 3 scored positives out of 40 is not a recall of 1.0;
+  - `None` (`n/a` in tables, `null` in JSON) when a denominator is empty, never 0;
   - FPR per hard-negative set, metrics per set and per language;
   - calibration table (reliability);
   - abstain rate and failure rate, apart: an abstention is the pipeline saying "not enough
     evidence", a failure is the pipeline breaking (a stage failed, the analysis timed out);
-  - ablation: the same metrics with each family's evidence removed (what each family adds).
+  - ablation: the same metrics with each family's evidence removed (what each family adds),
+    and the headline with the family that shares its source with the label removed.
 
 Items whose label is null for a dimension are left out of that dimension.
 """
@@ -18,6 +23,14 @@ from dataclasses import dataclass, field
 
 from .labelled import DIMENSIONS, LabelledItem
 
+# Families whose evidence comes from the same source as the label: the VIGINUM list labels
+# `viginum_pravda` and is the `known_networks` signal; a ClaimReview defines a debunked claim
+# and is the `fact_checks` signal. Their metrics are reported with and without the family.
+LABEL_SOURCE_FAMILY = {"single": "fact_checks", "coordinated": "known_networks"}
+# `outlet_fact_checker` (a fact-checker as the outlet) is a source_profile signal: the
+# hard_fact_checks FPR is reported without that family as well.
+SET_SOURCE_FAMILY = {("single", "hard_fact_checks"): "source_profile"}
+
 
 @dataclass
 class BinaryMetrics:
@@ -25,25 +38,18 @@ class BinaryMetrics:
     fp: int = 0
     fn: int = 0
     tn: int = 0
-    abstained: int = 0
-    failed: int = 0
+    abstained_pos: int = 0
+    abstained_neg: int = 0
+    failed_pos: int = 0
+    failed_neg: int = 0
 
     @property
-    def precision(self) -> float:
-        return self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0.0
+    def abstained(self) -> int:
+        return self.abstained_pos + self.abstained_neg
 
     @property
-    def recall(self) -> float:
-        return self.tp / (self.tp + self.fn) if (self.tp + self.fn) > 0 else 0.0
-
-    @property
-    def f1(self) -> float:
-        p, r = self.precision, self.recall
-        return 2 * p * r / (p + r) if (p + r) > 0 else 0.0
-
-    @property
-    def fpr(self) -> float:
-        return self.fp / (self.fp + self.tn) if (self.fp + self.tn) > 0 else 0.0
+    def failed(self) -> int:
+        return self.failed_pos + self.failed_neg
 
     @property
     def total(self) -> int:
@@ -51,31 +57,84 @@ class BinaryMetrics:
         return self.tp + self.fp + self.fn + self.tn
 
     @property
-    def abstain_rate(self) -> float:
+    def positives(self) -> int:
+        """Labelled positives that were run (scored, abstained or failed)."""
+        return self.tp + self.fn + self.abstained_pos + self.failed_pos
+
+    @property
+    def negatives(self) -> int:
+        return self.fp + self.tn + self.abstained_neg + self.failed_neg
+
+    @property
+    def precision(self) -> float | None:
+        return _ratio(self.tp, self.tp + self.fp)
+
+    @property
+    def recall(self) -> float | None:
+        """On the scored positives: read it next to `coverage_pos`."""
+        return _ratio(self.tp, self.tp + self.fn)
+
+    @property
+    def recall_all(self) -> float | None:
+        """On every labelled positive: an abstention or a failure is a miss."""
+        return _ratio(self.tp, self.positives)
+
+    @property
+    def f1(self) -> float | None:
+        p, r = self.precision, self.recall
+        if p is None or r is None:
+            return None
+        return 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+
+    @property
+    def fpr(self) -> float | None:
+        """On the scored negatives: read it next to `coverage_neg`."""
+        return _ratio(self.fp, self.fp + self.tn)
+
+    @property
+    def coverage(self) -> float | None:
+        """Scored / labelled: the share of the items the precision is computed on."""
+        return _ratio(self.total, self.positives + self.negatives)
+
+    @property
+    def coverage_pos(self) -> float | None:
+        return _ratio(self.tp + self.fn, self.positives)
+
+    @property
+    def coverage_neg(self) -> float | None:
+        return _ratio(self.fp + self.tn, self.negatives)
+
+    @property
+    def abstain_rate(self) -> float | None:
         """Share of the analyses that finished which abstained; failures are not abstentions."""
-        finished = self.total + self.abstained
-        return self.abstained / finished if finished > 0 else 0.0
+        return _ratio(self.abstained, self.total + self.abstained)
 
     @property
-    def failure_rate(self) -> float:
-        runs = self.total + self.abstained + self.failed
-        return self.failed / runs if runs > 0 else 0.0
+    def failure_rate(self) -> float | None:
+        return _ratio(self.failed, self.positives + self.negatives)
 
     @property
-    def precision_ci(self) -> tuple[float, float]:
+    def precision_ci(self) -> tuple[float, float] | None:
         return _wilson(self.tp, self.tp + self.fp)
 
     @property
-    def recall_ci(self) -> tuple[float, float]:
+    def recall_ci(self) -> tuple[float, float] | None:
         return _wilson(self.tp, self.tp + self.fn)
 
     @property
-    def fpr_ci(self) -> tuple[float, float]:
+    def recall_all_ci(self) -> tuple[float, float] | None:
+        return _wilson(self.tp, self.positives)
+
+    @property
+    def fpr_ci(self) -> tuple[float, float] | None:
         return _wilson(self.fp, self.fp + self.tn)
 
     def update(self, score: float | None, gold: bool, threshold: float) -> None:
         if score is None:
-            self.abstained += 1
+            if gold:
+                self.abstained_pos += 1
+            else:
+                self.abstained_neg += 1
         elif score >= threshold:
             if gold:
                 self.tp += 1
@@ -86,21 +145,36 @@ class BinaryMetrics:
         else:
             self.tn += 1
 
+    def fail(self, gold: bool) -> None:
+        if gold:
+            self.failed_pos += 1
+        else:
+            self.failed_neg += 1
+
     def as_dict(self) -> dict[str, object]:
         return {
             "tp": self.tp,
             "fp": self.fp,
             "fn": self.fn,
             "tn": self.tn,
-            "abstained": self.abstained,
-            "failed": self.failed,
+            "positives": self.positives,
+            "negatives": self.negatives,
+            "abstained_pos": self.abstained_pos,
+            "abstained_neg": self.abstained_neg,
+            "failed_pos": self.failed_pos,
+            "failed_neg": self.failed_neg,
             "precision": _round(self.precision),
-            "precision_ci": [_round(x) for x in self.precision_ci],
+            "precision_ci": _round_ci(self.precision_ci),
+            "coverage": _round(self.coverage),
             "recall": _round(self.recall),
-            "recall_ci": [_round(x) for x in self.recall_ci],
+            "recall_ci": _round_ci(self.recall_ci),
+            "coverage_pos": _round(self.coverage_pos),
+            "recall_all": _round(self.recall_all),
+            "recall_all_ci": _round_ci(self.recall_all_ci),
             "f1": _round(self.f1),
             "fpr": _round(self.fpr),
-            "fpr_ci": [_round(x) for x in self.fpr_ci],
+            "fpr_ci": _round_ci(self.fpr_ci),
+            "coverage_neg": _round(self.coverage_neg),
             "abstain_rate": _round(self.abstain_rate),
             "failure_rate": _round(self.failure_rate),
         }
@@ -124,6 +198,8 @@ class DimensionResult:
     calibration: list[CalibrationBin] = field(default_factory=list)
     # Family → metrics with that family's evidence removed (only when the runner recorded it).
     ablation: dict[str, BinaryMetrics] = field(default_factory=dict)
+    # Family → set → the same, per labelled set.
+    ablation_per_set: dict[str, dict[str, BinaryMetrics]] = field(default_factory=dict)
     # Labelled items without any prediction (the runner has not reached them).
     missing: int = 0
 
@@ -134,6 +210,9 @@ class EvalResult:
     total_items: int = 0
     dimensions: dict[str, DimensionResult] = field(default_factory=dict)
     pipeline_versions: list[str] = field(default_factory=list)
+    # Dimension → the combiner fit's cross-validated numbers (`weights.json` → `cv`, `n`);
+    # empty while the weights are priors.
+    fit: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 @dataclass
@@ -164,6 +243,9 @@ def evaluate(
     for dim in DIMENSIONS:
         dr = DimensionResult(dimension=dim)
         pairs: list[tuple[float, bool]] = []
+        # The runner records a family's ablation only where its evidence fired; elsewhere
+        # removing it changes nothing, so every item counts in every ablation row.
+        families = sorted({f for p in predictions.values() for f in p.ablation.get(dim, {})})
 
         for item in items:
             gold = item.labels.get(dim)
@@ -178,24 +260,57 @@ def evaluate(
                 _bucket(dr.per_set, item.set_name),
                 _bucket(dr.per_language, item.language or "unknown"),
             ]
+            ablation_buckets = {
+                f: [
+                    _bucket(dr.ablation, f),
+                    _bucket(dr.ablation_per_set.setdefault(f, {}), item.set_name),
+                ]
+                for f in families
+            }
             if pred.failed:
-                for m in buckets:
-                    m.failed += 1
-                for family in pred.ablation.get(dim, {}):
-                    _bucket(dr.ablation, family).failed += 1
+                for m in buckets + [m for ms in ablation_buckets.values() for m in ms]:
+                    m.fail(gold)
                 continue
             score = pred.scores.get(dim)
             for m in buckets:
                 m.update(score, gold, threshold)
             if score is not None:
                 pairs.append((score, gold))
-            for family, ablated in pred.ablation.get(dim, {}).items():
-                _bucket(dr.ablation, family).update(ablated, gold, threshold)
+            recorded = pred.ablation.get(dim, {})
+            for f, ms in ablation_buckets.items():
+                for m in ms:
+                    m.update(recorded.get(f, score), gold, threshold)
 
         dr.calibration = _calibrate(pairs)
         result.dimensions[dim] = dr
 
     return result
+
+
+def headline(result: EvalResult) -> dict[str, object]:
+    """Each dimension with and without the family that shares its source with the label."""
+    out: dict[str, object] = {}
+    for dim, dr in result.dimensions.items():
+        family = LABEL_SOURCE_FAMILY[dim]
+        without = dr.ablation.get(family)
+        out[dim] = {
+            "family_removed": family,
+            "with": dr.overall.as_dict(),
+            # None: the predictions carry no ablation for it (the family never fired).
+            "without": without.as_dict() if without else None,
+            "fit": _fit_headline(result.fit.get(dim), family),
+        }
+    for (dim, set_name), family in sorted(SET_SOURCE_FAMILY.items()):
+        dr = result.dimensions.get(dim)
+        if dr is None or set_name not in dr.per_set:
+            continue
+        without = dr.ablation_per_set.get(family, {}).get(set_name)
+        out[f"{dim}/{set_name}"] = {
+            "family_removed": family,
+            "with": dr.per_set[set_name].as_dict(),
+            "without": without.as_dict() if without else None,
+        }
+    return out
 
 
 def to_json(result: EvalResult) -> dict[str, object]:
@@ -204,6 +319,8 @@ def to_json(result: EvalResult) -> dict[str, object]:
         "threshold": result.threshold,
         "items": result.total_items,
         "pipeline_versions": result.pipeline_versions,
+        "headline": headline(result),
+        "fit": result.fit,
         "dimensions": {
             dim: {
                 "overall": dr.overall.as_dict(),
@@ -225,6 +342,38 @@ def to_json(result: EvalResult) -> dict[str, object]:
             }
             for dim, dr in result.dimensions.items()
         },
+    }
+
+
+def fit_summary(weights: dict[str, object]) -> dict[str, dict[str, object]]:
+    """The numbers of `pipeline/score/weights.json` the report quotes; empty for priors."""
+    out: dict[str, dict[str, object]] = {}
+    for dim in DIMENSIONS:
+        w = weights.get(dim)
+        if not isinstance(w, dict) or not w.get("cv"):
+            continue
+        cv = w["cv"]
+        out[dim] = {
+            "n": w.get("n"),
+            "auc": cv.get("auc"),
+            "log_loss": cv.get("log_loss"),
+            "brier": cv.get("brier"),
+            "ablation": cv.get("ablation") or {},
+        }
+    return out
+
+
+def _fit_headline(fit: dict[str, object] | None, family: str) -> dict[str, object] | None:
+    if not fit:
+        return None
+    ablation = fit.get("ablation") or {}
+    report = ablation.get(family) if isinstance(ablation, dict) else None
+    return {
+        "n": fit.get("n"),
+        "auc": fit.get("auc"),
+        # Refit without the family (pipeline.score.fit), not a re-score with the same weights.
+        "auc_without": report.get("auc_without") if report else None,
+        "auc_alone": report.get("auc_alone") if report else None,
     }
 
 
@@ -251,14 +400,23 @@ def _calibrate(pairs: list[tuple[float, bool]], n_bins: int = 5) -> list[Calibra
     return bins
 
 
-def _round(x: float) -> float:
-    return round(x, 4)
+def _ratio(numerator: int, denominator: int) -> float | None:
+    """None for an empty denominator: no data is not 0."""
+    return numerator / denominator if denominator > 0 else None
 
 
-def _wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
-    """Wilson score 95% confidence interval."""
+def _round(x: float | None) -> float | None:
+    return None if x is None else round(x, 4)
+
+
+def _round_ci(ci: tuple[float, float] | None) -> list[float] | None:
+    return None if ci is None else [round(ci[0], 4), round(ci[1], 4)]
+
+
+def _wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float] | None:
+    """Wilson score 95% confidence interval; None without observations."""
     if total == 0:
-        return (0.0, 1.0)
+        return None
     p = successes / total
     denom = 1 + z * z / total
     centre = (p + z * z / (2 * total)) / denom

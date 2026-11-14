@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .format import format_full_report
 from .labelled import load_labelled, stats
-from .metrics import Prediction, evaluate, to_json
+from .metrics import Prediction, evaluate, fit_summary, to_json
 
 EVALS = Path(__file__).resolve().parents[2]
 
@@ -44,6 +44,11 @@ def main() -> None:
         "--json",
         dest="json_path",
         help="Write the metrics (numbers only) to this file, e.g. evals/metrics.json",
+    )
+    eval_p.add_argument(
+        "--weights",
+        default=str(EVALS.parent / "pipeline" / "score" / "weights.json"),
+        help="Combiner weights: their cross-validated AUC is quoted next to the metrics",
     )
 
     args = parser.parse_args()
@@ -105,6 +110,9 @@ def _cmd_eval(args: argparse.Namespace) -> None:
     items = load_labelled(Path(args.labelled))
     predictions = _load_predictions(args.predictions)
     result = evaluate(items, predictions, threshold=args.threshold)
+    weights = Path(args.weights)
+    if weights.exists():
+        result.fit = fit_summary(json.loads(weights.read_text(encoding="utf-8")))
     report = format_full_report(result)
     print(report)
 
