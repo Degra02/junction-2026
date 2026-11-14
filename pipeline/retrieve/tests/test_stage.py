@@ -217,7 +217,7 @@ def test_progress_notes(stage, monkeypatch):
     run()
     assert notes[0] == "Reading news feeds"
     assert "2 possibly related reports in 2 feeds" in notes
-    assert "Reading related reports: 2 of 2" in notes
+    assert "Reading related reports: 2 of 2 (agency.example, paper.example)" in notes
     assert notes[-1] == "2 related reports; checking the outlets"
     assert not any("http" in n for n in notes)  # notes are public: no URLs
 

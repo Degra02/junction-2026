@@ -337,10 +337,15 @@ async def run(analysis: Analysis) -> RetrievePatch:
             reader = Reader(web, cache)
             jobs = [reader.read(h.item.url, h.item.published_at) for h in hits]
             jobs += [reader.read(r.url, r.published_at) for r in reviews]
+            # Name the outlets being read: the UI shows which sites the search reached.
+            urls = [h.item.url for h in hits] + [r.url for r in reviews]
+            names = [n for n in dict.fromkeys(_site(outlet_host(u)) for u in urls) if n]
+            more = f" and {len(names) - 6} more" if len(names) > 6 else ""
+            reading = f" ({', '.join(names[:6])}{more})" if names else ""
             records = await _until(
                 jobs,
                 ARTICLES_TIMEOUT_S,
-                lambda n: progress.report(f"Reading related reports: {n} of {len(jobs)}"),
+                lambda n: progress.report(f"Reading related reports: {n} of {len(jobs)}{reading}"),
             )
             context = _context(hits, records[: len(hits)], phrases)
             context = _with_fact_checks(context, reviews, records[len(hits) :])
