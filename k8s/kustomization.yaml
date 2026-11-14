@@ -43,7 +43,8 @@ configMapGenerator:
       - BACKUP_INTERVAL_MINS=15
       - RUST_LOG=info
 
-# The worker's secrets: a git-ignored copy of the repo's .env (mise run k8s:up copies it).
+# The worker's secrets (LLM_*, provider keys): k8s/.env, written by hand on the machine that
+# applies this (template: k8s/.env.example) and git-ignored. Never copied from the repo's .env.
 secretGenerator:
   - name: worker-env
     envs:

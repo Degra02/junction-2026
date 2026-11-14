@@ -113,6 +113,8 @@ tools = { kind = "0.33.0", kubectl = "1.37.2" }
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
+# The worker's secrets are provided by hand (k8s/.env.example), never copied from the repo.
+[ -f k8s/.env ] || { echo "k8s/.env is missing: cp k8s/.env.example k8s/.env and fill it in" >&2; exit 1; }
 # kind uses podman when no Docker daemon answers (KIND_EXPERIMENTAL_PROVIDER). Rootless podman
 # sees the cpu cgroup controller only inside a delegated systemd scope, which kind requires.
 if docker info >/dev/null 2>&1; then
@@ -130,8 +132,6 @@ for image in api worker caddy; do
   kind load image-archive "target/k8s-$image.tar" --name junction
   rm "target/k8s-$image.tar"
 done
-# The worker's secrets (git-ignored like .env); kustomize reads only files inside k8s/.
-if [ -f .env ]; then cp .env k8s/.env; else : > k8s/.env; fi
 kubectl --context kind-junction apply -k k8s
 # Same tag `dev` on every rebuild: restart so the pods run the images just loaded.
 kubectl --context kind-junction -n junction rollout restart deployment

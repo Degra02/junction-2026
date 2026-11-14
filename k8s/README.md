@@ -3,6 +3,7 @@
 `deploy/compose.yaml` for a local kind cluster, as Kustomize: the same three images (`caddy`, `api`, `worker`) built from `deploy/*.Dockerfile`. Production stays on the VPS with compose (`deploy/README.md`).
 
 ```sh
+cp k8s/.env.example k8s/.env   # once, then fill in the worker's keys (git-ignored)
 mise run k8s:up      # kind cluster `junction`, build + load the images (tag dev), apply, wait
 kubectl --context kind-junction -n junction port-forward svc/caddy 8088:80   # http://127.0.0.1:8088
 mise run k8s:down    # delete the cluster and its volumes
@@ -18,7 +19,7 @@ kind also needs `fs.inotify.max_user_instances` of at least 512 (a desktop sessi
 |`caddy` publishes 80/443, gets certificates|`caddy` Service (ClusterIP, plain HTTP `:80`), reached by port-forward; no TLS locally|
 |`api`, no published ports, `api-data` volume|`api` Deployment, 1 replica, `Recreate`, PVC `api-data`; NetworkPolicy: only from caddy|
 |`worker`, `hf-cache` volume, `mem_limit: 6g`|`worker` Deployment, 1 replica, `Recreate`, PVC `hf-cache`, memory limit 6Gi; NetworkPolicy: only from api|
-|`.env` (worker secrets)|Secret `worker-env` generated from `k8s/.env` (git-ignored; `k8s:up` copies the repo's `.env`)|
+|`.env` (worker secrets)|Secret `worker-env` generated from `k8s/.env`, provided by hand on the machine that applies (template `k8s/.env.example`, git-ignored)|
 |API settings with defaults|ConfigMap `api-settings` in `kustomization.yaml`|
 |`IMAGE_TAG`, `PIPELINE_VERSION`|`images:` in `kustomization.yaml`; `PIPELINE_VERSION` follows the api tag (replacement)|
 
