@@ -27,7 +27,7 @@ function LogoMark() {
 }
 
 const NAV_LINK =
-  "h-8 px-2.5 inline-flex items-center rounded-lg text-[13px] font-medium transition-colors";
+  "h-8 px-2.5 inline-flex items-center rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors";
 
 export function AppShell({ children }: Readonly<AppShellProps>) {
   const { theme, toggleTheme } = useTheme();

@@ -22,7 +22,8 @@ export function HowItWorks({ triggerClassName }: Readonly<{ triggerClassName: st
     <Dialog.Root>
       <Dialog.Trigger asChild>
         <button type="button" className={triggerClassName}>
-          How it works
+          <span className="sm:hidden">Help</span>
+          <span className="hidden sm:inline">How it works</span>
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
