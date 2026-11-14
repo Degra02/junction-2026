@@ -13,6 +13,7 @@
 - `mise run setup`: install pinned tools (node, python, bun, uv, rust, cargo-nextest, gitleaks), enable git hooks, `uv sync`.
 - `mise run check`: what CI runs (gitleaks, rustfmt, clippy, nextest, ruff, pytest, contract drift). Must pass before asking for a merge.
 - `mise run dev`: worker (:8001) and API (:8080) locally; API docs at <http://127.0.0.1:8080/api/docs>.
+- `mise run web:dev`: the web UI on :5173 with `/api` proxied to the local API; `VITE_API_TARGET=https://the4thlover.tech mise run web:dev` shows live data. `mise run web:build` typechecks against `contracts/ts/api.d.ts` and builds `web/dist` (the caddy image build in CI runs the same).
 - `mise run contracts`: regenerate `contracts/openapi.json`, `pipeline/common/contracts.py`, `contracts/ts/api.d.ts` from the Rust types. Never edit those files by hand.
 - `mise tasks`: list everything else. Add new commands as mise tasks, not ad-hoc scripts.
 - Python deps: `uv add <pkg>`; JS deps: `bun add <pkg>`; Rust deps: `[workspace.dependencies]` in `Cargo.toml` (integrator).

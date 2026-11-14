@@ -143,10 +143,10 @@ function ContributionRows({
         })}
       </div>
 
-      <div className="flex justify-between text-[10px] font-mono-num text-[var(--fg-muted)] pt-1">
-        <span>← Points away (agency / corroborated)</span>
-        <span>0.00</span>
-        <span>Points toward signs →</span>
+      <div className="flex justify-between gap-3 text-[10px] font-mono-num text-[var(--fg-muted)] pt-1">
+        <span className="flex-1">← Points away (agency / corroborated)</span>
+        <span className="shrink-0">0.00</span>
+        <span className="flex-1 text-right">Points toward signs →</span>
       </div>
     </div>
   );

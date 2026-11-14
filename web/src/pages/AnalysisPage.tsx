@@ -175,9 +175,11 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
         ? `${Array.from(analysis.input.value).slice(0, 96).join("")}…`
         : analysis.input.value);
 
+  // pipeline/explain appends a fixed PRIORS_NOTES sentence (one per explanation language) while
+  // the combiner weights are hand-set priors; match a word unique to each of those sentences.
   const isPreliminaryEstimate = Boolean(
     analysis.explanation?.summary &&
-      /preliminary|hand-set|uncalibrated|preliminari|vorläufig|préliminaire|preliminar/i.test(
+      /preliminary|preliminari|vorläufig|préliminaire|preliminar|wstępne|voorlopige|предварительные|попередні/i.test(
         analysis.explanation.summary,
       ),
   );

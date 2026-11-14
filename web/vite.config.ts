@@ -14,7 +14,8 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: process.env.VITE_API_TARGET ?? "http://127.0.0.1:8080",
-        changeOrigin: false,
+        // Host header of the target: VITE_API_TARGET=https://the4thlover.tech needs it for Caddy.
+        changeOrigin: true,
       },
     },
   },
