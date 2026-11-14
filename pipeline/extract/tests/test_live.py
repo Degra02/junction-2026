@@ -14,10 +14,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import pipeline.extract as extract
-from pipeline.common.contracts import ExtractPatch, Input, InputKind, LanguageSupport
+from pipeline.common.contracts import ExtractPatch, Input, InputKind
 from pipeline.common.errors import StageError
 from pipeline.common.fixtures import example_analysis
 from pipeline.extract.fetch import USER_AGENT
+from pipeline.extract.language import support_for
 
 pytestmark = pytest.mark.skipif(not os.environ.get("RUN_LIVE"), reason="set RUN_LIVE=1")
 
@@ -71,7 +72,7 @@ def test_real_article(code, feed):
         assert patch.language is not None
         assert patch.language.code == code
         assert patch.language.confidence > 0.9
-        assert patch.language.support == LanguageSupport.supported
+        assert patch.language.support == support_for(code)
         return
     pytest.fail(f"no readable article in the first items: {errors}")
 

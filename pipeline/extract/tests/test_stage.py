@@ -63,7 +63,7 @@ def test_text_input():
     assert patch.document.url is None
     assert patch.language is not None
     assert patch.language.code == "en"
-    assert patch.language.support == LanguageSupport.supported
+    assert patch.language.support == LanguageSupport.evaluated
 
 
 def test_empty_text_input_is_refused():

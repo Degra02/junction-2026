@@ -1,0 +1,129 @@
+"""Story assignment with a stand-in embedder: threshold, date window, reasons, inputs."""
+
+from datetime import UTC, datetime, timedelta
+
+import numpy as np
+import pytest
+
+from pipeline.common.contracts import ContextItem, Document, FactCheck
+from pipeline.common.fixtures import example_analysis
+from pipeline.story.assign import LEAD_CHARS, THRESHOLD, WINDOW_DAYS, assign, story_text
+
+DAY = datetime(2026, 11, 14, 9, 0, tzinfo=UTC)
+
+
+def unit(similarity: float) -> np.ndarray:
+    """A unit vector whose dot product with [1, 0] is `similarity`."""
+    return np.array([similarity, np.sqrt(max(0.0, 1 - similarity**2))], dtype=np.float32)
+
+
+class Embedder:
+    """Maps a text to a vector by the similarity written in it: `sim=0.9 ...`."""
+
+    def __init__(self):
+        self.calls: list[list[str]] = []
+
+    def __call__(self, texts: list[str]) -> np.ndarray:
+        self.calls.append(texts)
+        rows = [np.array([1.0, 0.0], dtype=np.float32)]  # the document
+        for text in texts[1:]:
+            rows.append(unit(float(text.split("sim=")[1].split()[0])))
+        return np.stack(rows)
+
+
+def item(i: int, sim: float, published: datetime | None = DAY, **kw) -> ContextItem:
+    return ContextItem(
+        id=f"ctx{i}",
+        url=f"https://outlet{i}.example/a",
+        outlet=f"outlet{i}.example",
+        published_at=published,
+        title=f"Report {i}",
+        text=f"sim={sim} body of report {i}.",
+        retrieved_by="feeds",
+        tracking_ids=[],
+        **kw,
+    )
+
+
+def analysis(*items: ContextItem, document_date: datetime | None = DAY):
+    a = example_analysis()
+    a.document = Document(
+        url=None,
+        outlet=None,
+        published_at=document_date,
+        title="The article",
+        paragraphs=["First paragraph.", "Second paragraph."],
+        outbound_links=[],
+        tracking_ids=[],
+    )
+    a.context = list(items)
+    return a
+
+
+def test_threshold_decides_and_every_item_gets_an_assignment():
+    embed = Embedder()
+    patch = assign(analysis(item(1, 0.95), item(2, THRESHOLD), item(3, 0.80)), embed)
+    assert [a.context_id for a in patch.assignments] == ["ctx1", "ctx2", "ctx3"]
+    assert [a.in_story for a in patch.assignments] == [True, True, False]
+    assert [a.similarity for a in patch.assignments] == pytest.approx([0.95, THRESHOLD, 0.80])
+    assert patch.assignments[0].reason == "Covers the same event (similarity 0.950)"
+    assert patch.assignments[2].reason == "About something else (similarity 0.800, below 0.845)"
+    # One batch: the document first, then the items.
+    assert len(embed.calls) == 1 and embed.calls[0][0] == story_text(
+        "The article", "First paragraph.\nSecond paragraph."
+    )
+
+
+def test_reports_outside_the_date_window_are_out_whatever_their_similarity():
+    late = DAY + timedelta(days=WINDOW_DAYS + 1)
+    early = DAY - timedelta(days=30)
+    edge = DAY - timedelta(days=WINDOW_DAYS)
+    patch = assign(
+        analysis(item(1, 0.99, late), item(2, 0.99, early), item(3, 0.99, edge)), Embedder()
+    )
+    assert [a.in_story for a in patch.assignments] == [False, False, True]
+    assert patch.assignments[0].reason == (
+        f"Published {WINDOW_DAYS + 1} days apart from the article, so not the same event"
+    )
+    assert patch.assignments[1].similarity == pytest.approx(0.99)  # still reported
+
+
+def test_no_window_without_both_dates():
+    undated_item = assign(analysis(item(1, 0.9, None)), Embedder())
+    undated_document = assign(
+        analysis(item(1, 0.9, DAY - timedelta(days=90)), document_date=None), Embedder()
+    )
+    assert undated_item.assignments[0].in_story is True
+    assert undated_document.assignments[0].in_story is True
+
+
+def test_fact_checks_are_exempt_from_the_window():
+    check = FactCheck(claim="Wells will be banned", rating="False", publisher="Checker")
+    old = item(1, 0.9, DAY - timedelta(days=200), fact_check=check)
+    assert assign(analysis(old), Embedder()).assignments[0].in_story is True
+
+
+def test_nothing_to_compare():
+    embed = Embedder()
+    assert assign(analysis(), embed).assignments == []
+    a = analysis(item(1, 0.9))
+    a.document = None
+    assert assign(a, embed).assignments == []
+    assert embed.calls == []  # no model call when there is nothing to compare
+
+
+def test_story_text_is_headline_and_a_bounded_lead():
+    body = "word " * 1000
+    text = story_text("  Headline  ", body)
+    assert text.startswith("Headline\nword word")
+    assert len(text) == len("Headline\n") + LEAD_CHARS
+    assert story_text(None, "Just  the\n\nbody") == "Just the body"
+    assert story_text("", "Body") == "Body"
+
+
+def test_the_patch_is_valid_for_the_api():
+    from pipeline.common.contracts import StoryPatch
+
+    patch = assign(analysis(item(1, 0.9), item(2, 0.5)), Embedder())
+    assert StoryPatch.model_validate(patch.model_dump()) == patch
+    assert all(isinstance(a.similarity, float) for a in patch.assignments)

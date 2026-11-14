@@ -23,7 +23,9 @@ def test_detects_the_language_with_high_confidence(text, code):
     assert result is not None
     assert result.code == code
     assert result.confidence > 0.9
-    assert result.support == LanguageSupport.supported
+    assert result.support == support_for(code)
+    expected = "evaluated" if code in {"en", "de", "fr", "it", "es", "nl"} else "supported"
+    assert result.support == LanguageSupport(expected)
 
 
 def test_language_outside_the_models_is_unsupported():
@@ -45,6 +47,13 @@ def test_short_text_gets_a_lower_confidence():
     short = detect_language(["they lied to you"])
     assert long is not None and short is not None
     assert short.confidence < long.confidence
+
+
+def test_evaluated_languages():
+    for code in ("en", "de", "fr", "it", "es", "nl"):
+        assert support_for(code) == LanguageSupport.evaluated, code
+    for code in ("pl", "pt", "ru", "uk", "ar"):  # covered by the models, no labelled set
+        assert support_for(code) == LanguageSupport.supported, code
 
 
 def test_evaluated_tier(monkeypatch):
