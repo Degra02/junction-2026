@@ -105,6 +105,7 @@ class Family(StrEnum):
 class InputKind(StrEnum):
     text = "text"
     url = "url"
+    image = "image"
 
 
 class LanguageSupport(StrEnum):
@@ -363,7 +364,18 @@ class Explanation(BaseModel):
 
 class Input(BaseModel):
     kind: InputKind
-    value: Annotated[str, Field(description="The pasted text, or the article URL.")]
+    value: Annotated[
+        str,
+        Field(
+            description="The pasted text, the article/image URL, or a `data:image/...;base64,...` payload."
+        ),
+    ]
+    context_url: Annotated[
+        str | None,
+        Field(
+            description="Optional link to the comment, social post or article where the image/content was shared,\ngiving the pipeline outlet, timestamp, author and surrounding caption context."
+        ),
+    ] = None
     explanation_language: Annotated[
         str | None,
         Field(

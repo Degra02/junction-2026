@@ -58,3 +58,13 @@ def detect_language(paragraphs: list[str]) -> Language | None:
     top = values[0]
     code = top.language.iso_code_639_1.name.lower()
     return Language(code=code, confidence=round(top.value, 3), support=support_for(code))
+
+
+def language_from_code(raw: str | None) -> Language | None:
+    """Fallback `Language` from a model-supplied ISO 639-1 tag when text is too short for lingua."""
+    if not raw or not raw.strip():
+        return None
+    code = raw.strip().replace("_", "-").split("-", 1)[0].lower()
+    if not (2 <= len(code) <= 3 and code.isalpha()):
+        return None
+    return Language(code=code, confidence=0.7, support=support_for(code))
