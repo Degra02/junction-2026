@@ -8,7 +8,7 @@ import type {
   SourceProfile,
 } from "./contracts";
 import { formatDomainAge } from "./format";
-import { FAMILY_LABELS, OUTLET_TYPE_LABELS, networkLabel, signalLabel } from "./labels";
+import { FAMILY_LABELS, IN_THE_IMAGE, OUTLET_TYPE_LABELS, isImageNote, networkLabel, signalLabel } from "./labels";
 import { sliceCodePoints } from "./spans";
 
 export function cleanDomain(raw: string | null | undefined): string {
@@ -31,6 +31,8 @@ export interface ResolvedSourceCard {
   readonly quote: string | null;
   readonly url: string | null;
   readonly paragraphIndex: number | null;
+  /** The passage is our description of the image, not the author's words. */
+  readonly inImage: boolean;
   readonly outletTypeLabel: string | null;
   readonly outletTypeTone: "neutral" | "teal" | "caution" | null;
   readonly knownNetworkLabel: string | null;
@@ -77,6 +79,7 @@ export function resolveEvidenceSources(
           (ctx?.text ? `${Array.from(ctx.text).slice(0, 180).join("")}${ctx.text.length > 180 ? "…" : ""}` : null),
         url: ctx?.url ?? null,
         paragraphIndex: null,
+        inImage: false,
         outletTypeLabel: typeMeta?.label ?? null,
         outletTypeTone: typeMeta?.tone ?? null,
         knownNetworkLabel: profile?.known_network ? networkLabel(profile.known_network) : null,
@@ -98,10 +101,11 @@ export function resolveEvidenceSources(
       cards.push({
         kind: "document",
         domain: dom,
-        title: `Paragraph ${ref.span.paragraph + 1} in analysed text`,
+        title: isImageNote(para) ? IN_THE_IMAGE : `Paragraph ${ref.span.paragraph + 1} in analysed text`,
         quote: snippet,
         url: document?.url ?? null,
         paragraphIndex: ref.span.paragraph,
+        inImage: isImageNote(para),
         outletTypeLabel: typeMeta?.label ?? null,
         outletTypeTone: typeMeta?.tone ?? null,
         knownNetworkLabel: profile?.known_network ? networkLabel(profile.known_network) : null,
@@ -128,6 +132,7 @@ export function resolveEvidenceSources(
         quote: ev.detail,
         url: ref.url,
         paragraphIndex: null,
+        inImage: false,
         outletTypeLabel: typeMeta?.label ?? null,
         outletTypeTone: typeMeta?.tone ?? null,
         knownNetworkLabel: profile?.known_network ? networkLabel(profile.known_network) : null,
@@ -165,7 +170,11 @@ export function resolveCitationChip(
     extraCount = Math.max(0, distinctDomains.length - 1);
   } else if (docCards.length > 0 && docCards[0]) {
     const shortSignal = signalLabel(ev.signal).split(" ")[0] ?? "Passage";
-    const pNum = docCards[0].paragraphIndex !== null ? `¶${docCards[0].paragraphIndex + 1}` : "text";
+    const pNum = docCards[0].inImage
+      ? "in the image"
+      : docCards[0].paragraphIndex !== null
+        ? `¶${docCards[0].paragraphIndex + 1}`
+        : "text";
     primaryLabel = `${shortSignal} · ${pNum}`;
     extraCount = Math.max(0, docCards.length - 1);
   } else if (urlCards.length > 0 && urlCards[0]) {

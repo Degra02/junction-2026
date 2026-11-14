@@ -17,6 +17,7 @@ export interface DimensionScoreCardProps {
 
 const SINGLE_FAMILY_MAP: Partial<Record<Family, true>> = {
   techniques: true,
+  rhetoric: true,
   tone: true,
   claim_support: true,
   fact_checks: true,

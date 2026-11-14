@@ -26,6 +26,7 @@ export interface AnalysisStreamState {
 
 const SINGLE_FAMILIES: Partial<Record<Family, true>> = {
   techniques: true,
+  rhetoric: true,
   tone: true,
   claim_support: true,
   fact_checks: true,

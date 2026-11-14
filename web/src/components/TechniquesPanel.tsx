@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Lightbulb } from "lucide-react";
 import type { DocumentData, Evidence, StepState } from "../lib/contracts";
-import { TECHNIQUE_GUIDE, signalLabel } from "../lib/labels";
+import { IN_THE_IMAGE, TECHNIQUE_GUIDE, isImageNote, isTechniqueFamily, signalLabel } from "../lib/labels";
 import { sliceCodePoints } from "../lib/spans";
 import { SECTION_LABEL, tagClass } from "../lib/ui";
 import { cn } from "../lib/utils";
@@ -20,8 +20,12 @@ export interface TechniquesPanelProps {
 }
 
 interface Passage {
+  /** The evidence item that cites the passage: a row can hold the classifier's and the rater's. */
+  readonly evidenceId: string;
   readonly paragraph: number;
   readonly text: string;
+  /** Our description of the image, not the author's words. */
+  readonly inImage: boolean;
 }
 
 interface TechniqueRow {
@@ -34,6 +38,8 @@ interface TechniqueRow {
   /** "3 of 9 paragraphs", from the evidence detail. */
   readonly extent: string | null;
   readonly passages: readonly Passage[];
+  /** The rater's sentence, when only the language model found the category. */
+  readonly ratedDetail: string | null;
 }
 
 const PASSAGE_CHARS = 240;
@@ -52,7 +58,7 @@ function toRow(ev: Evidence, document: DocumentData): TechniqueRow {
     const para = document.paragraphs[ref.span.paragraph];
     if (para === undefined) continue;
     const text = sliceCodePoints(para, ref.span.start, ref.span.end).trim();
-    if (text) passages.push({ paragraph: ref.span.paragraph, text });
+    if (text) passages.push({ evidenceId: ev.id, paragraph: ref.span.paragraph, text, inImage: isImageNote(para) });
   }
   return {
     evidence: ev,
@@ -62,7 +68,35 @@ function toRow(ev: Evidence, document: DocumentData): TechniqueRow {
     found: names ? names.split(",").map((n) => n.trim()).filter(Boolean) : [],
     extent: extent ? `${extent[1]} of ${extent[2] ? "the first " : ""}${extent[3]} paragraphs` : null,
     passages,
+    ratedDetail: ev.family === "rhetoric" ? ev.detail : null,
   };
+}
+
+/**
+ * One row per category. The paragraph classifier (`techniques`) and the language-model rater
+ * (`rhetoric`) use the same categories: where both found one, the classifier's row also gets
+ * the rater's passages; a category only the rater found gets its own row.
+ */
+function toRows(evidence: readonly Evidence[], document: DocumentData): TechniqueRow[] {
+  const bySignal = new Map<string, TechniqueRow>();
+  const found = evidence
+    .filter((e) => isTechniqueFamily(e.family))
+    .slice()
+    .sort((a, b) => (a.family === b.family ? b.value - a.value : a.family === "techniques" ? -1 : 1));
+  for (const ev of found) {
+    const row = toRow(ev, document);
+    const prior = bySignal.get(ev.signal);
+    if (!prior) {
+      bySignal.set(ev.signal, row);
+      continue;
+    }
+    const cited = new Set(prior.passages.map((p) => p.paragraph));
+    bySignal.set(ev.signal, {
+      ...prior,
+      passages: [...prior.passages, ...row.passages.filter((p) => !cited.has(p.paragraph))],
+    });
+  }
+  return Array.from(bySignal.values());
 }
 
 function clip(text: string): string {
@@ -84,15 +118,7 @@ export function TechniquesPanel({
   className,
 }: Readonly<TechniquesPanelProps>) {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const rows = useMemo(
-    () =>
-      evidence
-        .filter((e) => e.family === "techniques")
-        .slice()
-        .sort((a, b) => b.value - a.value)
-        .map((e) => toRow(e, document)),
-    [evidence, document],
-  );
+  const rows = useMemo(() => toRows(evidence, document), [evidence, document]);
 
   const focusIds = useMemo(
     () =>
@@ -165,6 +191,12 @@ export function TechniquesPanel({
                   {row.extent && <span className="font-mono-num text-xs text-[var(--fg-muted)]">{row.extent}</span>}
                 </div>
                 {row.what && <p className="text-[13px] text-[var(--fg-secondary)] leading-relaxed">{row.what}</p>}
+                {row.ratedDetail && (
+                  <p className="text-[13px] text-[var(--fg-secondary)] leading-relaxed">
+                    <span className={tagClass("neutral", {}, "mr-1.5")}>Rated by a language model</span>
+                    {row.ratedDetail}
+                  </p>
+                )}
                 {row.found.length > 0 && (
                   <div className="flex flex-wrap gap-1" aria-label="Techniques found">
                     {row.found.map((name) => (
@@ -177,14 +209,16 @@ export function TechniquesPanel({
                 {shown && (
                   <button
                     type="button"
-                    onClick={() => onOpenPassage(row.evidence.id, shown.paragraph)}
+                    onClick={() => onOpenPassage(shown.evidenceId, shown.paragraph)}
                     title="Show this passage in the article"
                     className={cn(
                       "group block w-full text-left rounded-lg border-l-2 bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] px-3 py-2 cursor-pointer transition-colors",
                       inFocus ? "border-[var(--caution)]" : "border-[var(--mark-strong)]",
                     )}
                   >
-                    <span className="font-mono-num text-[11px] text-[var(--fg-muted)] mr-2">¶{shown.paragraph + 1}</span>
+                    <span className="font-mono-num text-[11px] text-[var(--fg-muted)] mr-2">
+                      {shown.inImage ? IN_THE_IMAGE : `¶${shown.paragraph + 1}`}
+                    </span>
                     <span className="font-serif text-[15px] leading-relaxed text-[var(--fg-primary)] line-clamp-3">
                       {clip(shown.text)}
                     </span>
@@ -197,11 +231,11 @@ export function TechniquesPanel({
                       <button
                         key={p.paragraph}
                         type="button"
-                        onClick={() => onOpenPassage(row.evidence.id, p.paragraph)}
+                        onClick={() => onOpenPassage(p.evidenceId, p.paragraph)}
                         title={clip(p.text)}
                         className={tagClass("neutral", { mono: true }, "cursor-pointer hover:border-[var(--border-strong)]")}
                       >
-                        ¶{p.paragraph + 1}
+                        {p.inImage ? "image" : `¶${p.paragraph + 1}`}
                       </button>
                     ))}
                   </div>

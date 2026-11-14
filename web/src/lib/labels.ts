@@ -96,6 +96,11 @@ export const FAMILY_LABELS: Readonly<
     hint: "Loaded wording, attacks, fear appeals, oversimplification",
     dimension: "single",
   },
+  rhetoric: {
+    name: "Rhetoric",
+    hint: "Persuasion techniques, rated by a language model that sees the image",
+    dimension: "single",
+  },
   tone: {
     name: "Tone vs. other reports",
     hint: "Emotional charge against reports on the same event",
@@ -169,7 +174,8 @@ export const SIGNAL_LABELS: Readonly<Record<string, string>> = {
 /**
  * Reader's guide to the six technique categories of `pipeline/signals/techniques.py`
  * (SemEval-2023 persuasion techniques): what the category does, and one question that helps a
- * reader spot it without us.
+ * reader spot it without us. The `rhetoric` family (the same categories, rated by a language
+ * model that also sees the image) uses the same signal names, so the guide serves both.
  */
 export const TECHNIQUE_GUIDE: Readonly<
   Record<string, { readonly name: string; readonly what: string; readonly spot: string }>
@@ -317,4 +323,21 @@ export function networkLabel(knownNetwork: string): string {
     return "VIGINUM: Portal Kombat";
   }
   return knownNetwork.replace(/_/g, " ");
+}
+
+/** The two families that name persuasion techniques: the paragraph classifier and the rater. */
+export function isTechniqueFamily(family: Family): boolean {
+  return family === "techniques" || family === "rhetoric";
+}
+
+/** Shown where a `rhetoric` item points at our description of the image, not at the author's words. */
+export const IN_THE_IMAGE = "In the image (our description)";
+const IMAGE_NOTE_PREFIXES = ["[Visual context] ", "[Satire/humour meme] "] as const;
+
+/**
+ * Whether a document paragraph is extract's note about an uploaded image
+ * (`pipeline/extract/vision.py`): our words describing what the image shows, not its text.
+ */
+export function isImageNote(paragraph: string | undefined): boolean {
+  return paragraph !== undefined && IMAGE_NOTE_PREFIXES.some((prefix) => paragraph.startsWith(prefix));
 }
