@@ -40,6 +40,16 @@ class StageSpec:
     patch: type[BaseModel]
 
 
+@dataclass(frozen=True)
+class Loaded:
+    """Result of importing a stage, kept for the life of the process."""
+
+    # None when the stage is not implemented yet or failed to import.
+    fn: StageFn | None
+    # Why the import failed, in words safe to show publicly; None otherwise.
+    error: str | None = None
+
+
 STAGES: dict[StageName, StageSpec] = {
     StageName.extract: StageSpec("pipeline.extract", "run", ExtractPatch),
     StageName.understand: StageSpec("pipeline.understand", "run", UnderstandPatch),
@@ -51,22 +61,35 @@ STAGES: dict[StageName, StageSpec] = {
     StageName.explain: StageSpec("pipeline.explain", "run", ExplainPatch),
 }
 
+_loaded: dict[StageSpec, Loaded] = {}
 
-def load(spec: StageSpec) -> StageFn | None:
-    """The stage function, or None when its module or function does not exist yet.
 
-    Any other import error is a bug in the stage and propagates.
+def load(spec: StageSpec) -> Loaded:
+    """Import the stage once and remember the outcome.
+
+    A failed import is not retried until the worker restarts: stage modules load models at
+    import time, and importing again on every health check would load them again.
     """
+    if spec not in _loaded:
+        _loaded[spec] = _import(spec)
+    return _loaded[spec]
+
+
+def _import(spec: StageSpec) -> Loaded:
     try:
         module = importlib.import_module(spec.module)
     except ModuleNotFoundError as e:
         # Only "the stage package itself is missing" means not implemented; a missing
         # dependency inside an existing stage is a real error.
-        if e.name is not None and spec.module.startswith(e.name):
-            return None
-        raise
+        if e.name is not None and (spec.module == e.name or spec.module.startswith(f"{e.name}.")):
+            return Loaded(fn=None)
+        log.exception("stage module %s failed to import", spec.module)
+        return Loaded(fn=None, error=f"ModuleNotFoundError: {e.name}")
+    except Exception as e:
+        log.exception("stage module %s failed to import", spec.module)
+        return Loaded(fn=None, error=type(e).__name__)
     fn = getattr(module, spec.function, None)
-    return fn if callable(fn) else None
+    return Loaded(fn=fn if callable(fn) else None)
 
 
 def is_async(fn: StageFn) -> bool:
@@ -76,8 +99,8 @@ def is_async(fn: StageFn) -> bool:
 def warm_up() -> None:
     """Import every stage once at startup so models load before the first request."""
     for name, spec in STAGES.items():
-        try:
-            if load(spec) is None:
-                log.info("stage %s: not implemented yet", name)
-        except Exception:
-            log.exception("stage %s failed to import; its requests will return 500", name)
+        loaded = load(spec)
+        if loaded.error is not None:
+            log.error("stage %s failed to load (%s); its requests return 500", name, loaded.error)
+        elif loaded.fn is None:
+            log.info("stage %s: not implemented yet", name)

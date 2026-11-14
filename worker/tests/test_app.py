@@ -1,5 +1,6 @@
 """Worker endpoint tests: the stage contract the Rust API relies on."""
 
+import threading
 from collections.abc import Iterator
 
 import pytest
@@ -9,18 +10,21 @@ from pipeline.common.contracts import Analysis, StageName
 from worker import stages
 from worker.app import app
 from worker.stages import StageSpec
+from worker.tests import fake_stages
 
 FAKE = "worker.tests.fake_stages"
+ANALYSIS_ID = "01933b6e-0000-7000-8000-000000000000"
 
 
 def analysis_json(text: str = "Big lies everywhere") -> dict:
     return {
-        "id": "01933b6e-0000-7000-8000-000000000000",
+        "id": ANALYSIS_ID,
         "schema_version": 1,
         "pipeline_version": "test",
         "created_at": "2026-11-14T00:00:00Z",
         "updated_at": "2026-11-14T00:00:00Z",
         "status": "running",
+        "queue_position": None,
         "error": None,
         "steps": [],
         "input": {"kind": "text", "value": text},
@@ -30,6 +34,7 @@ def analysis_json(text: str = "Big lies everywhere") -> dict:
         "claims": [],
         "queries": [],
         "context": [],
+        "sources": [],
         "evidence": [],
         "scores": None,
         "explanation": None,
@@ -56,8 +61,15 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         for name, (module, function) in OVERRIDES.items()
     }
     monkeypatch.setattr(stages, "STAGES", table)
+    monkeypatch.setattr(stages, "_loaded", {})
+    fake_stages.BROKEN_IMPORTS.clear()
     with TestClient(app) as c:
         yield c
+
+
+def use(stage: StageName, function: str) -> None:
+    """Points `stage` at another fake for the current test."""
+    stages.STAGES[stage] = StageSpec(FAKE, function, stages.STAGES[stage].patch)
 
 
 def test_the_fixture_is_a_valid_analysis() -> None:
@@ -109,16 +121,57 @@ def test_missing_dependency_inside_a_stage_is_500_not_501(client: TestClient) ->
     assert "definitely_not_installed_dependency" in r.json()["message"]
 
 
-def test_stage_exception_is_500_with_the_message(client: TestClient) -> None:
+def test_a_stage_that_fails_to_import_is_imported_once(client: TestClient) -> None:
+    # Startup, two health checks and two stage calls: a module that loads models before it
+    # fails must not load them again each time.
+    for _ in range(2):
+        client.get("/health")
+        client.post("/stages/story", json=analysis_json())
+    assert len(fake_stages.BROKEN_IMPORTS) == 1
+
+
+def test_exception_text_never_leaves_the_worker(client: TestClient) -> None:
     r = client.post("/stages/score", json=analysis_json())
     assert r.status_code == 500
-    assert r.json() == {"error": "stage_failed", "message": "RuntimeError: model crashed"}
+    assert r.json()["error"] == "stage_failed"
+    assert "RuntimeError" in r.json()["message"]
+    assert "SECRET-KEY" not in r.text
 
 
-def test_patch_with_unknown_fields_is_rejected(client: TestClient) -> None:
+def test_stage_error_messages_are_passed_on_as_written(client: TestClient) -> None:
+    use(StageName.score, "gives_up")
+    r = client.post("/stages/score", json=analysis_json())
+    assert r.status_code == 422
+    assert r.json() == {"error": "stage_failed", "message": "The text is too short to analyse"}
+
+
+def test_invalid_patches_are_rejected_without_echoing_their_values(client: TestClient) -> None:
     r = client.post("/stages/explain", json=analysis_json())
     assert r.status_code == 500
     assert r.json()["error"] == "invalid_patch"
+    assert "unexpected" in r.json()["message"], "names the offending field"
+    assert "SECRET-VALUE" not in r.text
+
+
+def test_progress_notes_are_readable_while_the_stage_runs(client: TestClient) -> None:
+    use(StageName.signals_coordinated, "reports_progress")
+    fake_stages.STARTED.clear()
+    fake_stages.RELEASE.clear()
+    call = threading.Thread(
+        target=client.post, args=("/stages/signals_coordinated",), kwargs={"json": analysis_json()}
+    )
+    call.start()
+    try:
+        assert fake_stages.STARTED.wait(timeout=5)
+        running = client.get(f"/progress/{ANALYSIS_ID}").json()
+        other = client.get("/progress/01933b6e-0000-7000-8000-00000000ffff").json()
+    finally:
+        fake_stages.RELEASE.set()
+        call.join(timeout=5)
+
+    assert running == {"signals_coordinated": "3 sources so far"}
+    assert other == {}
+    assert client.get(f"/progress/{ANALYSIS_ID}").json() == {}, "cleared when the stage ends"
 
 
 def test_invalid_analysis_body_is_422(client: TestClient) -> None:
@@ -131,17 +184,17 @@ def test_unknown_stage_is_422(client: TestClient) -> None:
     assert client.post("/stages/nope", json=analysis_json()).status_code == 422
 
 
-def test_health_lists_every_stage(client: TestClient) -> None:
+def test_health_lists_every_stage_and_why_one_failed_to_load(client: TestClient) -> None:
     r = client.get("/health")
     assert r.status_code == 200
-    implemented = {s["name"]: s["implemented"] for s in r.json()["stages"]}
-    assert implemented == {
-        "extract": True,
-        "understand": False,
-        "retrieve": False,
-        "story": False,
-        "signals_single": True,
-        "signals_coordinated": True,
-        "score": True,
-        "explain": True,
+    loaded = {s["name"]: (s["implemented"], s["error"]) for s in r.json()["stages"]}
+    assert loaded == {
+        "extract": (True, None),
+        "understand": (False, None),
+        "retrieve": (False, None),
+        "story": (False, "ModuleNotFoundError: definitely_not_installed_dependency"),
+        "signals_single": (True, None),
+        "signals_coordinated": (True, None),
+        "score": (True, None),
+        "explain": (True, None),
     }

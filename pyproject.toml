@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 license = "MIT"
 dependencies = [
     "fastapi>=0.162.7",
+    "openai>=3.51.0",
     "pydantic>=2.14.3",
     "uvicorn>=0.54.0",
 ]
@@ -23,6 +24,16 @@ dev = [
 # `worker` and `pipeline` on the import path.
 package = false
 
+# The VPS has no GPU (D13). The default PyPI torch wheel bundles CUDA libraries (several GB in
+# the worker image); `uv add torch` resolves to the CPU build through this index.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
 [tool.pytest.ini_options]
 testpaths = ["worker/tests", "pipeline"]
 addopts = "-q"
@@ -34,3 +45,5 @@ extend-exclude = ["pipeline/common/contracts.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+# Typographic quotes, dashes and non-Latin letters are data here (any-language content, D2).
+ignore = ["RUF001", "RUF002", "RUF003"]

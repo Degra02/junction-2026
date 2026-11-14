@@ -1,7 +1,9 @@
 """Stage functions used by the worker tests."""
 
 import asyncio
+import threading
 
+from pipeline.common import progress
 from pipeline.common.contracts import (
     Analysis,
     Document,
@@ -11,6 +13,13 @@ from pipeline.common.contracts import (
     SignalsPatch,
     Span,
 )
+from pipeline.common.errors import StageError
+
+# How often `broken_stage` was imported.
+BROKEN_IMPORTS: list[int] = []
+# `reports_progress` sets STARTED after its first note and returns once RELEASE is set.
+STARTED = threading.Event()
+RELEASE = threading.Event()
 
 
 def extract(analysis: Analysis) -> ExtractPatch:
@@ -45,8 +54,19 @@ def as_dict(analysis: Analysis) -> dict:
 
 
 def wrong_shape(analysis: Analysis) -> dict:
-    return {"evidence": [], "unexpected": True}
+    return {"evidence": [{"id": "s1", "note": "SECRET-VALUE"}], "unexpected": True}
 
 
 def raises(analysis: Analysis) -> SignalsPatch:
-    raise RuntimeError("model crashed")
+    raise RuntimeError("GET https://api.example/search?key=SECRET-KEY failed")
+
+
+def gives_up(analysis: Analysis) -> SignalsPatch:
+    raise StageError("The text is too short to analyse")
+
+
+def reports_progress(analysis: Analysis) -> dict:
+    progress.report("3 sources so far")
+    STARTED.set()
+    RELEASE.wait(timeout=5)
+    return {"evidence": []}
