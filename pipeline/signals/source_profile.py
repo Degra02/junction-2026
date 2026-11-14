@@ -19,6 +19,7 @@ _TYPE_WORDS = {
     OutletType.partisan: "a politically partisan outlet",
     OutletType.state_affiliated: "a state-affiliated media outlet",
     OutletType.fact_checker: "a fact-checker",
+    OutletType.satire: "a satire site",
 }
 
 

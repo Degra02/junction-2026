@@ -124,6 +124,7 @@ class OutletType(StrEnum):
     partisan = "partisan"
     state_affiliated = "state_affiliated"
     fact_checker = "fact_checker"
+    satire = "satire"
 
 
 class Percentiles(BaseModel):
