@@ -10,7 +10,7 @@ Updated: Sat 18:45.
 |---|---|---|
 | understand | `pipeline/understand/__init__.py: run` (async) | Done. One-fact claims located verbatim, queries in the content's language + English. Real LLM (`gemini-3.1-flash-lite`) |
 | signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers (satire excluded), two-way NLI claim support, fact-check matching (reviewed claim + debunking-verdict fallback across languages), source profile (`satire` included) |
-| signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams; quotes, agencies, fact-checkers, satire sites and newsrooms excluded), timing, shared tracking IDs, young domains, known networks (`own` + copies + `in_story` sister sites) |
+| signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams; quotes, agencies, fact-checkers, satire sites and newsrooms excluded), timing, shared tracking IDs, young domains, known networks (`own` + copies + sister sites of `own`'s network / `≥ 0.93` pasted translations) |
 | score | `pipeline/score/__init__.py: run` | Done with **hand-set prior weights** (`weights.json`, `n = 0`). Satire outlets abstain on `single`; `outlet_satire` maps to −1.0. Fit CLI ready (`pipeline/score/fit.py`), waiting for `evals/results/fit.jsonl` |
 | explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; discloses uncalibrated priors; explains zero-evidence low baselines (`evidence_count: 0`); writes in `input.explanation_language` (D14) |
 
@@ -107,7 +107,7 @@ Details:
 | timing | `copies_within_window` | copies published within 6 h of the document (or of the earliest copy when the document has no date) | ≥1 (≥2 without document date) | the copies |
 | infrastructure | `shared_tracking_id` | largest number of other domains carrying one of the document's GA/GTM/AdSense IDs (without document IDs: an ID shared by ≥2 copying sites) | ≥1 such domain | carrying items |
 | infrastructure | `young_copying_domains` | copying domains registered < 180 days before the article | ≥1 | RDAP URLs |
-| known_networks | `listed_domain` | listed domains among the document outlet, the copies and `in_story` items | `sources[].known_network` set | outlet URLs |
+| known_networks | `listed_domain` | listed domains among the document outlet, the copies, and same-story sister sites of `own`'s network (or `similarity ≥ 0.93` when `own` is null) | `sources[].known_network` set | outlet URLs |
 
 - **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped).
 - **Syndication & satire guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `satire`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream and satire outlets; untyped outlets still count as copiers.
@@ -297,7 +297,8 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Changelog
 
-- Sat 18:45 — satire guard (`OutletType.satire` abstains single, −1.0 strength, excluded from copiers and story peers); cross-lingual fact-check verdict matching (`fcd_de_002` 0.832); `known_networks` includes `in_story` sister sites; `explain` `evidence_count` + baseline-score rationale; VPS speed verified (`/api/stats`).
+- Sat 20:35 — guard `known_networks` story path so a listed outlet merely covering the same event never flags a mainstream or untyped article (unblocks Pravda RSS feeds in retrieve).
+- Sat 18:45 (#27) — satire guard (`OutletType.satire` abstains single, −1.0 strength, excluded from copiers and story peers); cross-lingual fact-check verdict matching (`fcd_de_002` 0.832); `known_networks` includes `in_story` sister sites; `explain` `evidence_count` + baseline-score rationale; VPS speed verified (`/api/stats`).
 - Sat 17:15 (#17) — status and per-person requests at the top of this file.
 - Sat 17:00 (#15) — first run on real coverage: technique value = share of paragraphs (short texts count as 4), two-way NLI contradiction, smoothed claim support, one-fact claims; fit leaves abstained items out, per-family refit ablation and leak warning; explain reads `input.explanation_language` from the contract.
 - Sat 16:30 — D14: explanation in the reader's language; fixed sentences per language; clearer outlet-type wording.
