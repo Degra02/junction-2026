@@ -25,3 +25,9 @@ coverage/
 *.log
 .DS_Store
 .idea/
+
+# Rust
+target/
+
+# Local runtime data (SQLite)
+data/

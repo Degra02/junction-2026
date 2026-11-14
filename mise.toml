@@ -4,6 +4,9 @@ python = "3.14.10"
 bun = "1.4.4"
 uv = "0.13.7"
 gitleaks = "8.30.1"
+# Version also in rust-toolchain.toml (components); keep both in sync.
+rust = "1.100.0"
+"github:nextest-rs/nextest" = "cargo-nextest-0.9.151"
 
 [env]
 # Load secrets from the git-ignored .env (copy .env.example).
@@ -11,12 +14,91 @@ _.file = ".env"
 
 [tasks.setup]
 description = "Install pinned tools and enable the repo git hooks"
-run = ["mise install", "git config core.hooksPath .githooks"]
+run = ["mise install", "git config core.hooksPath .githooks", "uv sync"]
 
 [tasks.secrets]
 description = "Scan the full git history for leaked secrets"
 run = "gitleaks git --redact --no-banner ."
 
+# --- Rust: api/ and contracts/ -------------------------------------------------
+
+[tasks."rust:fmt"]
+description = "Check Rust formatting"
+run = "cargo fmt --all --check"
+
+[tasks."rust:lint"]
+description = "Clippy on every crate and target, warnings are errors"
+run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+
+[tasks."rust:test"]
+description = "Rust tests with nextest (endpoint tests spawn the server against a mock worker)"
+run = "cargo nextest run --workspace --locked"
+
+[tasks."api:dev"]
+description = "Run the API locally (expects the worker on WORKER_URL)"
+run = "cargo run -p junction-api"
+
+# --- Python: worker/ and pipeline/ ---------------------------------------------
+
+[tasks."py:lint"]
+description = "Ruff on the Python code"
+run = ["uv run --frozen ruff check .", "uv run --frozen ruff format --check ."]
+
+[tasks."py:test"]
+description = "Python tests"
+run = "uv run --frozen pytest"
+
+[tasks."worker:dev"]
+description = "Run the stage worker locally"
+run = "uv run --frozen python -m worker"
+
+[tasks.dev]
+description = "Run worker and API together (Ctrl-C stops both)"
+depends = ["worker:dev", "api:dev"]
+
+# --- Contracts -----------------------------------------------------------------
+
+[tasks.contracts]
+description = "Regenerate contracts/openapi.json, the pydantic models and the TS types from the Rust types"
+# CONTRACTS_OUT redirects the output tree (used by contracts:check); default is the repo.
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+out=${CONTRACTS_OUT:-.}
+mkdir -p "$out/contracts/ts" "$out/pipeline/common"
+cargo run --quiet -p junction-api -- openapi > "$out/contracts/openapi.json.tmp"
+mv "$out/contracts/openapi.json.tmp" "$out/contracts/openapi.json"
+uv run --frozen datamodel-codegen --input "$out/contracts/openapi.json" --input-file-type openapi \
+  --output "$out/pipeline/common/contracts.py" --output-model-type pydantic_v2.BaseModel \
+  --target-python-version 3.14 --use-standard-collections --use-union-operator \
+  --use-schema-description --field-constraints --use-annotated --use-subclass-enum \
+  --enum-field-as-literal one --use-title-as-name --disable-timestamp --formatters ruff-format
+# Explicit config: output outside the repo (contracts:check) must format identically.
+uv run --frozen ruff format --quiet --config pyproject.toml "$out/pipeline/common/contracts.py"
+bunx openapi-typescript@7.13.0 "$out/contracts/openapi.json" --output "$out/contracts/ts/api.d.ts"
+"""
+
+[tasks."contracts:check"]
+description = "Fail if the committed generated contract files differ from the Rust types (read-only)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# Inside the repo (target/ is git-ignored) so the formatters pick up pyproject.toml.
+mkdir -p target
+tmp=$(mktemp -d -p target)
+trap 'rm -rf "$tmp"' EXIT
+CONTRACTS_OUT=$tmp mise run contracts >/dev/null
+for f in contracts/openapi.json pipeline/common/contracts.py contracts/ts/api.d.ts; do
+  diff -u "$f" "$tmp/$f" || { echo "$f is stale: run \\`mise run contracts\\` and commit" >&2; exit 1; }
+done
+"""
+
+[tasks.mock]
+description = "Mock API from the contract for frontend work (Prism on :4010)"
+run = "bunx @stoplight/prism-cli@5.16.0 mock contracts/openapi.json"
+
+# --- Aggregate -----------------------------------------------------------------
+
 [tasks.check]
-description = "Everything CI runs; extend with lint/typecheck/tests once the stack exists"
-depends = ["secrets"]
+description = "Everything CI runs"
+depends = ["secrets", "rust:fmt", "rust:lint", "rust:test", "py:lint", "py:test", "contracts:check"]

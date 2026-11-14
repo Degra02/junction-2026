@@ -1,0 +1,11 @@
+[profile.default]
+# Endpoint tests spawn a server and a mock worker; flag anything stuck, kill it after 60 s.
+slow-timeout = { period = "15s", terminate-after = 4 }
+
+[profile.ci]
+fail-fast = false
+# Flaky tests must be fixed, not retried into green.
+retries = 0
+
+[profile.ci.junit]
+path = "junit.xml"

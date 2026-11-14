@@ -9,4 +9,20 @@ if [ "$branch" = "main" ] && [ "${ALLOW_MAIN:-0}" != "1" ]; then
 fi
 
 # The repo is published under MIT at submission: never let a key reach a commit.
-exec mise exec -- gitleaks git --pre-commit --staged --redact --no-banner .
+mise exec -- gitleaks git --pre-commit --staged --redact --no-banner .
+
+# Rust: only when Rust sources or manifests are staged, so Python-only commits stay fast.
+# Note: fmt and clippy see the working tree, not just the staged hunks; stage everything
+# you changed in a crate before committing (or stash the rest).
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '(\.rs|Cargo\.(toml|lock)|clippy\.toml|rust-toolchain\.toml)$'; then
+	echo "pre-commit: cargo fmt --check…"
+	if ! mise exec -- cargo fmt --all --check; then
+		echo "pre-commit: run \`cargo fmt --all\` and stage the result." >&2
+		exit 1
+	fi
+	echo "pre-commit: cargo clippy…"
+	if ! mise exec -- cargo clippy --workspace --all-targets --locked --quiet -- -D warnings; then
+		echo "pre-commit: fix the clippy findings above (SKIP: git commit --no-verify)." >&2
+		exit 1
+	fi
+fi
