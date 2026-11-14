@@ -19,6 +19,7 @@ def answer(**overrides: object) -> Understanding:
         "date": "null",
         "place": " ",
         "claims": [],
+        "implied_claims": [],
         "queries": [],
     }
     fields.update(overrides)
@@ -129,3 +130,34 @@ def test_run_without_text_is_a_stage_error() -> None:
     analysis.document = None
     with pytest.raises(StageError):
         asyncio.run(understand.run(analysis))
+
+
+def test_implied_claims_strip_quotes_cap_at_three_and_clear_on_satire_memes() -> None:
+    document = example_analysis().document
+    assert document is not None
+    u = answer(
+        implied_claims=[
+            ' "Politicians promised lower grocery prices while focusing on Trump investigations." ',
+            "politicians promised lower grocery prices while focusing on trump investigations.",
+            "Is this really about groceries?",
+            "short",
+            "Second implied claim about the cartoon.",
+            "Third implied claim about the cartoon.",
+            "Fourth implied claim beyond the cap.",
+        ]
+    )
+    cleaned = understand.clean_implied_claims(document, u.implied_claims)
+    assert cleaned == [
+        "Politicians promised lower grocery prices while focusing on Trump investigations.",
+        "Second implied claim about the cartoon.",
+        "Third implied claim about the cartoon.",
+    ]
+    assert all('"' not in c for c in cleaned)
+    patch = build_patch(document, u, "en")
+    if hasattr(patch.topic, "implied_claims"):
+        assert patch.topic.implied_claims == cleaned
+
+    satire_doc = document.model_copy(
+        update={"paragraphs": ["Joke caption", "[Satire/humour meme] Everyday reaction joke."]}
+    )
+    assert understand.clean_implied_claims(satire_doc, u.implied_claims) == []

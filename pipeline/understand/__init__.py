@@ -23,9 +23,11 @@ from pipeline.common.errors import StageError
 from pipeline.understand import triage
 
 MAX_CLAIMS = 5
+MAX_IMPLIED_CLAIMS = 3
 MAX_QUERIES_PER_LANGUAGE = 3
 # Enough for a long article; the end of a longer one rarely holds the key claims.
 MAX_INPUT_CHARS = 12_000
+_QUOTE_STRIP = str.maketrans("", "", '"“”„«»')
 
 SYSTEM = f"""\
 You help fact-checkers analyse one news article or social media post. The user message is the \
@@ -51,6 +53,11 @@ rumour, debunks or mocks: for a fact-check, take its own findings, not the claim
 satire or a `[Satire/humour meme]` note, return no claims. Paragraphs starting with \
 `[Visual context]` describe an uploaded image to help you name the event and write search \
 queries: never copy a claim from a `[Visual context]` paragraph.
+- implied_claims: up to {MAX_IMPLIED_CLAIMS} short neutral declarative sentences in English \
+stating what the content asserts only by implication (visual juxtaposition in a meme, sarcasm, \
+irony or a rhetorical question), when no verbatim claim captures that message. Write plain \
+English without quotation marks. Return an empty list for plain factual reporting, for satire \
+or a `[Satire/humour meme]` note, and for claims that a fact-check is reviewing or debunking.
 - queries: news search queries that would find other coverage of the same event: up to \
 {MAX_QUERIES_PER_LANGUAGE} in the content's language and up to {MAX_QUERIES_PER_LANGUAGE} in \
 English (only the English ones when the content is in English). Each query is 3 to 8 \
@@ -72,6 +79,7 @@ class Understanding(BaseModel):
     date: str | None = None
     place: str | None = None
     claims: list[str] = Field(default_factory=list)
+    implied_claims: list[str] = Field(default_factory=list)
     queries: list[_Query] = Field(default_factory=list)
 
 
@@ -101,16 +109,42 @@ def keep_facts(claims: list[Claim], kinds: list[triage.Kind | None]) -> list[Cla
 
 def build_patch(document: Document, understanding: Understanding, language: str) -> UnderstandPatch:
     """The patch for `understanding`: claims located verbatim, queries cleaned and capped."""
+    topic_fields: dict[str, object] = {
+        "summary": understanding.summary.strip(),
+        "entities": _unique(understanding.entities)[:8],
+        "date": _blank_to_none(understanding.date),
+        "place": _blank_to_none(understanding.place),
+    }
+    if "implied_claims" in Topic.model_fields:
+        topic_fields["implied_claims"] = clean_implied_claims(
+            document, understanding.implied_claims
+        )
     return UnderstandPatch(
-        topic=Topic(
-            summary=understanding.summary.strip(),
-            entities=_unique(understanding.entities)[:8],
-            date=_blank_to_none(understanding.date),
-            place=_blank_to_none(understanding.place),
-        ),
+        topic=Topic(**topic_fields),
         claims=_claims(document, understanding.claims),
         queries=_queries(understanding.queries, _code(language)),
     )
+
+
+def clean_implied_claims(document: Document, raw: list[str]) -> list[str]:
+    """Up to MAX_IMPLIED_CLAIMS English declarative sentences without quotation marks; empty on
+    a pure humour/satire meme."""
+    if any(p.startswith("[Satire/humour meme] ") for p in document.paragraphs):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        cleaned = " ".join(item.translate(_QUOTE_STRIP).split()).strip()
+        if len(cleaned) < 12 or cleaned.endswith(("?", "？")):
+            continue
+        key = cleaned.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cleaned)
+        if len(out) == MAX_IMPLIED_CLAIMS:
+            break
+    return out
 
 
 def _content(document: Document) -> str:
