@@ -264,7 +264,7 @@
     {
       "id": "s1",
       "family": "techniques",
-      "signal": "loaded_language",
+      "signal": "manipulative_wording",
       "value": 0.87,
       "detail": "Emotionally charged words such as traitor and shameful.",
       "source_refs": [
@@ -379,7 +379,7 @@
     {
       "id": "c2",
       "family": "timing",
-      "signal": "copies_within_an_hour",
+      "signal": "copies_within_window",
       "value": 2.0,
       "detail": "Both copies appeared within one hour of the article.",
       "source_refs": [

@@ -518,7 +518,7 @@ class Evidence(BaseModel):
     signal: Annotated[
         str,
         Field(
-            description="Signal name inside the family, e.g. `loaded_language`, `minhash_copies`."
+            description="Signal name inside the family, e.g. `manipulative_wording`, `copied_passages`; the\nmapping to a score strength is in `pipeline/score/families.py`."
         ),
     ]
     value: Annotated[

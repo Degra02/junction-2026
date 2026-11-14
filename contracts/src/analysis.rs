@@ -340,7 +340,8 @@ pub struct Evidence {
     /// Unique within the analysis. Use a stage prefix (`s1`, `c1`) to avoid clashes.
     pub id: String,
     pub family: Family,
-    /// Signal name inside the family, e.g. `loaded_language`, `minhash_copies`.
+    /// Signal name inside the family, e.g. `manipulative_wording`, `copied_passages`; the
+    /// mapping to a score strength is in `pipeline/score/families.py`.
     pub signal: String,
     /// Signal value; scale is defined per signal and documented by its owner.
     pub value: f64,
