@@ -37,9 +37,12 @@ the content.
 - date: the date of the event if the content states it (YYYY-MM-DD when possible), else null.
 - place: where the event happened if the content states it, else null.
 - claims: up to {MAX_CLAIMS} key factual claims that the content itself asserts as true, most \
-important first. Copy each claim word for word from the content: one contiguous passage, a full \
-sentence or clause, no paraphrase, no ellipsis, no added words. Choose checkable statements of \
-fact (who did what, numbers, dates, causes), not opinions, insults or questions. Leave out \
+important first. Copy each claim word for word from the content: one contiguous passage, no \
+paraphrase, no ellipsis, no added words. One fact per claim, at most about 25 words: when a \
+sentence goes on with an "after", "while" or "which" part, stop the copy before it. The claim \
+must stand on its own and name its subject; if it would start with "this", "he" or "they", pick \
+another claim instead of rewriting it. Choose checkable statements of fact (who did what, \
+numbers, dates, causes), not opinions, insults or questions. Leave out \
 statements the content only quotes, attributes to someone it disagrees with, reports as a \
 rumour, debunks or mocks: for a fact-check, take its own findings, not the claim it reviews; for \
 satire, return no claims.

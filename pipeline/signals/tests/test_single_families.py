@@ -30,16 +30,30 @@ def ids():
 
 
 def fake_nli(pairs: list[tuple[str, str]]) -> np.ndarray:
-    """Contradiction when the premise denies a ban the hypothesis states; entailment on equality."""
+    """Contradiction (either direction) between a text that denies a ban and one that states
+    it; entailment on equality."""
     out = []
     for premise, hypothesis in pairs:
-        if "does not ban" in premise and "ban" in hypothesis:
-            out.append([0.02, 0.08, 0.9])
+        denies = ["does not ban" in text for text in (premise, hypothesis)]
+        if denies[0] != denies[1] and "ban" in premise and "ban" in hypothesis:
+            out.append([0.02, 0.03, 0.95])
         elif premise.strip(". ").casefold() == hypothesis.strip(". ").casefold():
             out.append([0.95, 0.04, 0.01])
         else:
             out.append([0.1, 0.8, 0.1])
-    return np.array(out, dtype=np.float32)
+    return np.array(out, dtype=np.float32).reshape(-1, 3)
+
+
+def one_way_nli(pairs: list[tuple[str, str]]) -> np.ndarray:
+    """What the model does with two moments of one story: a confident contradiction in the
+    passage-to-claim direction only."""
+    return np.array(
+        [
+            [0.01, 0.01, 0.98] if "ban" in h and "does not ban" in p else [0.1, 0.8, 0.1]
+            for p, h in pairs
+        ],
+        dtype=np.float32,
+    ).reshape(-1, 3)
 
 
 def assert_refs_valid(analysis: Analysis, evidence: list[Evidence]) -> None:
@@ -86,12 +100,21 @@ def test_claim_contradicted_by_independent_report() -> None:
     [contradicted] = evidence
     assert contradicted.source_refs[0].root.span == analysis.claims[0].span
     assert (contradicted.family, contradicted.signal) == (Family.claim_support, "contradicted")
-    assert contradicted.value == 1.0
+    # One source: the smoothed share stays well below 1.
+    assert contradicted.value == pytest.approx(2 / 3, abs=1e-3)
     assert "1 of the 1 sources" in contradicted.detail
     [quote] = [r.root for r in contradicted.source_refs if isinstance(r.root, ContextRef)]
     assert quote.id == "ctx1"
     assert quote.quote is not None and "The draft does not ban private wells." in quote.quote
     assert_refs_valid(analysis, evidence)
+
+
+def test_one_way_contradiction_is_not_a_contradiction() -> None:
+    analysis = example_analysis()
+    evidence = claim_support_evidence(
+        analysis.claims, story_peers(analysis, 10), one_way_nli, ids()
+    )
+    assert [e.signal for e in evidence] == []
 
 
 def test_claim_nobody_addresses_is_unaddressed() -> None:
@@ -179,11 +202,24 @@ def test_techniques_aggregate_to_categories_with_paragraph_refs() -> None:
     by_signal = {e.signal: e for e in evidence}
     assert set(by_signal) == {"attack_on_reputation", "manipulative_wording"}
     wording = by_signal["manipulative_wording"]
-    assert wording.value == pytest.approx(0.8)
+    # Share of the paragraphs with the technique, not the highest probability; three paragraphs
+    # count as MIN_PARAGRAPHS = 4.
+    assert wording.value == pytest.approx(2 / 4)
+    assert by_signal["attack_on_reputation"].value == pytest.approx(1 / 4)
     assert [r.root.span.paragraph for r in wording.source_refs] == [1, 0]
-    assert "in 2 paragraphs" in wording.detail
+    assert "in 2 of 3 paragraphs" in wording.detail
     assert by_signal["attack_on_reputation"].source_refs[0].root.span.end == len(paragraphs[1])
     assert [e.id for e in evidence] == ["s1", "s2"]
+
+
+def test_technique_share_of_a_long_and_of_a_capped_text() -> None:
+    paragraphs = [f"Paragraph number {i} of the report." for i in range(12)]
+    probs = np.full((10, len(LABELS)), 0.1, dtype=np.float32)
+    probs[3, LABELS.index("Doubt")] = 0.93  # one chance hit in a long report
+    thresholds = np.full(len(LABELS), 0.5, dtype=np.float32)
+    [item] = technique_evidence(paragraphs, list(range(10)), probs, LABELS, thresholds, ids())
+    assert item.value == pytest.approx(0.1)
+    assert "in 1 of the first 10 paragraphs" in item.detail
 
 
 def test_tone_compares_with_peers_and_needs_three() -> None:

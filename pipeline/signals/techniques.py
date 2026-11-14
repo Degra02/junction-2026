@@ -3,8 +3,10 @@
 Technique labels are noisy (micro-F1 ≈ 0.45 on the model card), so they are aggregated to the
 six SemEval-2023 categories, one evidence item per category found.
 
-- `techniques` / `<category>`: value = highest probability of a detected technique of the
-  category, in `[0, 1]`.
+- `techniques` / `<category>`: value = share of the analysed paragraphs in which a technique of
+  the category is detected (the model's own per-label thresholds), in `(0, 1]`. Not the highest
+  probability: on real articles one paragraph in twenty passes a threshold by chance (measured:
+  BBC, tagesschau and factcheck.org reports reached 0.9), and a maximum grows with length.
 - `tone` / `tone_vs_peers`: value = z-score of the document's emotional charge against the
   other reports of the same story (positive = more charged), clipped to `[-5, 5]`. Charge of a
   text = mean over its paragraphs of the strongest emotive technique probability.
@@ -71,6 +73,9 @@ EMOTIVE = [
     "Exaggeration-Minimisation",
 ]
 MIN_PEERS_FOR_TONE = 3
+# Shorter texts count as this many paragraphs: one detection in a one-paragraph post is one noisy
+# model decision, not "every paragraph".
+MIN_PARAGRAPHS = 4
 _MAX_REFS = 3
 
 
@@ -83,7 +88,8 @@ def technique_evidence(
     next_id: Callable[[], str],
 ) -> list[Evidence]:
     """One item per category with a detected technique; `probabilities[k]` belongs to
-    `paragraphs[indices[k]]`."""
+    `paragraphs[indices[k]]`. `indices` may be the first paragraphs only (the stage's cap)."""
+    capped = len(indices) < sum(1 for p in paragraphs if p.strip())
     detected = probabilities >= thresholds
     evidence = []
     for signal, (description, techniques) in CATEGORIES.items():
@@ -96,14 +102,16 @@ def technique_evidence(
         best = hits.max(axis=0)
         found = [labels[columns[c]] for c in np.argsort(-best) if best[c] > 0]
         names = ", ".join(t.replace("_", " ").replace("-", " / ").lower() for t in found)
-        count = len(rows)
+        count, total = len(rows), len(indices)
+        scope = f"the first {total}" if capped else str(total)
         evidence.append(
             Evidence(
                 id=next_id(),
                 family=Family.techniques,
                 signal=signal,
-                value=round(float(strongest[rows[0]]), 3),
-                detail=f"{description} ({names}) in {count} paragraph{'s' if count > 1 else ''}.",
+                value=round(count / max(total, MIN_PARAGRAPHS), 3),
+                detail=f"{description} ({names}) in {count} of {scope} "
+                f"paragraph{'s' if total > 1 else ''}.",
                 source_refs=[paragraph_ref(paragraphs, indices[k]) for k in rows[:_MAX_REFS]],
             )
         )

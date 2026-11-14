@@ -10,7 +10,7 @@ from pipeline.common.contracts import Evidence, Family, LanguageSupport, UrlRef
 from pipeline.common.fixtures import example_analysis
 from pipeline.score import SUPPORTED_CAP, WEIGHTS, run
 from pipeline.score.families import COORDINATED, SINGLE, family_values
-from pipeline.score.fit import fit_logistic, main
+from pipeline.score.fit import ablation, fit_logistic, main
 
 
 def evidence(eid: str, family: Family, signal: str, value: float) -> Evidence:
@@ -40,8 +40,8 @@ def test_example_scores_both_dimensions_with_valid_breakdown() -> None:
 
 def test_only_the_strongest_signal_of_a_family_counts() -> None:
     items = [
-        evidence("s1", Family.techniques, "manipulative_wording", 0.9),
-        evidence("s2", Family.techniques, "attack_on_reputation", 0.6),
+        evidence("s1", Family.techniques, "manipulative_wording", 0.45),
+        evidence("s2", Family.techniques, "attack_on_reputation", 0.3),
         evidence("s3", Family.source_profile, "domain_age_days", 4000),
         evidence("s4", Family.source_profile, "outlet_wire_service", 1.0),
         evidence("s5", Family.techniques, "a_signal_nobody_mapped", 1.0),
@@ -106,6 +106,19 @@ def test_fit_recovers_the_direction_of_the_signal() -> None:
     assert intercept == pytest.approx(0.5, abs=0.4)
 
 
+def test_ablation_shows_which_family_carries_the_signal() -> None:
+    rng = np.random.default_rng(2)
+    x = rng.uniform(-1, 1, size=(300, 3))
+    x[:, 2] = 0.0  # a family that never fired is left out of the report
+    y = (rng.uniform(size=300) < 1 / (1 + np.exp(-4 * x[:, 0]))).astype(float)
+    report = ablation(x, y, (Family.techniques, Family.tone, Family.claim_support), folds=5)
+    assert set(report) == {"techniques", "tone"}
+    informative, noise = report["techniques"], report["tone"]
+    assert informative["items_nonzero"] == 300
+    assert informative["auc_alone"] > 0.8 and informative["auc_without"] < 0.6
+    assert noise["auc_alone"] < 0.6 and noise["auc_without"] > 0.8
+
+
 def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     lines = []
     for label in (1, 1, 0, 0, 1, 0):
@@ -117,12 +130,22 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
                 {"analysis": analysis.model_dump(mode="json"), "single": label, "coordinated": None}
             )
         )
+    # An item on which the dimension abstains (no coverage found) is counted, not fitted.
+    unseen = example_analysis()
+    unseen.context, unseen.evidence = [], []
+    lines.append(
+        json.dumps({"analysis": unseen.model_dump(mode="json"), "single": 1, "coordinated": None})
+    )
     path = tmp_path / "labelled.jsonl"
     path.write_text("\n".join(lines))
     before = WEIGHTS.model_dump()
     main([str(path), "--dry-run"])
     out = capsys.readouterr().out
+    assert "single: 3 positive and 3 negative scored items; 1 abstained and left out" in out
     assert '"n": 6' in out and '"auc": 1.0' in out
+    assert '"folds": 3' in out and '"ablation"' in out
+    # Positives carry all the fixture's evidence and negatives none: every family separates.
+    assert "single: WARNING fact_checks alone separates the classes (AUC 1.0)" in out
     assert "coordinated: not enough labels" in out
     assert WEIGHTS.model_dump() == before
 
@@ -130,9 +153,9 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
 @pytest.mark.parametrize(
     ("signal", "value", "expected"),
     [
-        ("contradicted", 1.0, 1.0),  # every addressing source contradicts the claim
+        ("contradicted", 5 / 6, 2 / 3),  # 4 of 4 addressing sources contradict the claim
         ("contradicted", 0.5, 0.0),  # split
-        ("contradicted", 0.0, -0.6),  # corroborated: points away, never below -0.6
+        ("contradicted", 0.2, -0.6),  # 0 of 3: corroborated, points away, never below -0.6
         ("tone_vs_peers", 3.0, 1.0),
         ("tone_vs_peers", -6.0, -0.5),  # calmer than the peers: weaker evidence
     ],

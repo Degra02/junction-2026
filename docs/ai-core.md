@@ -2,7 +2,7 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branches: `lyreplus/<topic>`, one per round. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 16:00.
+Updated: Sat 17:40.
 
 ## Status
 
@@ -68,9 +68,9 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 
 | Family | Signal | Value | When emitted | Source refs |
 |---|---|---|---|---|
-| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | probability of the strongest detected technique of that SemEval-2023 category, `[0, 1]` | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 document paragraphs, strongest first |
+| techniques | `attack_on_reputation`, `justification`, `simplification`, `distraction`, `call`, `manipulative_wording` | **share of the analysed paragraphs** with a detected technique of that SemEval-2023 category, `(0, 1]`; a text shorter than 4 paragraphs counts as 4 | a technique passes the model's own per-label threshold in ≥1 paragraph | up to 3 document paragraphs, strongest first |
 | tone | `tone_vs_peers` | z-score of the document's emotional charge vs story peers, `[-5, 5]` (positive = more charged) | ≥3 story peers | most charged paragraph + up to 3 peers |
-| claim_support | `contradicted` | contradicting / addressing sources, `[0, 1]` | ≥1 peer entails or contradicts the claim with p ≥ 0.6 | claim span + contradicting passages (quoted) + supporting peers |
+| claim_support | `contradicted` | (contradicting + 1) / (addressing + 2): the contradicting share, smoothed so one source moves it little, `(0, 1)` | ≥1 peer supports the claim (entailment ≥ 0.6) or contradicts it (contradiction ≥ 0.9 in **both** directions) | claim span + contradicting passages (quoted) + supporting peers |
 | claim_support | `unaddressed` | 1.0 | ≥3 peers judged, none addresses the claim | claim span |
 | fact_checks | `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0) | rating value | a `context[].fact_check` matches a claim (NLI entailment ≥ 0.5 either way, or ≥60% word overlap) and its rating is in the vocabulary (`claims.RATINGS`, several languages) | claim span + fact-check item (quote = rating when verbatim) |
 | source_profile | `domain_age_days` | days from registration (or first certificate) to publication | `sources[]` has the document's outlet with a date | RDAP or crt.sh URL |
@@ -79,7 +79,7 @@ All evidence IDs: `s1…` (single), `c1…` (coordinated). Every item has at lea
 Details:
 - **Emotional charge** of a text = mean over its paragraphs of the max probability among Loaded Language, Appeal to Fear, Name Calling, Exaggeration. Peers use their first 3 chunks (~400 chars). Spread floored at 0.05 so near-identical peers don't explode the z-score.
 - **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not the document's outlet, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
-- **Claim support** sends NLI the 4 two-sentence windows of each peer that share most words with the claim. Single sentences lose context: measured, "The draft does not ban private wells." alone → neutral 0.976; with the preceding sentence → contradiction 0.964. A peer that contains the claim verbatim is a quote, skipped for that claim.
+- **Claim support** sends NLI the 4 two-sentence windows of each peer that share most words with the claim. Single sentences lose context: measured, "The draft does not ban private wells." alone → neutral 0.976; with the preceding sentence → contradiction 0.964. A peer that contains the claim verbatim is a quote, skipped for that claim. A contradiction counts only when passage → claim and claim → passage both reach 0.9: the NLI model treats two moments of one story as a contradiction (see "First run on real coverage").
 - **Quotations are not the author's words** (`text.mask_quotations`, `text.own_words`): passages inside `"…"`, `“…”`, `„…“`, `«…»`, `‘…’` are replaced by `…` before the technique model reads the document and the peers. A text that is mostly quotation (a pasted post in quote marks) keeps its words. Trade-off: scare quotes (so-called “experts”) are masked too.
 - **Fact-checks from the document's own outlet** are skipped: a fact-checker's article is not rated False by its own review.
 - Budget (2 vCPU): max 30 paragraphs, 10 peers.
@@ -106,8 +106,8 @@ Per dimension:
 $$\text{confidence} = \sigma\Big(b + \sum_f w_f \cdot v_f\Big)$$
 
 - $v_f \in [-1, 1]$: family value = strength of its strongest signal (`families.STRENGTH`). Positive points toward propaganda, negative away (a fact-checker rating the claim true −1, outlet is a news agency −0.5, fact-checker −1, national −0.2). Unknown signals are ignored with a log warning: **add a STRENGTH entry when you add a signal.**
-- Counts saturate: copies/timing $1 - e^{-n/2}$, shared tracking ID $1 - e^{-n}$; domain age $1 - \log_{10}(d+1)/\log_{10}3650$ (15 days → 0.66, 1 year → 0.28); unaddressed claim 0.35.
-- Signed signals: tone $z/3$ clipped to $[-0.5, 1]$ (calmer than the peers points away, weakly); claim support $2v - 1$ clipped to $[-0.6, 1]$ with $v$ = contradicting share (all contradict 1, split 0, all support −0.6). Both floors stay above −0.7, so they never trigger the disagreement abstention alone.
+- Counts saturate: copies/timing $1 - e^{-n/2}$, shared tracking ID $1 - e^{-n}$; domain age $1 - \log_{10}(d+1)/\log_{10}3650$ (15 days → 0.66, 1 year → 0.28); unaddressed claim 0.2; techniques $2 \times$ share of paragraphs, clipped to 1 (half the paragraphs saturates).
+- Signed signals: tone $z/3$ clipped to $[-0.5, 1]$ (calmer than the peers points away, weakly); claim support $2v - 1$ clipped to $[-0.6, 1]$ with $v$ = smoothed contradicting share (1 of 1 → 0.33, 8 of 8 → 0.8, split 0, 0 of 4 → −0.6). Both floors stay above −0.7, so they never trigger the disagreement abstention alone.
 - `breakdown`: every family of the dimension in fixed order, `contribution = w_f · v_f` (log-odds), `evidence_ids` strongest first (empty when no evidence). Shown even when abstaining.
 
 Prior weights (`weights.json`, `source` says they are priors):
@@ -128,11 +128,15 @@ Abstentions (`confidence: null`, `reason` shown as "Not enough evidence"):
 ### Fitting the combiner (for evals / mosearc)
 
 ```sh
-uv run python -m pipeline.score.fit labelled.jsonl --dry-run   # report only
-uv run python -m pipeline.score.fit labelled.jsonl             # also writes weights.json
+mise run eval -- run                                              # mosearc's runner → evals/results/fit.jsonl
+uv run python -m pipeline.score.fit evals/results/fit.jsonl --dry-run   # report only
+uv run python -m pipeline.score.fit evals/results/fit.jsonl             # also writes weights.json
 ```
 
 One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analyses/{id}>, "single": 1|0|null, "coordinated": 1|0|null}`. Features are recomputed from `analysis.evidence`, so re-fitting after a signal change only needs `rerun?from=signals_single` on the stored analyses. L2 logistic regression (Newton, λ = 1, intercept unpenalised); stratified k-fold (k ≤ 5) out-of-fold log loss, Brier, AUC and reliability table, stored in `weights.json` under `cv` for the metrics page. A dimension with fewer than 2 labels of each class keeps its prior. Commit the new `weights.json`. The result cache is keyed on `PIPELINE_VERSION` (the image tag in deploys, `dev` locally): after changing weights locally, submit with `?force=true` or use `rerun?from=score`.
+
+- **Only shown scores are fitted.** An item on which the dimension abstains is counted in the report and left out: no confidence reaches the reader there, and its empty comparison families would teach the combiner "no coverage found" (old debunked articles have none in today's feeds) instead of the signal.
+- **`cv.ablation`** per family with a non-zero value in the set: `items_nonzero`, `auc_without` / `log_loss_without` (combiner refitted without the family) and `auc_alone`. Read it before quoting a headline number: `known_networks` is the VIGINUM list that also labels the coordinated positives, and `fact_checks` is the fact-check that defines a debunked claim, so both separate the classes by construction. Quote the AUC without them next to the full one; the report prints a WARNING for any family that reaches AUC 0.98 alone.
 
 ## explain
 
@@ -226,6 +230,32 @@ Real chain understand (AI Router, `claude-sonnet-5`) → run_single → run_coor
 
 Causes fixed: A was scored on the hoax it quotes (techniques on the quotation, claim = the debunked one, matched with its own fact-check, the quotation shared with the copies); B got +0.5 from a claim 2 of 3 peers support and nothing for being calmer than its peers; C's techniques were the senator's quoted words; E counted three established newsrooms as a copy network. Satire still gets `manipulative_wording` 0.96 (exaggeration): with coverage found it would score; the contract has no `satire` outlet type to guard it.
 
+With the Sat 17:40 rules (below) the same cases give single 0.016, 0.063, 0.090, 0.100, 0.100, abstain, and the control 0.981 / coordinated 0.755.
+
+### First run on real coverage (Sat 17:00)
+
+20 items of `evals/labelled.jsonl` through the whole pipeline locally (main + `ck-lithium/retrieve`: curated news feeds, story clustering), real LLM and models.
+
+| What | Found |
+|---|---|
+| Context | 14 of 20 items got no related report; 3 got a story of ≥ 3 reports (the three mainstream items) |
+| Single-actor | abstained on 17 of 20, **including every positive**: articles carrying debunked claims are months old and today's feeds hold no coverage and no fact-check of them |
+| Coordinated | Pravda-network items: 0.622 from `known_networks` alone (the VIGINUM list, which also defines their label); no copies found, so text reuse, timing and infrastructure never fired |
+| Mainstream false positives | BBC 0.531, tagesschau 0.748, RTÉ 0.693 with the rules of the morning |
+| Latency (laptop, 4 analyses at once) | signals_single p50 14 s, max 44 s; retrieve p50 8 s, max 32 s |
+
+Causes of the mainstream scores, and what changed:
+
+| Cause | Evidence | Change |
+|---|---|---|
+| Technique value was the highest probability over up to 30 paragraphs | one paragraph in twenty passes a threshold by chance: "Quinn's comparison is inaccurate." → doubt 0.93; mainstream items reached 0.91–0.98 | value = share of paragraphs with the technique (mainstream 0.05–0.25, Pravda-network 0.2–0.67, op-ed 0.8) |
+| NLI calls two moments of one story a contradiction | "the envoys travelled to Dublin on Thursday" vs "the envoys arrived in Moscow on Thursday": contradiction 0.99; 21 of 50 claim-source pairs flagged | contradiction must hold in both directions at ≥ 0.9 (7 of 50 left; real denials in the controls score ≥ 0.96 both ways) |
+| One source decided a claim | "1 of 1 sources contradict" counted as 1.0 | smoothed share (1 of 1 → strength 0.33) |
+| Claims with several facts | a 30-word sentence with three facts is contradicted by any report that mentions one of them differently | understand asks for one fact per claim, a single clause |
+| "Nobody else reports the claim" scored 0.35 | normal for original reporting | 0.2 |
+
+Same three mainstream items after the changes: **0.265, 0.193, 0.180** with the stored claims, and **0.180** for the first once understand is re-run with the one-fact prompt. Known limit: 7 of 50 contradictions on mainstream coverage are still false, at 0.9+ confidence in both directions, so `claim_support` cannot be trusted with a hand-set weight; the fit decides how much it counts. A stronger verifier (an LLM judging claim against passage, quotes checked verbatim) would need a team decision: D5 and the "no network I/O in signal stages" rule exclude it today.
+
 ## Testing
 
 ```sh
@@ -256,7 +286,9 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Changelog
 
-- Sat 16:30 — D14: explanation in the reader's language (inert until the request field exists); fixed sentences per language; clearer outlet-type wording.
+- Sat 17:40 — first run on real coverage: technique value = share of paragraphs, two-way NLI contradiction, smoothed claim support, one-fact claims.
+- Sat 17:00 — fit: abstained items left out, per-family refit ablation; explain reads `input.explanation_language` from the contract.
+- Sat 16:30 — D14: explanation in the reader's language; fixed sentences per language; clearer outlet-type wording.
 - Sat 16:00 — explain discloses prior (uncalibrated) confidences; `DimensionWeights.calibrated`.
 - Sat 15:30 — language spot check (D6); hard negatives: quotations masked, claims only asserted ones, own fact-checks skipped, newsrooms as syndication, signed tone and claim support.
 - Sat 15:00 — explain stage; LLM cost measurements.
