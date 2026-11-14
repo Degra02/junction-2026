@@ -1,26 +1,31 @@
-"""Load and validate labelled.jsonl — the ground-truth set for the combiner and eval.
+"""Load and validate labelled.jsonl, the ground-truth set for the eval and the combiner fit.
 
 Each line is one labelled item:
 {
-    "id":          "sa_pos_042",
-    "text":        "the article or post text…",
-    "url":         "https://…",                    // optional, source URL
-    "language":    "en",                            // ISO 639-1
+    "id":          "fcd_it_001",
+    "url":         "https://…",                     // the content to analyse (fetched by us)
+    "text":        "claim quoted by a fact-checker", // when there is no url, or as a quote
+    "language":    "it",                            // ISO 639-1
     "labels": {
-        "single":        true,                      // ground truth per dimension
-        "coordinated":   false
+        "single":      true,                        // true | false | null (no third-party label)
+        "coordinated": null
     },
-    "set":         "fact_checker_debunk",            // which evaluation set
-    "source":      "Google Fact Check API",          // where the item came from
-    "source_url":  "https://…",                     // original source URL
-    "notes":       "Debunked by PolitiFact…"        // free text
+    "set":         "fact_checker_debunk",           // which evaluation set
+    "source":      "ClaimReview feed (Pagella Politica)",   // where the label comes from
+    "source_url":  "https://…",                     // the page that establishes the label
+    "notes":       "rating: Falso"
 }
+
+Article bodies are never committed (scraped text, research-only datasets): an item carries the
+URL, or a short claim quoted verbatim by a fact-checker. A `null` label leaves the item out of
+that dimension: a debunked claim says nothing about coordination, a Pravda-network article is
+labelled by network membership, not by its techniques.
 
 Sets (plan §8):
   Positives:
     fact_checker_debunk — claims debunked by fact-checkers (single=true)
     euvsDisinfo         — EUvsDisinfo database cases (single=true)
-    viginum_pravda      — VIGINUM Portal Kombat domains (coordinated=true)
+    viginum_pravda      — articles on VIGINUM Portal Kombat domains (coordinated=true)
   Negatives / hard negatives:
     mainstream          — mainstream reporting on the same events
     hard_fact_checks    — fact-checks quoting the claim
@@ -56,14 +61,17 @@ HARD_NEGATIVE_SETS = {
 
 NEGATIVE_SETS = {"mainstream"} | HARD_NEGATIVE_SETS
 
+# A claim quoted by a fact-checker is a sentence or two; anything longer is an article body.
+MAX_TEXT_CHARS = 600
+
 
 @dataclass
 class LabelledItem:
     id: str
-    text: str
     language: str
-    labels: dict[str, bool]
+    labels: dict[str, bool | None]
     set_name: str
+    text: str = ""
     url: str = ""
     source: str = ""
     source_url: str = ""
@@ -72,6 +80,7 @@ class LabelledItem:
 
 def load_labelled(path: Path) -> list[LabelledItem]:
     items: list[LabelledItem] = []
+    seen: set[str] = set()
     with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             line = line.strip()
@@ -79,56 +88,36 @@ def load_labelled(path: Path) -> list[LabelledItem]:
                 continue
             d = json.loads(line)
             item = LabelledItem(
-                id=d["id"],
-                text=d["text"],
+                id=d.get("id", ""),
+                text=d.get("text") or "",
                 language=d.get("language", ""),
-                labels=d["labels"],
-                set_name=d["set"],
-                url=d.get("url", ""),
+                labels=d.get("labels", {}),
+                set_name=d.get("set", ""),
+                url=d.get("url") or "",
                 source=d.get("source", ""),
                 source_url=d.get("source_url", ""),
                 notes=d.get("notes", ""),
             )
             _validate(item, lineno)
+            if item.id in seen:
+                raise ValueError(f"line {lineno}: duplicate id '{item.id}'")
+            seen.add(item.id)
             items.append(item)
     return items
 
 
-def save_labelled(items: list[LabelledItem], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for item in items:
-            json.dump(
-                {
-                    "id": item.id,
-                    "text": item.text,
-                    "url": item.url,
-                    "language": item.language,
-                    "labels": item.labels,
-                    "set": item.set_name,
-                    "source": item.source,
-                    "source_url": item.source_url,
-                    "notes": item.notes,
-                },
-                f,
-                ensure_ascii=False,
-            )
-            f.write("\n")
-
-
 def stats(items: list[LabelledItem]) -> dict:
     by_set: dict[str, int] = {}
-    by_dim: dict[str, dict[str, int]] = {d: {"pos": 0, "neg": 0} for d in DIMENSIONS}
+    by_dim = {d: {"pos": 0, "neg": 0, "unlabelled": 0} for d in DIMENSIONS}
     by_lang: dict[str, int] = {}
 
     for item in items:
         by_set[item.set_name] = by_set.get(item.set_name, 0) + 1
         by_lang[item.language] = by_lang.get(item.language, 0) + 1
         for dim in DIMENSIONS:
-            if item.labels.get(dim, False):
-                by_dim[dim]["pos"] += 1
-            else:
-                by_dim[dim]["neg"] += 1
+            label = item.labels.get(dim)
+            key = "unlabelled" if label is None else "pos" if label else "neg"
+            by_dim[dim][key] += 1
 
     return {
         "total": len(items),
@@ -139,12 +128,21 @@ def stats(items: list[LabelledItem]) -> dict:
 
 
 def _validate(item: LabelledItem, lineno: int) -> None:
+    where = f"line {lineno} ({item.id or 'no id'})"
     if not item.id:
         raise ValueError(f"line {lineno}: missing id")
-    if not item.text:
-        raise ValueError(f"line {lineno}: missing text")
+    if not item.url and not item.text:
+        raise ValueError(f"{where}: needs a url or a text")
+    if len(item.text) > MAX_TEXT_CHARS:
+        raise ValueError(
+            f"{where}: text longer than {MAX_TEXT_CHARS} characters; commit the url, not the body"
+        )
+    if item.set_name not in POSITIVE_SETS | NEGATIVE_SETS:
+        raise ValueError(f"{where}: unknown set '{item.set_name}'")
     for dim in DIMENSIONS:
         if dim not in item.labels:
-            raise ValueError(f"line {lineno} ({item.id}): missing label '{dim}'")
-        if not isinstance(item.labels[dim], bool):
-            raise ValueError(f"line {lineno} ({item.id}): label '{dim}' must be bool")
+            raise ValueError(f"{where}: missing label '{dim}'")
+        if item.labels[dim] is not None and not isinstance(item.labels[dim], bool):
+            raise ValueError(f"{where}: label '{dim}' must be true, false or null")
+    if not any(item.labels[dim] is not None for dim in DIMENSIONS):
+        raise ValueError(f"{where}: no dimension is labelled")
