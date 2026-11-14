@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from pipeline.common.contracts import ContextItem, Document
+from pipeline.common.contracts import ContextItem, Document, Language, LanguageSupport
 from pipeline.common.fixtures import example_analysis
 
 pytestmark = pytest.mark.skipif(not os.environ.get("RUN_LIVE"), reason="set RUN_LIVE=1")
@@ -51,7 +51,7 @@ OTHER = [
 ]
 
 
-def _item(i: int, title: str, text: str) -> ContextItem:
+def _item(i: int, title: str, text: str, language: str) -> ContextItem:
     return ContextItem(
         id=f"ctx{i}",
         url=f"https://outlet{i}.example/a",
@@ -59,6 +59,7 @@ def _item(i: int, title: str, text: str) -> ContextItem:
         published_at=DAY,
         title=title,
         text=text,
+        language=language,
         retrieved_by="feeds",
         tracking_ids=[],
     )
@@ -75,7 +76,12 @@ def test_same_event_across_languages_is_in_and_other_news_is_out():
         outbound_links=[],
         tracking_ids=[],
     )
-    a.context = [_item(i, t, x) for i, (t, x) in enumerate(SAME + OTHER, start=1)]
+    a.language = Language(code="it", confidence=0.99, support=LanguageSupport.evaluated)
+    languages = ["en", "de", "it", "it"]
+    a.context = [
+        _item(i, t, x, lang)
+        for i, ((t, x), lang) in enumerate(zip(SAME + OTHER, languages, strict=True), start=1)
+    ]
     start = time.monotonic()
     patch = story.run(a)
     elapsed = time.monotonic() - start

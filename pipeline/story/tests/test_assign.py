@@ -7,7 +7,15 @@ import pytest
 
 from pipeline.common.contracts import ContextItem, Document, FactCheck
 from pipeline.common.fixtures import example_analysis
-from pipeline.story.assign import LEAD_CHARS, THRESHOLD, WINDOW_DAYS, assign, story_text
+from pipeline.story.assign import (
+    CROSS_LANGUAGE_THRESHOLD,
+    LEAD_CHARS,
+    SAME_LANGUAGE_THRESHOLD,
+    WINDOW_DAYS,
+    assign,
+    story_text,
+    threshold_for,
+)
 
 DAY = datetime(2026, 11, 14, 9, 0, tzinfo=UTC)
 
@@ -62,12 +70,14 @@ def analysis(*items: ContextItem, document_date: datetime | None = DAY):
 
 def test_threshold_decides_and_every_item_gets_an_assignment():
     embed = Embedder()
-    patch = assign(analysis(item(1, 0.95), item(2, THRESHOLD), item(3, 0.80)), embed)
+    patch = assign(analysis(item(1, 0.95), item(2, SAME_LANGUAGE_THRESHOLD), item(3, 0.80)), embed)
     assert [a.context_id for a in patch.assignments] == ["ctx1", "ctx2", "ctx3"]
     assert [a.in_story for a in patch.assignments] == [True, True, False]
-    assert [a.similarity for a in patch.assignments] == pytest.approx([0.95, THRESHOLD, 0.80])
+    assert [a.similarity for a in patch.assignments] == pytest.approx(
+        [0.95, SAME_LANGUAGE_THRESHOLD, 0.80]
+    )
     assert patch.assignments[0].reason == "Covers the same event (similarity 0.950)"
-    assert patch.assignments[2].reason == "About something else (similarity 0.800, below 0.845)"
+    assert patch.assignments[2].reason == "About something else (similarity 0.800, below 0.900)"
     # One batch: the document first, then the items.
     assert len(embed.calls) == 1 and embed.calls[0][0] == story_text(
         "The article", "First paragraph.\nSecond paragraph."
@@ -89,9 +99,9 @@ def test_reports_outside_the_date_window_are_out_whatever_their_similarity():
 
 
 def test_no_window_without_both_dates():
-    undated_item = assign(analysis(item(1, 0.9, None)), Embedder())
+    undated_item = assign(analysis(item(1, 0.95, None)), Embedder())
     undated_document = assign(
-        analysis(item(1, 0.9, DAY - timedelta(days=90)), document_date=None), Embedder()
+        analysis(item(1, 0.95, DAY - timedelta(days=90)), document_date=None), Embedder()
     )
     assert undated_item.assignments[0].in_story is True
     assert undated_document.assignments[0].in_story is True
@@ -99,7 +109,7 @@ def test_no_window_without_both_dates():
 
 def test_fact_checks_are_exempt_from_the_window():
     check = FactCheck(claim="Wells will be banned", rating="False", publisher="Checker")
-    old = item(1, 0.9, DAY - timedelta(days=200), fact_check=check)
+    old = item(1, 0.95, DAY - timedelta(days=200), fact_check=check)
     assert assign(analysis(old), Embedder()).assignments[0].in_story is True
 
 
@@ -127,3 +137,29 @@ def test_the_patch_is_valid_for_the_api():
     patch = assign(analysis(item(1, 0.9), item(2, 0.5)), Embedder())
     assert StoryPatch.model_validate(patch.model_dump()) == patch
     assert all(isinstance(a.similarity, float) for a in patch.assignments)
+
+
+def test_same_language_needs_the_stricter_threshold():
+    # Between the two thresholds: a neighbouring event in the document's language stays out,
+    # a report in another language on the same event gets in.
+    sim = (SAME_LANGUAGE_THRESHOLD + CROSS_LANGUAGE_THRESHOLD) / 2
+    a = analysis(item(1, sim, language="it"), item(2, sim, language="en"), item(3, sim))
+    a.language.code = "it"
+    patch = assign(a, Embedder())
+    assert [x.in_story for x in patch.assignments] == [False, True, False]
+    assert patch.assignments[0].reason.endswith("below 0.900)")
+    # An item without a language is held to the stricter threshold.
+    assert patch.assignments[2].reason.endswith("below 0.900)")
+
+
+def test_threshold_for():
+    assert threshold_for("it", "it") == SAME_LANGUAGE_THRESHOLD
+    assert threshold_for("en", "it") == CROSS_LANGUAGE_THRESHOLD
+    assert threshold_for(None, "it") == SAME_LANGUAGE_THRESHOLD
+    assert threshold_for("en", None) == SAME_LANGUAGE_THRESHOLD
+
+
+def test_no_document_language_means_the_stricter_threshold():
+    a = analysis(item(1, 0.87, language="en"))
+    a.language = None
+    assert assign(a, Embedder()).assignments[0].in_story is False
