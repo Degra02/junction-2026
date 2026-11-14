@@ -58,6 +58,9 @@ class PageMeta:
     outbound_links: list[str] = field(default_factory=list)
     jsonld_types: list[str] = field(default_factory=list)
     claim_reviews: list[ClaimReview] = field(default_factory=list)
+    # The page says (JSON-LD `isAccessibleForFree: false`) that the full text is for subscribers:
+    # what we can read is a teaser.
+    paywalled: bool = False
 
 
 def tracking_ids(html: str) -> dict[str, list[str]]:
@@ -169,6 +172,11 @@ def page_meta(html: str, page_url: str | None = None) -> PageMeta:
     nodes = [n for d in documents for n in _walk(d)]
     meta.jsonld_types = sorted({t for n in nodes for t in _types(n)})
     meta.claim_reviews = [_claim_review(n) for n in nodes if "ClaimReview" in _types(n)]
+    meta.paywalled = any(
+        str(n.get("isAccessibleForFree")).strip().lower() == "false"
+        for n in nodes
+        if "isAccessibleForFree" in n
+    )
 
     published = next((named[k] for k in _TIME_META if named.get(k)), None)
     if not published:
