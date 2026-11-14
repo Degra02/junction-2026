@@ -107,13 +107,13 @@ Details:
 
 | Family | Signal | Value | When emitted | Source refs |
 |---|---|---|---|---|
-| text_reuse | `copied_passages` | number of distinct other outlets copying the document | ≥1 copy | most-copied document sentence + up to 4 copies (quoted when verbatim) |
+| text_reuse | `copied_passages` | number of distinct other copiers: outlets, and accounts for social media posts | ≥1 copy | most-copied document sentence + up to 4 copies (quoted when verbatim) |
 | timing | `copies_within_window` | copies published within 6 h of the document (or of the earliest copy when the document has no date) | ≥1 (≥2 without document date) | the copies |
 | infrastructure | `shared_tracking_id` | largest number of other domains carrying one of the document's GA/GTM/AdSense IDs (without document IDs: an ID shared by ≥2 copying sites) | ≥1 such domain | carrying items |
 | infrastructure | `young_copying_domains` | copying domains registered < 180 days before the article | ≥1 | RDAP URLs |
 | known_networks | `listed_domain` | listed domains among the document outlet, the copies, and same-story sister sites of `own`'s network (or `similarity ≥ 0.93` when `own` is null) | `sources[].known_network` set | outlet URLs |
 
-- **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped).
+- **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped), or one per account on a social platform (`context[].author` set): 5 accounts posting the text on `bsky.app` are 5 copies. A post by the document's own account is not a copy.
 - **Syndication & satire guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `satire`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream and satire outlets; untyped outlets still count as copiers.
 - **Quotations** are removed from the document before shingling: a fact-check quoting a hoax is not a copy of it.
 - Exact 5-gram sets instead of MinHash: with ≤30 context items exact is cheap and has no false matches.

@@ -170,3 +170,66 @@ def test_mainstream_article_is_not_flagged_by_listed_outlet_in_same_story() -> N
     assert "listed_domain" not in by_signal(analysis)
     analysis.document.outlet = None
     assert "listed_domain" not in by_signal(analysis)
+
+
+def _posts(analysis, accounts, domain="bsky.app"):
+    """Social media posts repeating ctx2's copied text, one per entry of `accounts`."""
+    copy = next(c for c in analysis.context if c.id == "ctx2")
+    return [
+        copy.model_copy(
+            update={
+                "id": f"post{n}",
+                "url": f"https://{domain}/profile/{(account or 'x').strip('@')}/post/{n}",
+                "outlet": domain,
+                "author": account,
+                "retrieved_by": "bluesky",
+                "tracking_ids": [],
+            }
+        )
+        for n, account in enumerate(accounts, 1)
+    ]
+
+
+def test_accounts_on_one_platform_are_separate_copies() -> None:
+    analysis = example_analysis()
+    # "@A" is "@a" again: one account counts once, however it is written.
+    analysis.context += _posts(analysis, ["@a", "@b", "@A"])
+    copies = find_copies(analysis)
+    assert sorted(c.id for c in copies) == ["ctx2", "ctx3", "post1", "post2"]
+    reuse = by_signal(analysis)["copied_passages"]
+    assert reuse.value == 4.0
+    assert "appears on 2 other sites that are not news agencies" in reuse.detail
+    assert "was posted by 2 accounts on bsky.app (@a, @b)" in reuse.detail
+
+
+def test_posts_without_an_account_still_count_once_per_platform() -> None:
+    analysis = example_analysis()
+    analysis.context += _posts(analysis, [None, None])
+    assert sum(c.outlet == "bsky.app" for c in find_copies(analysis)) == 1
+
+
+def test_another_post_by_the_documents_own_account_is_not_a_copy() -> None:
+    analysis = example_analysis()
+    assert analysis.document is not None
+    analysis.document.author = "@me.bsky.social"
+    analysis.context += _posts(analysis, ["@ME.bsky.social", "@other.bsky.social"])
+    ids = {c.id for c in find_copies(analysis)}
+    assert "post1" not in ids and "post2" in ids
+
+
+def test_only_posts_name_accounts_not_sites() -> None:
+    analysis = example_analysis()
+    posts = _posts(analysis, ["@a"])
+    analysis.context = [c for c in analysis.context if c.id not in {"ctx2", "ctx3"}] + posts
+    detail = by_signal(analysis)["copied_passages"].detail
+    assert detail == "The same text was posted by 1 account on bsky.app (@a)."
+
+
+def test_young_platform_domain_counts_once_however_many_accounts() -> None:
+    analysis = example_analysis()
+    young = next(s for s in analysis.sources if s.registered_at is not None).model_copy(
+        update={"domain": "new-platform.example"}
+    )
+    analysis.sources.append(young)
+    analysis.context += _posts(analysis, ["@a", "@b", "@c"], domain="new-platform.example")
+    assert by_signal(analysis)["young_copying_domains"].value == 3.0  # 2 sites + 1 platform

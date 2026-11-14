@@ -69,12 +69,15 @@ def run_coordinated(analysis: Analysis) -> SignalsPatch:
 
 
 def find_copies(analysis: Analysis) -> list[ContextItem]:
-    """One context item per other outlet that copies the document, most copied first."""
+    """One context item per other copier of the document, most copied first. A copier is an
+    outlet, or one account on a social platform (`author` set): 5 accounts posting the text on
+    bsky.app are 5 copies, not one site. Another post by the document's own account is not one."""
     document = analysis.document
     if document is None:
         return []
     profiles = _profiles(analysis)
     own = _domain(document.outlet)
+    own_account = (document.author or "").casefold()
     wire = set().union(
         *(
             _shingles(c.text)
@@ -88,21 +91,24 @@ def find_copies(analysis: Analysis) -> list[ContextItem]:
     best: dict[str, tuple[float, ContextItem]] = {}
     for item in analysis.context:
         domain = _domain(item.outlet) or _domain(item.url)
+        account = (item.author or "").casefold()
         if (
             item.fact_check is not None
             or not domain
             or domain == own
+            or (account and account == own_account)
             or _type(profiles, item.outlet) in _NOT_COPIERS
         ):
             continue
         shared = len(mine & _shingles(item.text))
         containment = shared / len(mine)
+        key = f"{domain} {account}" if account else domain
         if (
             shared >= MIN_SHARED_SHINGLES
             and containment >= COPY_CONTAINMENT
-            and (domain not in best or containment > best[domain][0])
+            and (key not in best or containment > best[key][0])
         ):
-            best[domain] = (containment, item)
+            best[key] = (containment, item)
     return [item for _, item in sorted(best.values(), key=lambda x: -x[0])]
 
 
@@ -118,20 +124,41 @@ def text_reuse_evidence(
     for item in copies[:_MAX_REFS]:
         quote = copied[1] if copied is not None and copied[1] in item.text else None
         refs.append(context_ref(item, quote))
-    n = len(copies)
-    sites = ", ".join(_domain(c.outlet) or c.url for c in copies[:3])
     return [
         Evidence(
             id=next_id(),
             family=Family.text_reuse,
             signal="copied_passages",
-            value=float(n),
-            detail=f"The same text appears on {n} other "
-            f"{'sites that are not news agencies' if n > 1 else 'site that is not a news agency'} "
-            f"({sites}{', …' if n > 3 else ''}).",
+            value=float(len(copies)),
+            detail=_copies_detail(copies),
             source_refs=refs,
         )
     ]
+
+
+def _copies_detail(copies: list[ContextItem]) -> str:
+    """E.g. "The same text appears on 2 other sites … (a.com, b.com) and was posted by 5
+    accounts on bsky.app (@a, @b, @c, …)." Sites and accounts are named apart."""
+    sites = [c for c in copies if not c.author]
+    posts = [c for c in copies if c.author]
+    parts = []
+    if sites:
+        n = len(sites)
+        names = ", ".join(_domain(c.outlet) or c.url for c in sites[:3])
+        parts.append(
+            f"appears on {n} other "
+            f"{'sites that are not news agencies' if n > 1 else 'site that is not a news agency'} "
+            f"({names}{', …' if n > 3 else ''})"
+        )
+    if posts:
+        n = len(posts)
+        platforms = ", ".join(dict.fromkeys(_domain(c.outlet) or c.retrieved_by for c in posts))
+        names = ", ".join(str(c.author) for c in posts[:3])
+        parts.append(
+            f"was posted by {n} account{'s' if n > 1 else ''} on {platforms} "
+            f"({names}{', …' if n > 3 else ''})"
+        )
+    return f"The same text {' and '.join(parts)}."
 
 
 def timing_evidence(
@@ -206,13 +233,15 @@ def infrastructure_evidence(
 
     profiles = _profiles(analysis)
     published = (document.published_at if document else None) or analysis.created_at
-    young = [
-        (c, profile)
+    young_by_domain = {
+        profile.domain: (c, profile)
         for c in copies
         if (profile := profiles.get(_domain(c.outlet) or ""))
         and profile.registered_at is not None
         and (published - profile.registered_at).days < YOUNG_DAYS
-    ]
+    }
+    # One per domain: several accounts on one platform are one domain.
+    young = list(young_by_domain.values())
     if young:
         n = len(young)
         evidence.append(
