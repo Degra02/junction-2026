@@ -18,14 +18,13 @@ resources:
   - network-policy.yaml
   - worker-secrets.yaml
 
-# One tag for all three, as IMAGE_TAG on the VPS. `dev` is what `mise run k8s:up` builds locally.
 images:
   - name: ghcr.io/degra02/junction-2026-api
-    newTag: dev
+    newTag: k8s
   - name: ghcr.io/degra02/junction-2026-worker
-    newTag: dev
+    newTag: k8s
   - name: ghcr.io/degra02/junction-2026-caddy
-    newTag: dev
+    newTag: k8s
 
 # API settings, defaults from deploy/compose.yaml (names in api/src/config.rs). Eval runs: set
 # RATE_LIMIT_PER_MINUTE=0 and MAX_ANALYSES_PER_HOUR=0 here.
