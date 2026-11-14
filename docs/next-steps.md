@@ -73,3 +73,35 @@ All AI-core stages are done on `main`. #27 closed the 18:30 items on the zero-ev
 4. **Decision still open**: whether `claim_support` gets an LLM verifier per (claim, passage) for false NLI contradictions (network I/O in a signal stage, beyond D5) or the fit decides its weight.
 5. `k8s` branch: 3 commits ahead of `main` (latest: "build docker images on k8s branch"), no PR; Kubernetes is not in `docs/plan.md`. Merge or drop.
 6. Keep `main` deployable; update this file after every round.
+
+## Source graph (added Sun 01:45, branch `degra/source-graph`)
+Plan, research and first results: `plans/source-graph.md`. Phase 0 is built: `pipeline/graph/` builds `evals/graph.json` from stored analyses (`mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl`) and `GET /api/graph` serves it. On the 277 eval records: 739 outlets, 22 strong ties between different operators, 0 strong text ties from the hard negatives; on content alone the 18 VIGINUM editions do not cluster yet.
+
+Nothing below is on the critical path: your tasks above come first, and nothing here touches a score before it is fitted. "Before the freeze" items are small and independent; the rest waits for the team's decision (plan, section 10) and the submission.
+
+### Degra02
+1. **Before the freeze**: decide plan section 10 (merge now or after the submission, wording under D4 / D9, owner of `pipeline/graph/`), add the `DECISIONS.md` line, merge. The deploy copies `evals/graph.json` into the API image (`GRAPH_PATH`).
+2. Phase 1, live ingestion: `StageName::Graph` and `GraphPatch` (articles, ties with their evidence, tracking IDs) in `contracts/src/stage.rs`, scheduled with `explain`; `api/migrations/0003_graph.sql` and `api/src/graph.rs` (one transaction per analysis, rows keyed by article URL so a re-run updates instead of adding); `GET /api/graph` from the tables **in the shape of `evals/graph.json`**, so the UI built on the file keeps working; `GET /api/graph/outlets/{domain}`; a backfill that replays stored analyses through the stage. A failed `graph` step must not make a result non-reusable (`Db::find_reusable`).
+3. Phase 2, memory: `POST /internal/graph/recall` (cosine over stored embeddings; Caddy only proxies `/api/*`), `StageName::Recall` after `retrieve`, `analysis.graph`, `GRAPH_API_URL` for the worker in `deploy/compose.yaml`.
+4. Contract additions when asked, not before: `OutletType::Official` and `OutletType::Aggregator` (ck-lithium), `Family::TrackRecord` and `Family::LinkedSources` (Lyreplus, after the fit).
+
+### Lyreplus (proposed owner of `pipeline/graph/`)
+1. **Before the freeze, reading only**: the tie rules in `pipeline/graph/build.py` (`LAYERS`, `republishes`, `copy_ties`) against `signals/coordinated.py`. They import `_NOT_COPIERS`, `COPY_CONTAINMENT`, `MIN_SHARED_SHINGLES`, `TRANSLATED_COPY_SIMILARITY` from it: make `_NOT_COPIERS` public if you agree, and say which prior ($\tau$, $q$) you would change.
+2. Phase 1: `pipeline/graph/__init__.py: run(analysis) -> GraphPatch`, the per-analysis form of `build.ties` (the articles of one record, their IDs, the embedding of `story_text`). No network.
+3. Phase 2: `recall(analysis)`. Then re-run the `pk_*` items: an earlier copy on another edition arrives as context and should fire `text_reuse` without the list. The number to move is the coordinated CV AUC without `known_networks` (0.3751).
+4. Phase 3, only with a fit: `track_record` and `linked_sources` evidence, their `STRENGTH` entries shrunk by $Z = n/(n+k)$, the ablation in `fit.py`, the prequential evaluation with mosearc. Outcomes use the confidence without the graph families.
+5. Peers tied to the document's outlet are not independent sources: leave them out of `claim_support` and `tone` (the `eud_ru_*` false negatives, where aligned outlets "confirmed" the claim).
+
+### ck-lithium
+1. **Before the freeze, in `retrieve`, independent of the graph**: `context[].language` disagrees with the text for 160 of 1,657 labelled items in the eval records (52 labelled `it` are English; 96 labelled `en` are Spanish, French, German, Dutch, Italian or Russian; `feeds` 67 of 324, `fact_check_api` 40 of 273). Detect it from the item's text (`pipeline.extract.language.detect_language`): `story.threshold_for` picks the same-language or cross-language threshold from this label.
+2. **Before the freeze, `outlets.json`**: the graph ties `rtrunews.com` to `rt-english.com` (same analytics ID) and `esrt.press` to `actualidad-rt.com` (same ID, same text, links to `cdn.rt.com`); `de-rt.com` links to `rtd.rt.com`. Look at each and type the RT mirrors `state_affiliated`: `eud_en_002` (`rtrunews.com`) is one of the four false negatives in `docs/ai-core.md`, scored with `source_profile = 0`.
+3. Feeds of the `news-pravda.com` editions and of the `topwar.ru` language editions (four Pravda editions carry `topwar.ru` articles word for word). More articles per edition is what the list-free result needs.
+4. `web/`, after the decision on the wording: a `/sources` page on `GET /api/graph`: the clusters with what joins them (`joined_by`), an outlet's ties with links to the evidence, counts. No label on an outlet (D4); a line saying a tie is evidence of a relationship, not a judgement, and how to ask for a correction. Start with tables; the map comes after.
+5. Once the contract has the types: official sites the host labels miss (`elysee.fr`, `boe.es`, `governo.it`, `bundesregierung.de`) and aggregators (`headtopics.com`).
+
+### mosearc
+1. **Before the freeze, pitch**: one beat and the "what's next" of the submission from plan section 3. Safe to say: the analyses we store also give a map of which sites are tied and by what evidence (built offline today; feeding it live from every analysis is the next step); on 277 analyses no strong text tie came from the hard negatives; RT mirror domains found by a shared analytics ID; four Pravda editions carrying `topwar.ru` articles word for word. Say the limit too: on content alone the listed network does not cluster yet. Wording: "tied by", "same analytics ID", never "propaganda network" (D4).
+2. Hand-check the 22 strong ties between different operators (`evals/graph.json`: `edges` with `coordination >= 0.5` and no `same_operator` layer), starting with the 3 unverified analytics IDs (plan section 3): same owner or not, with the source. That is the precision of a strong tie, with its Wilson interval.
+3. Labelled pairs to fit the layer weights, `evals/graph_pairs.jsonl`: positives are pairs with a documented common operator (VIGINUM editions, owners you verified in 2), negatives are pairs of typed mainstream outlets of different owners and the pairs behind the 33 weak hard-negative ties.
+4. The `evaluation` block of `/api/graph` on the metrics page; later the prequential harness for phase 3 (items in `created_at` order, grouped by registrable domain, AUC with and without the graph families).
+5. `SPEC.md`: a source-map section only after the decision.

@@ -1,6 +1,6 @@
 # Source graph: research and implementation plan
 
-Status: **proposal** (Sat 14.11, 23:45), not decided. Nothing here is on `main`. It goes beyond `docs/plan.md` and touches D4 and D9, so it needs a team decision and a `DECISIONS.md` line before any code (section 10).
+Status: **phase 0 built** (Sun 15.11, 01:40) on `degra/source-graph`: the offline build, `evals/graph.json` and `GET /api/graph`; results in section 3. The later phases are a proposal: they go beyond `docs/plan.md` and touch D4 and D9, so they need a team decision and a `DECISIONS.md` line (section 10). The work split is in `docs/next-steps.md`.
 
 Idea under review: every analysis also feeds a persistent graph of outlets, linked by measured similarity. Over time the graph becomes (a) a map of which sites act together, (b) a per-source track record, and (c) a signal whose weight in the score grows as the graph learns more.
 
@@ -49,6 +49,28 @@ Corrections to the idea that follow:
 2. **User analyses alone are too sparse.** The graph needs batch input: the 277 stored eval records first, then the feed items `retrieve` already downloads on every run, then scheduled ingestion (D10).
 3. **A track record built from what users choose to submit is biased** toward suspicious articles. Show counts and intervals; an unbiased record needs random samples of an outlet's output (phase 4).
 
+### Phase 0 build on the 277 eval records (Sun 01:30)
+`mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl` compares every article of every record with every other (1 min 34 s on a laptop) and writes `evals/graph.json`:
+
+| Measured | Result |
+|---|---|
+| Analyses → articles → outlets | 277 → 1,561 → 739 (87 outlets analysed as a document) |
+| Ties | 492: 257 between outlets of one operator, 107 hyperlink only, 128 with shared IDs, copied text or translations |
+| Strong ties between different operators (coordination ≥ 0.5) | 22: 17 by a shared analytics ID, 4 by text copied in two or three stories, 1 by ID + copy + link |
+| Clusters | 29, of which 14 are joined by more than a shared domain name |
+| **Text ties that rest only on hard-negative analyses** (agency copy, press releases, op-eds, satire, mainstream) | 33 weak, **0 strong**: none joins a cluster |
+| **VIGINUM editions, found without the list** | all 18 in one cluster through the shared domain; on content alone **0 cluster**, 15 of 18 are tied to another edition by a translated article (13 pairs with one story, 2 with two) |
+| Sites the cluster adds to the 18 listed ones | 6 `topwar.ru` language editions: `portuguese.` and `poland.news-pravda.com` each carry three `topwar.ru` articles word for word (98–100% of the 5-grams), `italy.` and `romania.` two |
+
+What it shows:
+- **The false negatives named in `docs/ai-core.md` get a tie.** `rtrunews.com` carries the analytics ID of `rt-english.com` (`G-WSRRLSJZ2D`); `esrt.press` and `actualidad-rt.com` share an ID, a text and a link: mirror domains of RT that `outlets.json` does not type. `ru.sputnik.kz` holds 98% of a `ria.ru` article and `mejdurecie.md` 97% of a `vz.ru` one: one story each, so weak ties.
+- **One shared story is the normal state of the web**, which is why the count is over distinct articles. Shared text from a single analysis ties `elysee.fr` to `pm.gc.ca` (a joint statement), `actu.orange.fr` to `boursorama.com` (agency copy on untyped sites), `der-postillon.com` to a site reposting it. Five fringe sites republishing one RT France article look the same. Only repetition or an identifier separates them.
+- **On content alone the listed network does not cluster yet**: the set has about three articles per edition, so two editions rarely share two sampled stories. Two translated stories give 0.44 at the prior weights, under the 0.5 a cluster needs. The weights were not tuned to pass. More articles per edition (`recall`, the editions' feeds) are what moves this number.
+- **Analytics IDs are good evidence, AdSense IDs are not.** Of 15 analytics or Tag Manager IDs on more than one domain, 12 match a known common owner (the UN, AFP, Nexstar, Hearst, Future, RT mirrors, `iz.ru`, `defence24`, `headtopics`); the other 3 are unverified (`andaluciainformacion.es` / `elconfidencialdigital.com` / `eldiariodemadrid.es`, `elperiodico.com` / `noticiasdenavarra.com`, `factchequeado.com` / `kunr.org`) and each makes a cluster on its own: check them before showing the clusters. Of 10 shared AdSense IDs, 2 match a common owner; the rest are Blogger's (also on `der-postillon.com`, a Blogger site under its own domain), the template placeholder `pub-1234567890123456` on `focus.de` and `n-tv.de`, one ID on eight sites in Italy, Ukraine, Ghana and Argentina, and four between `elperiodico.com` and `lacnews24.it`. So `ad_account` is its own weak layer.
+- **`context[].language` is wrong for about one item in ten**: 160 of 1,657 labelled context items hold text in another language than their label (52 labelled `it` are English, 96 labelled `en` are Spanish, French, German, Dutch, Italian or Russian; `feeds` 67 of 324, `fact_check_api` 40 of 273). The build detects the language from the text. `story` picks its threshold from the label (`threshold_for`), so this also moves `in_story`.
+
+Limits: the records were chosen by label, not by users; a hyperlink counts only when its target is an outlet of the corpus; official sites are recognised by host labels (`gov`, `gouv`, `gob`, `gc`, `mil`), so `elysee.fr` or `boe.es` pass as ordinary sites (no strong tie resulted); `same_story` is not built.
+
 ## 4. Model
 ### Nodes
 - **Outlet**: host with `www.` stripped, as in `sources[].domain`; attribute `registrable` (public-suffix aware, `sources.registrable`) to roll editions up. Carries the `SourceProfile` facts.
@@ -62,24 +84,26 @@ An analysis yields relations between the outlets of its document and context ite
 
 | Kind | Observed when | Tier | Graph |
 |---|---|---|---|
-| `identifier` | two outlets carry the same tracking ID; dropped when the ID sits on a hosting platform's suffix (`blogspot.com`, `wordpress.com`, …) or is carried by more than 20 domains | 1 | coordination |
+| `analytics_id` | two outlets carry the same Google Analytics or Tag Manager ID; dropped when the ID was seen on a hosting platform (`blogspot.com`, `wordpress.com`, …) or on more than 20 operators | 1 | coordination |
+| `ad_account` | the same AdSense publisher ID, same exclusions, placeholders dropped. Weak: these IDs also belong to ad resellers (section 3) | 3 | coordination, corroborating only |
 | `same_operator` | same registrable domain; not on hosting platforms: `tld` gives `foo.wordpress.com` → `wordpress.com` and `x.substack.com` → `substack.com`, which would join every blog on them | 1 | affiliation |
-| `documented` | both on the same published list (`known_network`) | 1 | coordination (seed) |
-| `copy` | 5-gram containment ≥ 0.2 and ≥ 8 shared, after removing quoted passages and syndicated text: every 5-gram found in a wire item of the same analysis and, once the article index exists (phase 2), every passage already stored from an agency or from 3 or more typed newsrooms; neither side typed `wire_service`, `fact_checker`, `satire`, `national`, `local` (`_NOT_COPIERS`). Directed earlier → later when both are dated | 2 | coordination |
-| `translation` | different languages, embedding cosine ≥ 0.93 (`TRANSLATED_COPY_SIMILARITY`) | 2 | coordination |
-| `link` | the document links to the other outlet; own domain, social, share and shop hosts dropped | 3 | affinity |
-| `same_story` | both `in_story` | 3 | affinity |
+| `documented` | both on the same published list (`known_network`). Not a tie in phase 0: an attribute of the outlet, so the clusters are found without the lists | 1 | coordination (seed) |
+| `copy` | 5-gram containment ≥ 0.2 and ≥ 8 shared, after removing quoted passages, boilerplate (on 8 or more operators) and syndicated text (on a news agency or on 3 or more typed newsrooms, anywhere in the stored articles); neither side a fact-check, an official site, or typed `wire_service`, `fact_checker`, `satire`, `national`, `local` (`_NOT_COPIERS`). Directed earlier → later when both are dated (not built yet) | 2 | coordination |
+| `translation` | different languages, detected from the text, embedding cosine ≥ 0.93 (`TRANSLATED_COPY_SIMILARITY`), at most 7 days apart; same exclusions as `copy` | 2 | coordination |
+| `link` | the document links to the other outlet; own operator and social hosts dropped | 3 | affinity |
+| `same_story` | both `in_story` (not built yet) | 3 | affinity |
 
 Later kinds: `agree` / `contradict` on a claim (from `claim_support` evidence), `co_shared` (the same social post links both).
 
 ### Similarity between two outlets
-Per layer $l$, $n_l$ = distinct stories with an observation (for `identifier`: distinct shared IDs). The repo's saturating count turns it into layer evidence, and a noisy-OR combines the layers:
+Per layer $l$, $n_l$ = distinct articles with an observation, the smaller of the two sides (for the ID layers: distinct shared IDs). The repo's saturating count turns it into layer evidence, and a noisy-OR combines the layers:
 
 $$w_l = 1 - e^{-n_l/\tau_l} \qquad S(A,B) = 1 - \prod_l \big(1 - q_l\, w_l\big)$$
 
 | Layer | $\tau$ | $q$ (prior) |
 |---|---|---|
-| `identifier` | 1 | 0.9 |
+| `analytics_id` | 1 | 0.9 |
+| `ad_account` | 1 | 0.2 |
 | `same_operator`, `documented` | — ($w = 1$) | 1.0 |
 | `copy` | 2 | 0.8 |
 | `translation` | 2 | 0.7 |
@@ -156,27 +180,28 @@ Three mechanisms, none of them a hand-turned global weight (graph size says noth
 | **Scale** | Brute-force cosine and SQL views hold to ~10⁵ articles; beyond that an ANN index and materialised aggregates. Not a hackathon problem |
 
 ## 8. Evaluation
-- **E1, list-free rediscovery (the headline).** Build the graph from the stored eval analyses with `known_network` blanked. Do the clusters recover the VIGINUM network? Pairwise precision and recall of "same cluster" against "both on the list". Report twice: with and without the `same_operator` layer, because 18 editions share `news-pravda.com` and that alone is trivial. Honest expectation today: weak without the layer, since `pk_*` runs found almost no cross-edition context; that is what `recall` is for, and E1 measures its gain.
-- **E2, false edges.** Coordination edges among the hard-negative sets (`hard_wire_copy`, `hard_press_releases`, `mainstream`, `hard_fact_checks`) must be zero; list every one found.
+- **E1, list-free rediscovery (the headline).** Build the graph from the stored eval analyses; the lists make no tie. Do the clusters recover the VIGINUM network? Reported twice: with and without the `same_operator` layer, because 18 editions share `news-pravda.com` and that alone is trivial. First result (section 3): 18 of 18 with the layer, 0 of 18 without it, 15 of 18 weakly tied by translations. `recall` and more articles per edition are what should move it.
+- **E2, false edges.** Strong text ties that rest only on the hard-negative sets must be zero; first result: 0 strong, 33 weak. Still to do by hand: the 22 strong ties between different operators, one by one.
 - **E3, score gain without leakage.** Prequential: for item $i$ the graph holds only items before $i$; grouped by registrable domain so an outlet never informs its own test item. AUC and FPR per hard-negative set with and without the graph families, next to coverage.
 - The 284-item set has 35 hosts with a single item: track records will be thin there. Say so.
 
 ## 9. Phases
 | Phase | Scope | Changes pipeline or contract | Effort (agents) |
 |---|---|---|---|
-| **0, before the freeze** | `pipeline/graph/observe.py` + tests on the three false links of section 3; `python -m pipeline.graph.build <fit.jsonl> --out evals/graph.json` (mise task `graph:build`): nodes, layered edges with evidence, clusters, counts; E1 and E2 numbers; `GET /api/graph` serving the file like `/api/metrics`. Needs `evals/results/fit.jsonl` from the laptop that ran the eval | No | ~2–3 h |
+| **0, done** | `pipeline/graph/corpus.py` (articles, outlets, links from stored analyses) and `build.py` (ties, strength, clusters, evaluation), tests on the false ties of section 3; `mise run graph:build` writes `evals/graph.json`; `GET /api/graph` serves it like `/api/metrics` | No | built Sun 00:00–01:40 |
 | 1 | Live ingestion: `graph` stage, tables, typed read endpoints, backfill by replay | Yes (new stage, no change to scores) | ~5 h |
 | 2 | `recall`: article memory as context; re-run the `pk_*` items and E1 | Yes | ~4 h |
 | 3 | `track_record`, `linked_sources` families with shrinkage; fit; E3; explanation wording | Yes (scores) | ~6 h + an eval run |
 | 4 | Propagated prior; independence-weighted peers in `claim_support` and `tone`; feed items into the article index on every `retrieve` and by schedule (D10); random audit samples per outlet; more identifiers (`ads.txt`, certificate SANs, ASN); fitted $q_l$ | Yes | open |
 | 5 | Visualisation: cluster and outlet pages first (table + ego network), global map later (WebGL renderer such as sigma.js once past a few thousand nodes) | UI | after the functional layer |
 
-Phase 0 writes the same `observations` function phases 1–2 call, so nothing is thrown away. If phase 0 is not green by 02:00, the graph is a roadmap slide with the section 3 numbers, and `main` is untouched.
+Phases 1–2 reuse the tie rules of phase 0, per analysis instead of over the whole corpus. Until they exist the graph grows by running `mise run graph:build` on a larger file of stored analyses.
 
 ## 10. Decisions needed
-1. Scope for the submission: phase 0, or pitch only.
-2. Whether a per-outlet track record is acceptable under D9 and D4, and its wording.
-3. Owner of `pipeline/graph/`.
-4. After the event: internal callback from the worker (`recall`) versus a second store on the worker side. This plan assumes the callback, to keep one database.
+1. Merge phase 0 before the freeze or after the submission. It changes no stage, score or contract type; it adds `GET /api/graph`, and `evals/graph.json` names real outlets and their ties in a public repository.
+2. Whether a per-outlet track record is acceptable under D9 and D4, and its wording. Phase 0 publishes ties only, no track record.
+3. Owner of `pipeline/graph/`. Proposed: Lyreplus (it reuses `pipeline/signals/`).
+4. Whether one shared analytics ID alone may join a cluster (it does today, at 0.57), given the 3 unverified ones in section 3.
+5. After the event: internal callback from the worker (`recall`) versus a second store on the worker side. This plan assumes the callback, to keep one database.
 
 Proposed `DECISIONS.md` line once agreed: `Source graph: observations per analysis stored in SQLite, strengths and track records derived; reliability crosses coordination edges only; no graph family in the score until fitted with its ablation (plans/source-graph.md)`.
