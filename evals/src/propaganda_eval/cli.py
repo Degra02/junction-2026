@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .format import format_full_report
 from .labelled import load_labelled, stats
-from .metrics import EvalResult, Prediction, evaluate
+from .metrics import Prediction, evaluate
 
 
 def main() -> None:
@@ -48,13 +48,13 @@ def _cmd_stats(args: argparse.Namespace) -> None:
     items = load_labelled(Path(args.labelled))
     s = stats(items)
     print(f"Labelled set: {s['total']} items")
-    print(f"\nBy set:")
+    print("\nBy set:")
     for name, count in s["by_set"].items():
         print(f"  {name:30s} {count:5d}")
-    print(f"\nBy dimension:")
+    print("\nBy dimension:")
     for dim, counts in s["by_dimension"].items():
         print(f"  {dim:20s}  pos={counts['pos']:4d}  neg={counts['neg']:4d}")
-    print(f"\nBy language:")
+    print("\nBy language:")
     for lang, count in s["by_language"].items():
         print(f"  {lang:5s} {count:5d}")
 

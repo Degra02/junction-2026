@@ -34,7 +34,7 @@ Sets (plan §8):
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 DIMENSIONS = ("single", "coordinated")
@@ -98,17 +98,21 @@ def save_labelled(items: list[LabelledItem], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         for item in items:
-            json.dump({
-                "id": item.id,
-                "text": item.text,
-                "url": item.url,
-                "language": item.language,
-                "labels": item.labels,
-                "set": item.set_name,
-                "source": item.source,
-                "source_url": item.source_url,
-                "notes": item.notes,
-            }, f, ensure_ascii=False)
+            json.dump(
+                {
+                    "id": item.id,
+                    "text": item.text,
+                    "url": item.url,
+                    "language": item.language,
+                    "labels": item.labels,
+                    "set": item.set_name,
+                    "source": item.source,
+                    "source_url": item.source_url,
+                    "notes": item.notes,
+                },
+                f,
+                ensure_ascii=False,
+            )
             f.write("\n")
 
 

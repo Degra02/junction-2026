@@ -14,10 +14,9 @@ Plus: ablation per signal family (what each family adds to the combiner).
 from __future__ import annotations
 
 import math
-from collections import defaultdict
 from dataclasses import dataclass, field
 
-from .labelled import DIMENSIONS, HARD_NEGATIVE_SETS, LabelledItem
+from .labelled import DIMENSIONS, LabelledItem
 
 
 @dataclass
@@ -89,6 +88,7 @@ class CalibrationBin:
 @dataclass
 class Prediction:
     """One pipeline result for a labelled item."""
+
     item_id: str
     scores: dict[str, float | None]  # dimension → confidence (None = abstained)
 
@@ -120,7 +120,8 @@ def evaluate(
             _update_binary(dim_result.overall, predicted_positive, gold)
             _update_binary(
                 _get_set_metrics(dim_result, item.set_name),
-                predicted_positive, gold,
+                predicted_positive,
+                gold,
             )
 
         result.dimensions[dim] = dim_result
