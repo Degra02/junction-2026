@@ -66,6 +66,16 @@ def test_the_shipped_registry_is_well_formed():
     assert reg.lookup("www.rte.ie").outlet_type == OutletType.national
     assert reg.lookup("wtop.com").outlet_type == OutletType.local
     assert reg.lookup("corrieredelmezzogiorno.corriere.it").outlet_type == OutletType.local
+    # Satire: invented claims are the genre, not manipulation (contract `OutletType.satire`).
+    for host in (
+        "www.theonion.com",
+        "ilfattoquotidaino.it",
+        "www.der-postillon.com",
+        "legorafi.fr",
+    ):
+        assert reg.lookup(host).outlet_type == OutletType.satire, host
+    assert reg.lookup("inimigo.publico.pt").outlet_type == OutletType.satire
+    assert reg.lookup("www.publico.pt").outlet_type == OutletType.national
 
 
 def test_a_domain_listed_twice_is_an_error():
