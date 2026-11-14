@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, Moon, Radar, SearchCheck, Sun } from "lucide-react";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { BarChart3, Moon, Radar, Search, Sun } from "lucide-react";
 import { getHealth } from "../lib/api";
 import type { Health } from "../lib/contracts";
 import { cn } from "../lib/utils";
@@ -20,7 +21,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
     getHealth(controller.signal)
       .then(setHealth)
       .catch(() => {
-        // Non-blocking status indicator
+        // Silent when running frontend standalone without backend
       });
     return () => controller.abort();
   }, []);
@@ -29,108 +30,117 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
   const isHome = location.pathname === "/";
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[var(--bg-canvas)] text-[var(--fg-primary)]">
-      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 backdrop-blur-sm">
-        <div className="mx-auto max-w-[1280px] px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-2 sm:gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              to="/"
-              className="flex items-center gap-2 min-w-0 text-[var(--fg-primary)] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] rounded-md"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] text-white shrink-0">
-                <Radar className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="font-bold tracking-tight text-sm sm:text-base truncate">
-                Decode the Noise
-              </span>
-            </Link>
-            <span className="hidden md:inline-block text-xs text-[var(--fg-muted)] border-l border-[var(--border-subtle)] pl-3 truncate">
-              Context-aware propaganda &amp; coordination analysis
-            </span>
-          </div>
+    <Tooltip.Provider delayDuration={180}>
+      <div className="min-h-[100dvh] flex flex-col bg-[var(--bg-canvas)] canvas-ambient text-[var(--fg-primary)] selection:bg-[var(--accent-soft)] selection:text-[var(--accent)]">
+        {/* Floating Liquid Glass Top Navigation Bar */}
+        <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-2 pointer-events-none">
+          <div className="mx-auto max-w-[1080px] glass-pill rounded-2xl px-3.5 sm:px-4 h-12 flex items-center justify-between gap-3 pointer-events-auto">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2.5 text-sm font-bold tracking-tight text-[var(--fg-primary)] hover:opacity-85 transition-opacity truncate"
+              >
+                <span className="h-7 w-7 rounded-xl bg-[var(--accent)] text-white inline-flex items-center justify-center shadow-xs shrink-0">
+                  <Radar className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="truncate">Decode the Noise</span>
+              </Link>
 
-          <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <Link
-              to="/"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors min-h-[36px]",
-                isHome
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]",
+              {health && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span
+                      tabIndex={0}
+                      className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] text-[11px] font-mono-num text-[var(--fg-muted)] cursor-default"
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          health.status === "ok" ? "bg-[var(--teal)]" : "bg-[var(--caution)]",
+                        )}
+                      />
+                      <span>{health.pipeline_version.slice(0, 10)}</span>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      sideOffset={8}
+                      className="z-50 glass-popover rounded-xl px-3 py-2 text-xs text-[var(--fg-primary)] max-w-xs"
+                    >
+                      API {health.status === "ok" ? "online" : "degraded"} · build{" "}
+                      <code className="font-mono-num">{health.pipeline_version}</code>
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
               )}
-            >
-              <SearchCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Analyse</span>
-            </Link>
+            </div>
 
+            <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              <Link
+                to="/"
+                aria-current={isHome ? "page" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors",
+                  isHome
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                    : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70",
+                )}
+              >
+                <Search className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Investigate</span>
+              </Link>
+
+              <Link
+                to="/metrics"
+                aria-current={isMetrics ? "page" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors",
+                  isMetrics
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                    : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70",
+                )}
+              >
+                <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Benchmarks</span>
+              </Link>
+
+              <div className="h-4 w-px bg-[var(--border-subtle)] mx-0.5" aria-hidden="true" />
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-xl text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]/70 transition-colors cursor-pointer"
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </nav>
+          </div>
+        </header>
+
+        <main className="flex-1 mx-auto w-full max-w-[1080px] px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+          {children}
+        </main>
+
+        <footer className="mt-auto py-6 px-4 sm:px-6">
+          <div className="mx-auto max-w-[1080px] pt-5 border-t border-[var(--border-subtle)]/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[var(--fg-muted)]">
+            <span>
+              Evidence-first verification — confidence scores reflect measured alignment with documented signals, never ground-truth labels.
+            </span>
             <Link
               to="/metrics"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors min-h-[36px]",
-                isMetrics
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)]",
-              )}
+              className="font-medium text-[var(--fg-secondary)] hover:text-[var(--accent)] transition-colors shrink-0"
             >
-              <BarChart3 className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Metrics</span>
+              Methodology &amp; False-Positive Rates →
             </Link>
-
-            {health && (
-              <span
-                title={`API status: ${health.status} · build ${health.pipeline_version}`}
-                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-xs text-[var(--fg-muted)] font-mono-num"
-              >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    health.status === "ok" ? "bg-[var(--teal)]" : "bg-[var(--caution)]",
-                  )}
-                />
-                {health.pipeline_version.slice(0, 12)}
-              </span>
-            )}
-
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-            >
-              {theme === "dark" ? (
-                <Sun className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Moon className="h-4 w-4" aria-hidden="true" />
-              )}
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="flex-1 mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {children}
-      </main>
-
-      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] mt-12">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[var(--fg-muted)]">
-          <p className="m-0">
-            Evidence-first OSINT pipeline: confidence per dimension with verbatim source checks — never a binary “propaganda / not” verdict.
-          </p>
-          <div className="flex items-center gap-4 shrink-0">
-            <Link to="/metrics" className="hover:text-[var(--fg-primary)] underline underline-offset-2">
-              Evaluation &amp; FPR benchmark
-            </Link>
-            <a
-              href="/api/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-[var(--fg-primary)] underline underline-offset-2"
-            >
-              OpenAPI Spec
-            </a>
           </div>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </div>
+    </Tooltip.Provider>
   );
 }

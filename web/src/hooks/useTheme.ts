@@ -32,7 +32,11 @@ export function useTheme(): {
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      document.documentElement.classList.toggle("dark", next === "dark");
+      return next;
+    });
   }, []);
 
   return { theme, toggleTheme };
