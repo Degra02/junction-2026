@@ -1,6 +1,6 @@
 # Source graph: research and implementation plan
 
-Status: **phase 0 built** (Sun 15.11, 01:40) on `degra/source-graph`: the offline build, `evals/graph.json` and `GET /api/graph`; results in section 3. The later phases are a proposal: they go beyond `docs/plan.md` and touch D4 and D9, so they need a team decision and a `DECISIONS.md` line (section 10). The work split is in `docs/next-steps.md`.
+Status: **phase 0 is on `main`** (Sun 15.11, 00:25): the offline build, `evals/graph.json` and `GET /api/graph`; results in section 3, decisions in section 10 and `DECISIONS.md`. The later phases go beyond `docs/plan.md`: each contract change goes through the integrator, and the per-outlet track record is not decided. Tasks and rules per person: `docs/next-steps.md` → "Source graph".
 
 Idea under review: every analysis also feeds a persistent graph of outlets, linked by measured similarity. Over time the graph becomes (a) a map of which sites act together, (b) a per-source track record, and (c) a signal whose weight in the score grows as the graph learns more.
 
@@ -49,7 +49,7 @@ Corrections to the idea that follow:
 2. **User analyses alone are too sparse.** The graph needs batch input: the 277 stored eval records first, then the feed items `retrieve` already downloads on every run, then scheduled ingestion (D10).
 3. **A track record built from what users choose to submit is biased** toward suspicious articles. Show counts and intervals; an unbiased record needs random samples of an outlet's output (phase 4).
 
-### Phase 0 build on the 277 eval records (Sun 01:30)
+### Phase 0 build on the 277 eval records (Sun 00:10)
 `mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl` compares every article of every record with every other (1 min 34 s on a laptop) and writes `evals/graph.json`:
 
 | Measured | Result |
@@ -188,7 +188,7 @@ Three mechanisms, none of them a hand-turned global weight (graph size says noth
 ## 9. Phases
 | Phase | Scope | Changes pipeline or contract | Effort (agents) |
 |---|---|---|---|
-| **0, done** | `pipeline/graph/corpus.py` (articles, outlets, links from stored analyses) and `build.py` (ties, strength, clusters, evaluation), tests on the false ties of section 3; `mise run graph:build` writes `evals/graph.json`; `GET /api/graph` serves it like `/api/metrics` | No | built Sun 00:00–01:40 |
+| **0, done** | `pipeline/graph/corpus.py` (articles, outlets, links from stored analyses) and `build.py` (ties, strength, clusters, evaluation), tests on the false ties of section 3; `mise run graph:build` writes `evals/graph.json`; `GET /api/graph` serves it like `/api/metrics` | No | built Sat 23:55–Sun 00:20 |
 | 1 | Live ingestion: `graph` stage, tables, typed read endpoints, backfill by replay | Yes (new stage, no change to scores) | ~5 h |
 | 2 | `recall`: article memory as context; re-run the `pk_*` items and E1 | Yes | ~4 h |
 | 3 | `track_record`, `linked_sources` families with shrinkage; fit; E3; explanation wording | Yes (scores) | ~6 h + an eval run |
@@ -197,11 +197,12 @@ Three mechanisms, none of them a hand-turned global weight (graph size says noth
 
 Phases 1–2 reuse the tie rules of phase 0, per analysis instead of over the whole corpus. Until they exist the graph grows by running `mise run graph:build` on a larger file of stored analyses.
 
-## 10. Decisions needed
-1. Merge phase 0 before the freeze or after the submission. It changes no stage, score or contract type; it adds `GET /api/graph`, and `evals/graph.json` names real outlets and their ties in a public repository.
-2. Whether a per-outlet track record is acceptable under D9 and D4, and its wording. Phase 0 publishes ties only, no track record.
-3. Owner of `pipeline/graph/`. Proposed: Lyreplus (it reuses `pipeline/signals/`).
-4. Whether one shared analytics ID alone may join a cluster (it does today, at 0.57), given the 3 unverified ones in section 3.
-5. After the event: internal callback from the worker (`recall`) versus a second store on the worker side. This plan assumes the callback, to keep one database.
+## 10. Decisions
+Decided Sun 00:25 (`DECISIONS.md`):
+1. Phase 0 is merged now. It changes no stage, score or contract type; it adds `GET /api/graph`, and `evals/graph.json` names real outlets and their ties in a public repository.
+2. Lyreplus owns `pipeline/graph/`.
+3. One shared analytics ID alone joins a cluster for now (0.57 against the 0.5 a cluster needs); revisit after the hand-check of the 22 strong ties, 3 of which are unverified (section 3).
 
-Proposed `DECISIONS.md` line once agreed: `Source graph: observations per analysis stored in SQLite, strengths and track records derived; reliability crosses coordination edges only; no graph family in the score until fitted with its ablation (plans/source-graph.md)`.
+Still open:
+1. Whether a per-outlet track record is acceptable under D9 and D4, and its wording. Until then only ties are published, and phase 3 is blocked.
+2. After the event: internal callback from the worker (`recall`) versus a second store on the worker side. This plan assumes the callback, to keep one database.

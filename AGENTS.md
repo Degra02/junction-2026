@@ -7,6 +7,7 @@
 - `docs/plan.md` — the decided project: pipeline, scoring, scope, roles. Do not build beyond it. `SPEC.md` is the product spec derived from it.
 - `DECISIONS.md` — decisions already made. Do not relitigate them; ask the integrator.
 - `docs/ai-core.md` — signal catalogue with value scales, scoring formula, models, and what `extract`, `retrieve` and `story` must provide for the signals.
+- `plans/source-graph.md` — the source graph (`pipeline/graph/`, `GET /api/graph`): what is built, the model, the phases. Its tasks and rules are in `docs/next-steps.md` → "Source graph".
 - `docs/` — event facts, sponsors, setup. `docs/[DEPRECATED]playbook.md` is superseded by this file and `docs/next-steps.md`.
 
 ## Commands
@@ -15,6 +16,7 @@
 - `mise run dev`: worker (:8001) and API (:8080) locally; API docs at <http://127.0.0.1:8080/api/docs>.
 - `mise run web:dev`: the web UI on :5173 with `/api` proxied to the local API; `VITE_API_TARGET=https://the4thlover.tech mise run web:dev` shows live data. `mise run web:build` typechecks against `contracts/ts/api.d.ts` and builds `web/dist` (the caddy image build in CI runs the same).
 - `mise run contracts`: regenerate `contracts/openapi.json`, `pipeline/common/contracts.py`, `contracts/ts/api.d.ts` from the Rust types. Never edit those files by hand.
+- `mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl`: rebuild `evals/graph.json` (served at `/api/graph`) from stored analyses. Never edit that file by hand.
 - `mise tasks`: list everything else. Add new commands as mise tasks, not ad-hoc scripts.
 - Python deps: `uv add <pkg>`; JS deps: `bun add <pkg>`; Rust deps: `[workspace.dependencies]` in `Cargo.toml` (integrator).
 - Rust tests run with `cargo nextest run`, not `cargo test`. The pre-commit hook runs `cargo fmt --check` and clippy (`-D warnings`) when Rust files are staged.
@@ -30,7 +32,7 @@ Edit only the folders your owner is responsible for. Shared files need the integ
 | Role | Person | Owns |
 |---|---|---|
 | Integrator | Degra02 | `main`, `contracts/`, `api/`, `worker/`, `pipeline/common/`, `deploy/`, `Cargo.toml`, `pyproject.toml`, `mise.toml`, CI, `AGENTS.md`, `DECISIONS.md` |
-| AI core | Lyreplus | prompts, `pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/` |
+| AI core | Lyreplus | prompts, `pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, `pipeline/graph/` |
 | Product | ck-lithium | `pipeline/extract/`, `pipeline/retrieve/`, `pipeline/story/`; `web/` and the demo path after the Sat 12:00 spec freeze |
 | Problem / pitch | mosearc | `SPEC.md`, `evals/` (labelled sets, fixtures, eval harness), demo data, end-to-end tests, `docs/pitch/` |
 
