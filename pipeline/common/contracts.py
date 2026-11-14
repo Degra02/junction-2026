@@ -363,6 +363,12 @@ class Explanation(BaseModel):
 class Input(BaseModel):
     kind: InputKind
     value: Annotated[str, Field(description="The pasted text, or the article URL.")]
+    explanation_language: Annotated[
+        str | None,
+        Field(
+            description="Language the reader wants the explanation in (D14): ISO 639-1 code, e.g. `it`; null\nmeans English. The API lowercases it and drops a region (`pt-BR` → `pt`). Quotations\nstay in their original language."
+        ),
+    ] = None
 
 
 class Language(BaseModel):

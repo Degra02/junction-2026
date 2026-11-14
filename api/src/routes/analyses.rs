@@ -335,7 +335,22 @@ fn validate(input: &Input, max_chars: usize) -> Result<Input, ApiError> {
     Ok(Input {
         kind: input.kind,
         value,
+        explanation_language: explanation_language(input.explanation_language.as_deref())?,
     })
+}
+
+/// The language code's primary subtag, lowercased (`pt-BR` → `pt`); blank means English (None).
+fn explanation_language(asked: Option<&str>) -> Result<Option<String>, ApiError> {
+    let Some(asked) = asked.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let primary = asked.split(['-', '_']).next().unwrap_or_default();
+    if !(2..=3).contains(&primary.len()) || !primary.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return Err(ApiError::InvalidInput(
+            "explanation_language must be a language code such as `it` or `pt-BR`".into(),
+        ));
+    }
+    Ok(Some(primary.to_ascii_lowercase()))
 }
 
 /// False for hosts that can only be inside a private network: single-label names (`worker`,
@@ -378,19 +393,23 @@ fn is_public_v4(ip: Ipv4Addr) -> bool {
         || ip.is_multicast())
 }
 
-/// Cache key: pipeline version, input kind and the value with whitespace runs collapsed.
+/// Cache key: pipeline version, input kind, the value with whitespace runs collapsed and the
+/// explanation language (English when none was asked for).
 fn input_hash(input: &Input, pipeline_version: &str) -> String {
     let normalized = input.value.split_whitespace().collect::<Vec<_>>().join(" ");
     let kind = match input.kind {
         InputKind::Text => "text",
         InputKind::Url => "url",
     };
+    let language = input.explanation_language.as_deref().unwrap_or("en");
     let digest = Sha256::new()
         .chain_update(pipeline_version)
         .chain_update([0])
         .chain_update(kind)
         .chain_update([0])
         .chain_update(normalized)
+        .chain_update([0])
+        .chain_update(language)
         .finalize();
     digest.iter().fold(String::with_capacity(64), |mut hex, b| {
         let _ = write!(hex, "{b:02x}");

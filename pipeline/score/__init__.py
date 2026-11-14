@@ -47,6 +47,11 @@ class DimensionWeights(BaseModel):
     n: int = 0
     cv: dict[str, object] | None = None
 
+    @property
+    def calibrated(self) -> bool:
+        """Fitted on labelled data (`pipeline.score.fit`), not hand-set priors."""
+        return self.n > 0
+
 
 class Weights(BaseModel):
     source: str

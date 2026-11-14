@@ -15,9 +15,9 @@
 		reverse_proxy {$API_UPSTREAM:api:8080}
 	}
 
-	# The web UI: the static build of web/ (`bun run build` -> web/dist), copied by the deploy
-	# workflow to ./web next to compose.yaml and mounted at /srv. Unknown paths fall back to
-	# index.html for client-side routes. Until a build is there, the root shows the API docs.
+	# The web UI: the static build of web/ (`bun run build` -> web/dist), baked into the caddy
+	# image at /srv (deploy/caddy.Dockerfile). Unknown paths fall back to index.html for
+	# client-side routes. Until a build is there, the root shows the API docs.
 	handle {
 		root * {$WEB_ROOT:/srv}
 		@no_ui not file /index.html

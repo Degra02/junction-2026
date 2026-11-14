@@ -47,8 +47,9 @@ torch = { index = "pytorch-cpu" }
 
 [tool.pytest.ini_options]
 testpaths = ["worker/tests", "pipeline", "evals/tests"]
-# The eval harness keeps its src layout (`evals/src/propaganda_eval`).
-pythonpath = ["evals/src"]
+# The eval harness keeps its src layout (`evals/src/propaganda_eval`); `.` lets `pytest evals`
+# alone import `pipeline`.
+pythonpath = ["evals/src", "."]
 addopts = "-q"
 
 [tool.ruff]

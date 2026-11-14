@@ -13,10 +13,11 @@ from pipeline.common.contracts import Analysis, Evidence, Family, OutletType, Ur
 
 _TYPE_WORDS = {
     OutletType.wire_service: "a news agency",
-    OutletType.national: "a national outlet",
-    OutletType.local: "a local outlet",
-    OutletType.partisan: "a partisan outlet",
-    OutletType.state_affiliated: "a state-affiliated outlet",
+    OutletType.national: "a national news outlet",
+    OutletType.local: "a local news outlet",
+    # "Partisan" alone is read as "guerrilla" by translations (Russian "партизанский").
+    OutletType.partisan: "a politically partisan outlet",
+    OutletType.state_affiliated: "a state-affiliated media outlet",
     OutletType.fact_checker: "a fact-checker",
 }
 
