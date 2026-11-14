@@ -226,6 +226,7 @@ pub fn valid_patch(stage: StageName) -> Value {
                 entities: vec!["minister".into()],
                 date: None,
                 place: None,
+                implied_claims: vec![],
             },
             claims: vec![Claim {
                 id: "cl1".into(),

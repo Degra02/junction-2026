@@ -392,7 +392,7 @@ export interface components {
          * @description Signal family; inside a family only the strongest signal counts (plan §5).
          * @enum {string}
          */
-        Family: "techniques" | "tone" | "claim_support" | "fact_checks" | "source_profile" | "text_reuse" | "timing" | "infrastructure" | "known_networks";
+        Family: "techniques" | "rhetoric" | "tone" | "claim_support" | "fact_checks" | "source_profile" | "text_reuse" | "timing" | "infrastructure" | "known_networks";
         /** @description Response of `GET /api/health`. */
         Health: {
             /** @description `ok` when the API and its database work. */
@@ -623,6 +623,13 @@ export interface components {
             /** @description Event date as written or normalised (free text, e.g. `2026-11-12`). */
             date?: string | null;
             place?: string | null;
+            /**
+             * @description What the content asserts by implication (a meme, sarcasm, a rhetorical question): up to
+             *     3 English sentences written by `understand`, empty for plain reporting. They are our
+             *     paraphrase, not the author's words: used for fact-check search and matching only, never
+             *     compared with other reports (`claim_support`) and never shown as a quotation.
+             */
+            implied_claims?: string[];
         };
         /** @description Response of `POST /stages/understand`. */
         UnderstandPatch: {

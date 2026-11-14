@@ -218,6 +218,12 @@ pub struct Topic {
     /// Event date as written or normalised (free text, e.g. `2026-11-12`).
     pub date: Option<String>,
     pub place: Option<String>,
+    /// What the content asserts by implication (a meme, sarcasm, a rhetorical question): up to
+    /// 3 English sentences written by `understand`, empty for plain reporting. They are our
+    /// paraphrase, not the author's words: used for fact-check search and matching only, never
+    /// compared with other reports (`claim_support`) and never shown as a quotation.
+    #[serde(default)]
+    pub implied_claims: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -328,6 +334,10 @@ pub enum Dimension {
 #[serde(rename_all = "snake_case")]
 pub enum Family {
     Techniques,
+    /// Persuasion techniques rated by a multimodal language model that also sees the image
+    /// (`techniques` is the paragraph classifier). Every item quotes the content's own words or
+    /// points at our description of the image.
+    Rhetoric,
     Tone,
     ClaimSupport,
     FactChecks,
@@ -343,6 +353,7 @@ impl Family {
     pub const fn dimension(self) -> Dimension {
         match self {
             Self::Techniques
+            | Self::Rhetoric
             | Self::Tone
             | Self::ClaimSupport
             | Self::FactChecks

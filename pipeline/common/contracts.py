@@ -92,6 +92,7 @@ class Family(StrEnum):
     """
 
     techniques = "techniques"
+    rhetoric = "rhetoric"
     tone = "tone"
     claim_support = "claim_support"
     fact_checks = "fact_checks"
@@ -288,6 +289,12 @@ class Topic(BaseModel):
         Field(description="Event date as written or normalised (free text, e.g. `2026-11-12`)."),
     ] = None
     place: str | None = None
+    implied_claims: Annotated[
+        list[str] | None,
+        Field(
+            description="What the content asserts by implication (a meme, sarcasm, a rhetorical question): up to\n3 English sentences written by `understand`, empty for plain reporting. They are our\nparaphrase, not the author's words: used for fact-check search and matching only, never\ncompared with other reports (`claim_support`) and never shown as a quotation."
+        ),
+    ] = None
 
 
 class Claim(BaseModel):
