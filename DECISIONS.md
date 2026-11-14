@@ -44,3 +44,4 @@ Format: `- <day HH:MM> — <decision> — <owner>`
 - Sat 14:45 — Hosting: VPS `srv2159508` at `the4thlover.tech`; the template's Traefik stays stopped and Caddy terminates TLS; the Hostinger firewall `junction` allows only TCP 22/80/443 and UDP 443 (ufw does not filter Docker-published ports) — Degra02
 - Sat 14:45 — Language ID runs in `extract` (lingua), not in the API — Degra02
 - Sat 14:45 — Scoring: each family's value is a strength in [-1, 1] from its strongest signal only; prior weights in `pipeline/score/weights.json` until fitted on the labelled set; copies of the document are excluded from claim support and tone peers — Lyreplus
+- Sat 15:42 — Deploy: the Caddyfile and the `web/` build are baked into a third image (`deploy/caddy.Dockerfile`, `-caddy` on GHCR) with the same tag as `api` and `worker`: one `IMAGE_TAG` deploys and rolls back UI, proxy and backend together; ssh copies only `compose.yaml` and `release.env` — Degra02

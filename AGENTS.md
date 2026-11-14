@@ -75,7 +75,7 @@ The Rust API (`api/`) runs the stages in order and calls the Python worker (`wor
 - One OpenAI-compatible client, `pipeline/common/llm.py`, configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`; switching provider is a config change, not a code change.
 
 ## Web UI (`web/`)
-- `bun run build` must write the static site to `web/dist`; the deploy copies it to the VPS and Caddy serves it at `/` with `index.html` as the fallback.
+- `bun run build` must write the static site to `web/dist`; the deploy builds it into the Caddy image (`deploy/caddy.Dockerfile`), which serves it at `/` with `index.html` as the fallback.
 - Call the API with relative URLs (`/api/...`); in development proxy `/api` to `http://127.0.0.1:8080` (there is no CORS). Types: `contracts/ts/api.d.ts`.
 - Progress: `new EventSource("/api/analyses/{id}/events")` sends `snapshot`, `queue`, `step` and `done`; add `?replay=true` to play a finished analysis back for the demo.
 - Span offsets count code points: highlight with `Array.from(paragraph).slice(start, end)`, not `paragraph.slice`.

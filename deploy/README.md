@@ -1,6 +1,6 @@
 # Deploy
 
-Three containers on the Hostinger VPS (KVM 2: 2 vCPU, 8 GB): `caddy` (TLS, the only public ports; serves the web UI from `./web`), `api` (Rust, SQLite on the `api-data` volume), `worker` (Python stages, models on the `hf-cache` volume). Images are built by `.github/workflows/deploy.yml` and pulled from GHCR; nothing is compiled on the VPS.
+Three containers on the Hostinger VPS (KVM 2: 2 vCPU, 8 GB): `caddy` (TLS, the only public ports; the `Caddyfile` and the web UI are baked into its image), `api` (Rust, SQLite on the `api-data` volume), `worker` (Python stages, models on the `hf-cache` volume). All three images are built by `.github/workflows/deploy.yml` with the same `sha-<short>` tag and pulled from GHCR; nothing is compiled on the VPS. The deploy copies only `compose.yaml` and `release.env` to the VPS.
 
 ## One-time VPS setup
 ```sh
@@ -30,7 +30,9 @@ Deploys start on every push to `main` once `DEPLOY_HOST` is set. The job ends wi
 - `PIPELINE_VERSION` is the image tag, so every deploy empties the result cache. After the last deploy before a demo, submit the demo inputs once; replays of them are then instant (`GET /api/analyses/{id}/events?replay=true` plays a stored analysis back step by step without calling any source).
 
 ## Web UI
-Once `web/package.json` exists, the deploy runs `bun run build` in `web/` and copies `web/dist` to `/opt/junction/web`, which Caddy serves at `/` with `index.html` as the fallback. The UI calls the API with relative `/api/...` URLs (same origin, no CORS). Until then `/` redirects to the API docs.
+`deploy/caddy.Dockerfile` runs `bun install --frozen-lockfile && bun run build` in `web/` and puts `web/dist` at `/srv` in the caddy image, which serves it at `/` with `index.html` as the fallback. A build that fails, or a `Caddyfile` that does not load, fails the image build and so the PR. The UI calls the API with relative `/api/...` URLs (same origin, no CORS). Until `web/package.json` exists `/` redirects to the API docs.
+
+Every deploy recreates the caddy container (new image tag): ports 80/443 are closed for a second or two and open SSE streams drop (`EventSource` reconnects). Certificates survive in the `caddy-data` volume; never remove it, or every restart requests new certificates and hits Let's Encrypt rate limits.
 
 ## Operate
 ```sh
@@ -44,11 +46,11 @@ curl -s https://$HOST/api/stats | jq     # submissions, cache hits, p50/p95 per 
 - **Kill switch**: `STAGES_DISABLED=explain,retrieve` in `.env` skips those stages ("switched off by the operator") without a rebuild; the scores abstain as designed.
 - **A stage failed for one analysis** (throttled source, LLM timeout): `curl -X POST "https://$HOST/api/analyses/<id>/rerun?from=<stage>"` runs it again from that stage on the stored output of the earlier ones. A result with a failed step is never served from the cache.
 - **Stage errors**: the record shows only a public message ("the stage failed (TimeoutError)"); the exception and traceback are in `logs worker`.
-- **Rollback**: set `IMAGE_TAG=sha-<previous>` in `release.env`, then `docker compose --env-file .env --env-file release.env up -d`.
+- **Rollback**: set `IMAGE_TAG=sha-<previous>` in `release.env`, then `docker compose --env-file .env --env-file release.env up -d`. UI and Caddyfile roll back with the API and worker.
 - **Models**: the worker downloads Hugging Face weights into `hf-cache` the first time a stage loads them; start it once before the demo so no download happens live.
 - **Backups**: the API writes a consistent copy of the database to `/app/data/backups/` every `BACKUP_INTERVAL_MINS` (15) and keeps the newest four. They sit in the same volume: they cover a bad migration or a corrupted file, not a lost disk. Copy one off the VPS with `docker compose cp api:/app/data/backups ./backups`; restore by stopping the API and putting a copy at `/app/data/app.db` (remove `app.db-wal` and `app.db-shm`).
 
 ## Local
-`mise run dev` runs worker and API without containers. To try the Caddyfile locally: `SITE_ADDRESS=:8088 API_UPSTREAM=127.0.0.1:8080 WEB_ROOT=web/dist caddy run --config deploy/Caddyfile`.
+`mise run dev` runs worker and API without containers. To try the Caddyfile locally: `SITE_ADDRESS=:8088 API_UPSTREAM=127.0.0.1:8080 WEB_ROOT=web/dist caddy run --config deploy/Caddyfile`. To try the caddy image: `docker build -f deploy/caddy.Dockerfile -t junction-caddy . && docker run --rm -p 8088:80 --add-host=host.docker.internal:host-gateway -e API_UPSTREAM=host.docker.internal:8080 junction-caddy`.
 
 Eval runs go against a local API, not the VPS: `RATE_LIMIT_PER_MINUTE=0 MAX_ANALYSES_PER_HOUR=0 MAX_CONCURRENT_ANALYSES=8 MAX_CONCURRENT_INFERENCE=4 mise run dev`. To measure a change in the signals, the combiner or the explanation on the same retrieved context, re-run the stored analyses from that stage instead of submitting the inputs again.
