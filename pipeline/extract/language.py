@@ -28,9 +28,12 @@ MODEL_LANGUAGES = frozenset({
 })
 # fmt: on
 
-# Languages with labelled evaluation data in `evals/` (calibrated scores). Empty until the
-# labelled sets land; add a code here only when its set exists.
-EVALUATED_LANGUAGES: frozenset[str] = frozenset()
+# Languages with labelled evaluation data in `evals/` (calibrated scores): the score stage does
+# not cap their confidence, and the UI shows them as evaluated (D2). Set on Sat 14.11 at the
+# request of the teammate overseeing the pipeline. At that time the committed labelled set
+# (`evals/labelled.jsonl`) held only synthetic seed items in en/it/fr; keep this list in line
+# with the real sets as they land.
+EVALUATED_LANGUAGES: frozenset[str] = frozenset({"en", "de", "fr", "it", "es", "nl"})
 
 
 def support_for(code: str) -> LanguageSupport:
