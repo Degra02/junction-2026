@@ -1,0 +1,76 @@
+{
+  "id": "019a8000-0000-7000-8000-000000000002",
+  "schema_version": 1,
+  "pipeline_version": "fixture",
+  "created_at": "2026-11-14T00:00:00Z",
+  "updated_at": "2026-11-14T00:00:00Z",
+  "status": "done",
+  "queue_position": null,
+  "error": null,
+  "steps": [
+    {"name": "extract", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "understand", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "retrieve", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "story", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "signals_single", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "signals_coordinated", "state": "done", "duration_ms": 100, "detail": null, "error": null},
+    {"name": "score", "state": "done", "duration_ms": 10, "detail": null, "error": null},
+    {"name": "explain", "state": "done", "duration_ms": 100, "detail": null, "error": null}
+  ],
+  "input": {"kind": "url", "value": "https://newswire.example/water-draft-law"},
+  "language": {"code": "en", "confidence": 0.99, "support": "evaluated"},
+  "document": {
+    "url": "https://newswire.example/water-draft-law",
+    "outlet": "newswire.example",
+    "published_at": "2026-11-10T15:02:00Z",
+    "title": "Draft law would require registration of private wells",
+    "author": null,
+    "paragraphs": [
+      "The ministry said on Tuesday that the draft law requires well owners to register their wells by 2028.",
+      "The draft does not ban private wells."
+    ],
+    "outbound_links": [],
+    "tracking_ids": ["G-WIRE000001"]
+  },
+  "topic": {
+    "summary": "A draft law on the registration of private wells",
+    "entities": ["ministry"],
+    "date": "2026-11-10",
+    "place": null
+  },
+  "claims": [
+    {"id": "cl1", "text": "the draft law requires well owners to register their wells by 2028", "span": {"paragraph": 0, "start": 34, "end": 100}}
+  ],
+  "queries": [
+    {"text": "private wells registration law", "language": "en"}
+  ],
+  "context": [],
+  "sources": [
+    {"domain": "newswire.example", "registered_at": "1998-03-02T00:00:00Z", "first_cert_at": "2015-06-11T00:00:00Z", "outlet_type": "wire_service", "country": "GB", "known_network": null}
+  ],
+  "evidence": [
+    {"id": "s1", "family": "source_profile", "signal": "domain_age_days", "value": 10458.0, "detail": "Established wire service domain.", "source_refs": [{"kind": "url", "url": "https://rdap.org/domain/newswire.example"}]}
+  ],
+  "scores": {
+    "single": {
+      "confidence": 0.05,
+      "abstained": false,
+      "reason": null,
+      "breakdown": [
+        {"family": "source_profile", "contribution": -1.2, "evidence_ids": ["s1"]}
+      ]
+    },
+    "coordinated": {
+      "confidence": 0.02,
+      "abstained": false,
+      "reason": null,
+      "breakdown": []
+    }
+  },
+  "explanation": {
+    "summary": "Factual wire service reporting from an established source.",
+    "reasons": [
+      {"text": "The outlet is a long-established wire service.", "evidence_ids": ["s1"]}
+    ]
+  }
+}
