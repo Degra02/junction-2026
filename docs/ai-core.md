@@ -27,9 +27,9 @@ Answered for `docs/next-steps.md` (Lyreplus #1, ANSA run `01a1dadf-ae67-…`):
 
 ## Remaining requests to the team (Sat 21:45)
 
-- **mosearc**: `weights.json` is fitted and committed here, and `evals/results/predictions.jsonl` (277 finished + 7 failed = 284 items, rescored with the calibrated weights) is ready — run `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` for `/api/metrics`, then re-run demo IDs on the VPS once `GOOGLE_FACTCHECK_API_KEY` + this PR deploy.
+- **mosearc**: both `weights.json` and `evals/metrics.json` (284 items, rescored with the calibrated weights) are committed in this PR so `/api/metrics` goes live on merge — use the numbers for the pitch/demo script, and re-run demo IDs on the VPS once `GOOGLE_FACTCHECK_API_KEY` + this PR deploy.
 - **ck-lithium**: open a PR for `ck-lithium/satire` (`outlets.json` satire list: eliminates the single remaining FP `sat_es_001` on `elmundotoday.com`), and add Pravda RSS feeds if time permits (story-path guard is in this PR).
-- **Degra02**: confirm `GOOGLE_FACTCHECK_API_KEY` on the VPS `.env` and merge this PR so live scores are calibrated.
+- **Degra02**: confirm `GOOGLE_FACTCHECK_API_KEY` on the VPS `.env` and merge this PR so calibrated `weights.json` and `/api/metrics` go live together.
 
 ```mermaid
 flowchart LR
@@ -308,7 +308,7 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Open items (AI core)
 
-1. Re-run the demo items on the VPS with `rerun?from=score` once this PR deploys, and hand `evals/results/predictions.jsonl` to mosearc so `evals/metrics.json` is committed.
+1. Re-run the demo items on the VPS with `rerun?from=score` once this PR deploys.
 2. Optional team decision: expand `state_affiliated` mirror domains (`rtrunews.com`, `*.sputnik.*`) in `retrieve/outlets.json` (eliminates 2 of the 4 EUvsDisinfo FNs).
 
 ## Changelog
