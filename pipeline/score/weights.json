@@ -1,26 +1,140 @@
 {
-  "source": "prior: hand-set before the labelled set exists; replace with `python -m pipeline.score.fit`",
+  "source": "fitted on fit.jsonl on 2026-11-14 19:43 UTC",
   "single": {
-    "intercept": -2.0,
+    "intercept": -1.5993,
     "coefficients": {
-      "techniques": 1.5,
-      "tone": 1.0,
-      "claim_support": 1.5,
-      "fact_checks": 2.5,
-      "source_profile": 1.0
+      "techniques": 1.2769,
+      "tone": 0.4134,
+      "claim_support": 1.5946,
+      "fact_checks": 4.0496,
+      "source_profile": 1.2814
     },
-    "n": 0,
-    "cv": null
+    "n": 98,
+    "cv": {
+      "folds": 5,
+      "log_loss": 0.2001,
+      "brier": 0.0491,
+      "auc": 0.9752,
+      "reliability": [
+        {
+          "bin": "0.0-0.2",
+          "n": 34,
+          "mean_confidence": 0.114,
+          "positive_rate": 0.088
+        },
+        {
+          "bin": "0.2-0.4",
+          "n": 6,
+          "mean_confidence": 0.268,
+          "positive_rate": 0.167
+        },
+        {
+          "bin": "0.4-0.6",
+          "n": 2,
+          "mean_confidence": 0.491,
+          "positive_rate": 0.0
+        },
+        {
+          "bin": "0.6-0.8",
+          "n": 1,
+          "mean_confidence": 0.646,
+          "positive_rate": 0.0
+        },
+        {
+          "bin": "0.8-1.0",
+          "n": 55,
+          "mean_confidence": 0.921,
+          "positive_rate": 1.0
+        }
+      ],
+      "ablation": {
+        "techniques": {
+          "items_nonzero": 54,
+          "auc_without": 0.9605,
+          "log_loss_without": 0.1964,
+          "auc_alone": 0.4965
+        },
+        "tone": {
+          "items_nonzero": 37,
+          "auc_without": 0.9739,
+          "log_loss_without": 0.192,
+          "auc_alone": 0.4965
+        },
+        "claim_support": {
+          "items_nonzero": 40,
+          "auc_without": 0.98,
+          "log_loss_without": 0.2003,
+          "auc_alone": 0.8064
+        },
+        "fact_checks": {
+          "items_nonzero": 55,
+          "auc_without": 0.8405,
+          "log_loss_without": 0.5249,
+          "auc_alone": 0.9426
+        },
+        "source_profile": {
+          "items_nonzero": 22,
+          "auc_without": 0.9696,
+          "log_loss_without": 0.2087,
+          "auc_alone": 0.7171
+        }
+      }
+    }
   },
   "coordinated": {
-    "intercept": -2.5,
+    "intercept": -2.8824,
     "coefficients": {
-      "text_reuse": 2.0,
-      "timing": 1.0,
-      "infrastructure": 2.0,
-      "known_networks": 3.0
+      "text_reuse": 1.3461,
+      "timing": 0.682,
+      "infrastructure": 1.9858,
+      "known_networks": 5.0382
     },
-    "n": 0,
-    "cv": null
+    "n": 132,
+    "cv": {
+      "folds": 5,
+      "log_loss": 0.0996,
+      "brier": 0.0102,
+      "auc": 1.0,
+      "reliability": [
+        {
+          "bin": "0.0-0.2",
+          "n": 76,
+          "mean_confidence": 0.088,
+          "positive_rate": 0.0
+        },
+        {
+          "bin": "0.8-1.0",
+          "n": 56,
+          "mean_confidence": 0.898,
+          "positive_rate": 1.0
+        }
+      ],
+      "ablation": {
+        "text_reuse": {
+          "items_nonzero": 44,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0897,
+          "auc_alone": 0.4981
+        },
+        "timing": {
+          "items_nonzero": 24,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0972,
+          "auc_alone": 0.4981
+        },
+        "infrastructure": {
+          "items_nonzero": 2,
+          "auc_without": 1.0,
+          "log_loss_without": 0.0994,
+          "auc_alone": 0.4891
+        },
+        "known_networks": {
+          "items_nonzero": 56,
+          "auc_without": 0.3751,
+          "log_loss_without": 0.7194,
+          "auc_alone": 1.0
+        }
+      }
+    }
   }
 }

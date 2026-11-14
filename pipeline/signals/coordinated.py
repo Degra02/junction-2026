@@ -126,8 +126,9 @@ def text_reuse_evidence(
             family=Family.text_reuse,
             signal="copied_passages",
             value=float(n),
-            detail=f"The same text appears on {n} other site{'s' if n > 1 else ''} that are "
-            f"not news agencies ({sites}{', …' if n > 3 else ''}).",
+            detail=f"The same text appears on {n} other "
+            f"{'sites that are not news agencies' if n > 1 else 'site that is not a news agency'} "
+            f"({sites}{', …' if n > 3 else ''}).",
             source_refs=refs,
         )
     ]

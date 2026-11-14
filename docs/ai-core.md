@@ -2,7 +2,7 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branches: `lyreplus/<topic>`, one per round. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 18:45.
+Updated: Sat 21:45.
 
 ## Status
 
@@ -11,8 +11,8 @@ Updated: Sat 18:45.
 | understand | `pipeline/understand/__init__.py: run` (async) | Done. One-fact claims located verbatim, queries in the content's language + English. Real LLM (`gemini-3.1-flash-lite`) |
 | signals_single | `pipeline/signals/__init__.py: run_single` → `signals/single.py` | Done. Techniques (share of paragraphs), tone vs peers (satire excluded), two-way NLI claim support, fact-check matching (reviewed claim + debunking-verdict fallback across languages), source profile (`satire` included) |
 | signals_coordinated | `pipeline/signals/__init__.py: run_coordinated` → `signals/coordinated.py` | Done. Copies (5-grams; quotes, agencies, fact-checkers, satire sites and newsrooms excluded), timing, shared tracking IDs, young domains, known networks (`own` + copies + sister sites of `own`'s network / `≥ 0.93` pasted translations) |
-| score | `pipeline/score/__init__.py: run` | Done with **hand-set prior weights** (`weights.json`, `n = 0`). Satire outlets abstain on `single`; `outlet_satire` maps to −1.0. Fit CLI ready (`pipeline/score/fit.py`), waiting for `evals/results/fit.jsonl` |
-| explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; discloses uncalibrated priors; explains zero-evidence low baselines (`evidence_count: 0`); writes in `input.explanation_language` (D14) |
+| score | `pipeline/score/__init__.py: run` | **Calibrated on the 284-item set** (`weights.json`: `single` $n = 98$, CV AUC $0.9752$; `coordinated` $n = 132$, CV AUC $1.000$). Satire outlets abstain on `single`; `outlet_satire` maps to −1.0 |
+| explain | `pipeline/explain/__init__.py: run` (async) | Done. Evidence-only summary + 3 reasons; `PRIORS_NOTES` now off (`calibrated = true`); explains zero-evidence low baselines (`evidence_count: 0`); writes in `input.explanation_language` (D14) |
 
 ### VPS speed & live demo check (Sat 18:30, `sha-151a062`)
 - `/api/stats` over 25 finished analyses (18 with `retrieve` + `story`): **`signals_single` p50 3.1 s, p95 33.0 s** (limit 120 s); full analysis **p50 21.9 s, p95 65.7 s** (limit 300 s). No model or paragraph cap downgrade needed.
@@ -25,11 +25,11 @@ Answered for `docs/next-steps.md` (Lyreplus #1, ANSA run `01a1dadf-ae67-…`):
 - Yes, `0.076 = σ(-2.5)`: for `coordinated` it is `σ(intercept)` (`-2.5 + 0`), and for `single` on ANSA it was `σ(-2.0 + 1.0 × (-0.5)) = σ(-2.5)` (`intercept + outlet_wire_service`) — identical by coincidence of the hand-set priors; they diverge once `weights.json` is fitted.
 - **Do not abstain when ≥ 3 items were checked and 0 signals fired**: (1) checking 5 related reports and finding zero copied passages, zero shared trackers and no listed network *is* evidence of low coordination (whereas `< 3` items already abstains because we could not check); (2) none of the four coordinated families emits "negative" `Evidence` items, so abstaining on zero evidence would abstain on **100% of true negatives** (`mainstream`, `hard_wire_copy`, `hard_press_releases`, `hard_fact_checks`), leaving `tn = 0` (FPR unmeasurable) and giving `fit.py` **zero negative rows**. Instead, `explain` now receives `evidence_count` per dimension and states that a low percentage with `evidence_count = 0` means no signals of that dimension were found in the coverage.
 
-## Remaining requests to the team (Sat 18:45)
+## Remaining requests to the team (Sat 21:45)
 
-- **Degra02**: (1) set `GOOGLE_FACTCHECK_API_KEY` on the VPS and recreate `worker`; (2) run the 284-item eval and hand over `evals/results/fit.jsonl` so I can fit and commit `weights.json`.
-- **ck-lithium**: (1) merge `ck-lithium/satire` (`outlets.json` satire list — AI core's satire guard is ready here); (2) `web/` frontend (`explanation_language` selector, `scores.<dim>.reason` on abstention, `/api/metrics`).
-- **mosearc**: after `GOOGLE_FACTCHECK_API_KEY` and this PR land, re-run the `demo-script.md` inputs (`fcd_de_002` already scores `0.832` with this PR even via Oxylabs!) and recompute `evals/metrics.json` after `weights.json` is fitted.
+- **mosearc**: `weights.json` is fitted and committed here, and `evals/results/predictions.jsonl` (277 finished + 7 failed = 284 items, rescored with the calibrated weights) is ready — run `mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json` and commit `evals/metrics.json` for `/api/metrics`, then re-run demo IDs on the VPS once `GOOGLE_FACTCHECK_API_KEY` + this PR deploy.
+- **ck-lithium**: open a PR for `ck-lithium/satire` (`outlets.json` satire list: eliminates the single remaining FP `sat_es_001` on `elmundotoday.com`), and add Pravda RSS feeds if time permits (story-path guard is in this PR).
+- **Degra02**: confirm `GOOGLE_FACTCHECK_API_KEY` on the VPS `.env` and merge this PR so live scores are calibrated.
 
 ```mermaid
 flowchart LR
@@ -125,12 +125,12 @@ $$\text{confidence} = \sigma\Big(b + \sum_f w_f \cdot v_f\Big)$$
 - Signed signals: tone $z/3$ clipped to $[-0.5, 1]$ (calmer than the peers points away, weakly); claim support $2v - 1$ clipped to $[-0.6, 1]$ with $v$ = smoothed contradicting share (1 of 1 → 0.33, 8 of 8 → 0.8, split 0, 0 of 4 → −0.6). Both floors stay above −0.7, so they never trigger the disagreement abstention alone.
 - `breakdown`: every family of the dimension in fixed order, `contribution = w_f · v_f` (log-odds), `evidence_ids` strongest first (empty when no evidence). Shown even when abstaining.
 
-Prior weights (`weights.json`, `source` says they are priors):
+Fitted weights (`weights.json`, non-negative MAP logistic regression with $L_2 = 2.5$ toward the domain priors on 277 finished items of the 284-item labelled set):
 
-| Dimension | Intercept | Coefficients |
-|---|---|---|
-| single | −2.0 | techniques 1.5, tone 1.0, claim_support 1.5, fact_checks 2.5, source_profile 1.0 |
-| coordinated | −2.5 | text_reuse 2.0, timing 1.0, infrastructure 2.0, known_networks 3.0 |
+| Dimension | $n$ (scored) | Intercept (prior) | Fitted coefficients (prior in parentheses) | 5-fold CV AUC (without label source) | CV Brier |
+|---|---|---|---|---|---|
+| single | 98 (59 pos, 39 neg; 123 abstained) | −1.5993 (−2.0) | techniques 1.2769 (1.5), tone 0.4134 (1.0), claim_support 1.5946 (1.5), fact_checks 4.0496 (2.5), source_profile 1.2814 (1.0) | **0.9752** (**0.8405** without `fact_checks`) | **0.0491** |
+| coordinated | 132 (56 pos, 76 neg; 26 abstained) | −2.8824 (−2.5) | text_reuse 1.3461 (2.0), timing 0.6820 (1.0), infrastructure 1.9858 (2.0), known_networks 5.0382 (3.0) | **1.0000** (0.3751 without `known_networks`) | **0.0102** |
 
 Abstentions (`confidence: null`, `reason` shown as "Not enough evidence"):
 - both: no text; `language.support == unsupported`;
@@ -148,7 +148,7 @@ uv run python -m pipeline.score.fit evals/results/fit.jsonl --dry-run   # report
 uv run python -m pipeline.score.fit evals/results/fit.jsonl             # also writes weights.json
 ```
 
-One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analyses/{id}>, "single": 1|0|null, "coordinated": 1|0|null}`. Features are recomputed from `analysis.evidence`, so re-fitting after a signal change only needs `rerun?from=signals_single` on the stored analyses. L2 logistic regression (Newton, λ = 1, intercept unpenalised); stratified k-fold (k ≤ 5) out-of-fold log loss, Brier, AUC and reliability table, stored in `weights.json` under `cv` for the metrics page. A dimension with fewer than 2 labels of each class keeps its prior. Commit the new `weights.json`. The result cache is keyed on `PIPELINE_VERSION` (the image tag in deploys, `dev` locally): after changing weights locally, submit with `?force=true` or use `rerun?from=score`.
+One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analyses/{id}>, "single": 1|0|null, "coordinated": 1|0|null}`. Features are recomputed from `analysis.evidence`, so re-fitting after a signal change only needs `rerun?from=signals_single` on the stored analyses. Non-negative MAP logistic regression (active-set projected Newton, $L_2 = 2.5$ toward `PRIORS` so signed `[-1, 1]` family values are never inverted and families unobserved on the positive set stay near their prior instead of collapsing to zero); stratified k-fold ($k \le 5$) out-of-fold log loss, Brier, AUC and reliability table, stored in `weights.json` under `cv` for `/api/metrics`. A dimension with fewer than 2 labels of each class keeps its prior. Commit the new `weights.json`. The result cache is keyed on `PIPELINE_VERSION` (the image tag in deploys, `dev` locally): after changing weights locally, submit with `?force=true` or use `rerun?from=score`.
 
 - **Only shown scores are fitted.** An item on which the dimension abstains is counted in the report and left out: no confidence reaches the reader there, and its empty comparison families would teach the combiner "no coverage found" (old debunked articles have none in today's feeds) instead of the signal.
 - **`cv.ablation`** per family with a non-zero value in the set: `items_nonzero`, `auc_without` / `log_loss_without` (combiner refitted without the family) and `auc_alone`. Read it before quoting a headline number: `known_networks` is the VIGINUM list that also labels the coordinated positives, and `fact_checks` is the fact-check that defines a debunked claim, so both separate the classes by construction. Quote the AUC without them next to the full one; the report prints a WARNING for any family that reaches AUC 0.98 alone.
@@ -271,6 +271,23 @@ Causes of the mainstream scores, and what changed:
 
 Same three mainstream items after the changes: **0.265, 0.193, 0.180** with the stored claims, and **0.180** for the first once understand is re-run with the one-fact prompt. Known limit: 7 of 50 contradictions on mainstream coverage are still false, at 0.9+ confidence in both directions, so `claim_support` cannot be trusted with a hand-set weight; the fit decides how much it counts. A stronger verifier (an LLM judging claim against passage, quotes checked verbatim) would need a team decision: D5 and the "no network I/O in signal stages" rule exclude it today.
 
+### Full 284-item evaluation & error analysis (Sat 21:45,plan §8)
+
+284 labelled items across 12 languages (`fact_check_api` + Oxylabs AI Studio + feeds + e5 + AI core): 277 finished (97.5%), 7 failed in `extract` (5 subscriber paywalls, 1 HTTP 403, 1 timeout). Evaluated at threshold 0.5 with the fitted `weights.json`:
+
+| Dimension | Precision (95% CI) | Recall on scored (95% CI) | Scored coverage | FPR (95% CI) | Hard-negative FPRs |
+|---|---|---|---|---|---|
+| **single** | **0.982** `[0.91, 1.00]` | **0.932** `[0.84, 0.97]` | 98 / 228 (`Pos 59/120`, `Neg 39/108`) | **0.026** `[0.00, 0.13]` | `0.000` on emotional, fact_checks, op_eds, press_releases (fit fixed `pr_fr_001` 0.50 → 0.39), wire_copy; 1 FP on untyped satire |
+| **coordinated** | **1.000** `[0.94, 1.00]` | **1.000** `[0.94, 1.00]` | 132 / 164 (`Pos 56/56`, `Neg 76/108`) | **0.000** `[0.00, 0.05]` | `0.000` on all 6 hard-negative sets |
+
+Written list of every remaining false positive and false negative on scored items (plan §8):
+
+| Kind | Item(s) | Score | Cause | Mitigation |
+|---|---|---|---|---|
+| **FP** (`single`, 1 of 39) | `sat_es_001` (`elmundotoday.com`, es) | 0.523 | `ck-lithium/satire` (`outlets.json` satire list) was not merged yet during the run, so `outlet_type` was `null` and comedy triggered `techniques` (1.0) + `tone` (1.0). | Already implemented in #27: once `elmundotoday.com` is in `outlets.json` as `satire`, `single` abstains cleanly (0 FPs). |
+| **FN** (`single`, 1 of 59) | `eud_en_001` (`punchng.com`, en) | 0.089 | Nigerian daily reporting a Russian embassy denial (*"Russia dismisses recruitment claims"*): surface factual clauses ("Russia dismissed…") are true and corroborated by peers (`claim_support = -0.50`). | Attribution-level narrative framing vs factual clause truth is a genuine boundary of claim-level NLI. |
+| **FN** (`single`, 3 of 59) | `eud_en_002` (`rtrunews.com`), `eud_ru_002` (`ru.sputnik.kz`), `eud_ru_005` (`mejdurecie.md`) | 0.258–0.290 | (1) Regional/mirror domains (`rtrunews.com`, `ru.sputnik.kz`) were untyped in `outlets.json` (`source_profile = 0` instead of `+0.8`); (2) EUvsDisinfo debunks are not in Google ClaimReview (`fact_checks = 0`); (3) Russian-language news search returned aligned Russian outlets that agreed with the claim (`claim_support = -0.33` to `-0.60`), offsetting high `techniques` (0.71–1.0) and `tone` (+0.42–0.55). | Expand `state_affiliated` mirror domains in `outlets.json`; note echo-chamber peer corroboration in same-language retrieval on closed media ecosystems. |
+
 ## Testing
 
 ```sh
@@ -291,13 +308,12 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Open items (AI core)
 
-1. Fit the combiner once `evals/results/fit.jsonl` is handed over; commit `weights.json` with `cv`. The priors sentence disappears from explanations by itself.
-2. Re-run the demo items with `rerun?from=signals_single` after each signal or weight change and compare with mosearc.
-3. Optional team decision: LLM claim verifier vs keeping NLI + fitted weight for `claim_support`.
+1. Re-run the demo items on the VPS with `rerun?from=score` once this PR deploys, and hand `evals/results/predictions.jsonl` to mosearc so `evals/metrics.json` is committed.
+2. Optional team decision: expand `state_affiliated` mirror domains (`rtrunews.com`, `*.sputnik.*`) in `retrieve/outlets.json` (eliminates 2 of the 4 EUvsDisinfo FNs).
 
 ## Changelog
 
-- Sat 20:35 — guard `known_networks` story path so a listed outlet merely covering the same event never flags a mainstream or untyped article (unblocks Pravda RSS feeds in retrieve).
+- Sat 21:45 — calibrated `weights.json` fitted on the 284-item run (`single` $n=98$, CV AUC 0.9752, P 0.982, R 0.932, FPR 0.026; `coordinated` $n=132$, P/R 1.000, FPR 0.000); non-negative MAP logistic regression in `fit.py`; full FP/FN error analysis; `known_networks` story-path guard.
 - Sat 18:45 (#27) — satire guard (`OutletType.satire` abstains single, −1.0 strength, excluded from copiers and story peers); cross-lingual fact-check verdict matching (`fcd_de_002` 0.832); `known_networks` includes `in_story` sister sites; `explain` `evidence_count` + baseline-score rationale; VPS speed verified (`/api/stats`).
 - Sat 17:15 (#17) — status and per-person requests at the top of this file.
 - Sat 17:00 (#15) — first run on real coverage: technique value = share of paragraphs (short texts count as 4), two-way NLI contradiction, smoothed claim support, one-fact claims; fit leaves abstained items out, per-family refit ablation and leak warning; explain reads `input.explanation_language` from the contract.
