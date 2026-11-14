@@ -311,7 +311,10 @@ export interface components {
             /** @description Unique within the analysis. Use a stage prefix (`s1`, `c1`) to avoid clashes. */
             id: string;
             family: components["schemas"]["Family"];
-            /** @description Signal name inside the family, e.g. `loaded_language`, `minhash_copies`. */
+            /**
+             * @description Signal name inside the family, e.g. `manipulative_wording`, `copied_passages`; the
+             *     mapping to a score strength is in `pipeline/score/families.py`.
+             */
             signal: string;
             /**
              * Format: double
