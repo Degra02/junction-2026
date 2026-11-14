@@ -10,7 +10,7 @@ from pipeline.common.contracts import Evidence, Family, LanguageSupport, UrlRef
 from pipeline.common.fixtures import example_analysis
 from pipeline.score import SUPPORTED_CAP, WEIGHTS, run
 from pipeline.score.families import COORDINATED, SINGLE, family_values
-from pipeline.score.fit import fit_logistic, main
+from pipeline.score.fit import ablation, fit_logistic, main
 
 
 def evidence(eid: str, family: Family, signal: str, value: float) -> Evidence:
@@ -106,6 +106,19 @@ def test_fit_recovers_the_direction_of_the_signal() -> None:
     assert intercept == pytest.approx(0.5, abs=0.4)
 
 
+def test_ablation_shows_which_family_carries_the_signal() -> None:
+    rng = np.random.default_rng(2)
+    x = rng.uniform(-1, 1, size=(300, 3))
+    x[:, 2] = 0.0  # a family that never fired is left out of the report
+    y = (rng.uniform(size=300) < 1 / (1 + np.exp(-4 * x[:, 0]))).astype(float)
+    report = ablation(x, y, (Family.techniques, Family.tone, Family.claim_support), folds=5)
+    assert set(report) == {"techniques", "tone"}
+    informative, noise = report["techniques"], report["tone"]
+    assert informative["items_with_evidence"] == 300
+    assert informative["auc_alone"] > 0.8 and informative["auc_without"] < 0.6
+    assert noise["auc_alone"] < 0.6 and noise["auc_without"] > 0.8
+
+
 def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     lines = []
     for label in (1, 1, 0, 0, 1, 0):
@@ -123,6 +136,7 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
     main([str(path), "--dry-run"])
     out = capsys.readouterr().out
     assert '"n": 6' in out and '"auc": 1.0' in out
+    assert '"folds": 3' in out and '"ablation"' in out
     assert "coordinated: not enough labels" in out
     assert WEIGHTS.model_dump() == before
 

@@ -15,6 +15,12 @@ Model: L2-regularised logistic regression on the family values (`families.family
 fitted by Newton's method; the intercept is not regularised. The report gives out-of-fold
 (k-fold cross-validated) log loss, Brier score, ROC AUC and a reliability table, which are
 also stored in `weights.json` under `cv` for the metrics page.
+
+`cv.ablation` says what each family adds (plan §8): for every family with evidence in the
+set, the out-of-fold AUC and log loss of the combiner refitted without it, and of that family
+alone. Read it before trusting a headline number: a family whose evidence is the label's own
+source (the VIGINUM list for `known_networks`, the fact-check that defines a debunked claim
+for `fact_checks`) separates the classes by construction.
 """
 
 import argparse
@@ -74,7 +80,28 @@ def cross_validate(x: np.ndarray, y: np.ndarray, folds: int = FOLDS) -> dict[str
             continue
         intercept, coefficients = fit_logistic(x[~test], y[~test])
         oof[test] = predict(x[test], intercept, coefficients)
-    return metrics(oof, y)
+    return {"folds": folds, **metrics(oof, y)}
+
+
+def ablation(
+    x: np.ndarray, y: np.ndarray, families: tuple[Family, ...], folds: int
+) -> dict[str, dict[str, object]]:
+    """Per family with evidence: how often it fired, and the out-of-fold AUC and log loss
+    of the combiner refitted without it and with it alone."""
+    out: dict[str, dict[str, object]] = {}
+    for column, family in enumerate(families):
+        fired = int(np.count_nonzero(x[:, column]))
+        if not fired:
+            continue
+        without = cross_validate(np.delete(x, column, axis=1), y, folds)
+        alone = cross_validate(x[:, [column]], y, folds)
+        out[family.value] = {
+            "items_with_evidence": fired,
+            "auc_without": without["auc"],
+            "log_loss_without": without["log_loss"],
+            "auc_alone": alone["auc"],
+        }
+    return out
 
 
 def metrics(p: np.ndarray, y: np.ndarray) -> dict[str, object]:
@@ -93,7 +120,6 @@ def metrics(p: np.ndarray, y: np.ndarray) -> dict[str, object]:
                 }
             )
     return {
-        "folds": FOLDS,
         "log_loss": round(log_loss, 4),
         "brier": round(float(np.mean((p - y) ** 2)), 4),
         "auc": _auc(p, y),
@@ -118,12 +144,13 @@ def fit_dimension(
         return None
     x = np.array([features(analysis, families) for analysis, _ in rows])
     y = np.array(labels, dtype=float)
+    folds = min(FOLDS, labels.count(0), labels.count(1))
     intercept, coefficients = fit_logistic(x, y)
     return DimensionWeights(
         intercept=round(intercept, 4),
         coefficients={f: round(float(c), 4) for f, c in zip(families, coefficients, strict=True)},
         n=len(rows),
-        cv=cross_validate(x, y, folds=min(FOLDS, labels.count(0), labels.count(1))),
+        cv={**cross_validate(x, y, folds), "ablation": ablation(x, y, families, folds)},
     )
 
 
