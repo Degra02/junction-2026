@@ -130,11 +130,18 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
                 {"analysis": analysis.model_dump(mode="json"), "single": label, "coordinated": None}
             )
         )
+    # An item on which the dimension abstains (no coverage found) is counted, not fitted.
+    unseen = example_analysis()
+    unseen.context, unseen.evidence = [], []
+    lines.append(
+        json.dumps({"analysis": unseen.model_dump(mode="json"), "single": 1, "coordinated": None})
+    )
     path = tmp_path / "labelled.jsonl"
     path.write_text("\n".join(lines))
     before = WEIGHTS.model_dump()
     main([str(path), "--dry-run"])
     out = capsys.readouterr().out
+    assert "single: 3 positive and 3 negative scored items; 1 abstained and left out" in out
     assert '"n": 6' in out and '"auc": 1.0' in out
     assert '"folds": 3' in out and '"ablation"' in out
     assert "coordinated: not enough labels" in out

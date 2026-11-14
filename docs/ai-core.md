@@ -2,7 +2,7 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branches: `lyreplus/<topic>`, one per round. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 16:00.
+Updated: Sat 17:00.
 
 ## Status
 
@@ -128,11 +128,15 @@ Abstentions (`confidence: null`, `reason` shown as "Not enough evidence"):
 ### Fitting the combiner (for evals / mosearc)
 
 ```sh
-uv run python -m pipeline.score.fit labelled.jsonl --dry-run   # report only
-uv run python -m pipeline.score.fit labelled.jsonl             # also writes weights.json
+mise run eval -- run                                              # mosearc's runner → evals/results/fit.jsonl
+uv run python -m pipeline.score.fit evals/results/fit.jsonl --dry-run   # report only
+uv run python -m pipeline.score.fit evals/results/fit.jsonl             # also writes weights.json
 ```
 
 One JSON object per line: `{"analysis": <finished Analysis, e.g. GET /api/analyses/{id}>, "single": 1|0|null, "coordinated": 1|0|null}`. Features are recomputed from `analysis.evidence`, so re-fitting after a signal change only needs `rerun?from=signals_single` on the stored analyses. L2 logistic regression (Newton, λ = 1, intercept unpenalised); stratified k-fold (k ≤ 5) out-of-fold log loss, Brier, AUC and reliability table, stored in `weights.json` under `cv` for the metrics page. A dimension with fewer than 2 labels of each class keeps its prior. Commit the new `weights.json`. The result cache is keyed on `PIPELINE_VERSION` (the image tag in deploys, `dev` locally): after changing weights locally, submit with `?force=true` or use `rerun?from=score`.
+
+- **Only shown scores are fitted.** An item on which the dimension abstains is counted in the report and left out: no confidence reaches the reader there, and its empty comparison families would teach the combiner "no coverage found" (old debunked articles have none in today's feeds) instead of the signal.
+- **`cv.ablation`** per family with evidence: `items_with_evidence`, `auc_without` / `log_loss_without` (combiner refitted without the family) and `auc_alone`. Read it before quoting a headline number: `known_networks` is the VIGINUM list that also labels the coordinated positives, and `fact_checks` is the fact-check that defines a debunked claim, so both separate the classes by construction. Quote the AUC without them next to the full one.
 
 ## explain
 
@@ -256,7 +260,8 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 
 ## Changelog
 
-- Sat 16:30 — D14: explanation in the reader's language (inert until the request field exists); fixed sentences per language; clearer outlet-type wording.
+- Sat 17:00 — fit: abstained items left out, per-family refit ablation; explain reads `input.explanation_language` from the contract.
+- Sat 16:30 — D14: explanation in the reader's language; fixed sentences per language; clearer outlet-type wording.
 - Sat 16:00 — explain discloses prior (uncalibrated) confidences; `DimensionWeights.calibrated`.
 - Sat 15:30 — language spot check (D6); hard negatives: quotations masked, claims only asserted ones, own fact-checks skipped, newsrooms as syndication, signed tone and claim support.
 - Sat 15:00 — explain stage; LLM cost measurements.

@@ -161,11 +161,12 @@ async def run(analysis: Analysis) -> ExplainPatch:
 def explanation_language(analysis: Analysis) -> str:
     """ISO 639-1 code of the language the reader asked for, English when none or invalid.
 
-    Reads the optional request field `input.explanation_language` (D14). The field is added to
-    the contract by the integrator; while the generated `Input` lacks it, this returns English.
+    Reads the optional request field `input.explanation_language` (D14). The API already
+    normalises and validates it; the check is repeated here because the worker can be called
+    with any record and the code ends up in the prompt.
     """
-    asked = getattr(analysis.input, "explanation_language", None) or DEFAULT_LANGUAGE
-    code = str(asked).strip().replace("_", "-").split("-")[0].lower()
+    asked = analysis.input.explanation_language or DEFAULT_LANGUAGE
+    code = asked.strip().replace("_", "-").split("-")[0].lower()
     return code if re.fullmatch(r"[a-z]{2,3}", code) else DEFAULT_LANGUAGE
 
 

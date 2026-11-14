@@ -16,6 +16,11 @@ fitted by Newton's method; the intercept is not regularised. The report gives ou
 (k-fold cross-validated) log loss, Brier score, ROC AUC and a reliability table, which are
 also stored in `weights.json` under `cv` for the metrics page.
 
+Only analyses whose score is shown are used: when a dimension abstains (too little coverage,
+unsupported language, evidence both ways) no confidence reaches the reader, so those items
+say nothing about calibration, and their empty comparison families would teach the combiner
+"no coverage found" instead of the signal. The report counts them per dimension.
+
 `cv.ablation` says what each family adds (plan §8): for every family with evidence in the
 set, the out-of-fold AUC and log loss of the combiner refitted without it, and of that family
 alone. Read it before trusting a headline number: a family whose evidence is the label's own
@@ -34,6 +39,7 @@ import numpy as np
 
 from pipeline.common.contracts import Analysis, Family
 from pipeline.score import WEIGHTS, DimensionWeights, Weights, save_weights
+from pipeline.score import run as score
 from pipeline.score.families import COORDINATED, SINGLE, family_values
 
 L2 = 1.0
@@ -154,21 +160,28 @@ def fit_dimension(
     )
 
 
-def load(path: Path) -> dict[str, list[tuple[Analysis, int]]]:
+def load(path: Path) -> tuple[dict[str, list[tuple[Analysis, int]]], dict[str, int]]:
+    """Labelled analyses per dimension, and how many were left out because it abstained."""
     rows: dict[str, list[tuple[Analysis, int]]] = {"single": [], "coordinated": []}
+    abstained = dict.fromkeys(rows, 0)
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
         item = json.loads(line)
         analysis = Analysis.model_validate(item["analysis"])
+        # Abstention does not depend on the weights, so today's rules apply to stored records.
+        scores = score(analysis).scores
         for dimension in rows:
             label = item.get(dimension)
             if label is None:
                 continue
             if label not in (0, 1):
                 raise SystemExit(f"line {number}: {dimension} label must be 0, 1 or null")
-            rows[dimension].append((analysis, int(label)))
-    return rows
+            if getattr(scores, dimension).abstained:
+                abstained[dimension] += 1
+            else:
+                rows[dimension].append((analysis, int(label)))
+    return rows, abstained
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -177,12 +190,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--dry-run", action="store_true", help="report without writing")
     args = parser.parse_args(argv)
 
-    rows = load(args.labelled)
+    rows, abstained = load(args.labelled)
     fitted = {
         "single": fit_dimension(rows["single"], SINGLE),
         "coordinated": fit_dimension(rows["coordinated"], COORDINATED),
     }
     for dimension, weights in fitted.items():
+        labels = [label for _, label in rows[dimension]]
+        print(
+            f"{dimension}: {labels.count(1)} positive and {labels.count(0)} negative scored "
+            f"items; {abstained[dimension]} abstained and left out"
+        )
         if weights is None:
             print(f"{dimension}: not enough labels of both classes, prior weights kept")
         else:

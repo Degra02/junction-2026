@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -144,8 +143,9 @@ def test_no_note_when_nothing_uncalibrated_is_shown(monkeypatch: pytest.MonkeyPa
     ],
 )
 def test_explanation_language_is_a_clean_iso_code(asked: str | None, code: str) -> None:
-    reader = SimpleNamespace(input=SimpleNamespace(explanation_language=asked))
-    assert explain.explanation_language(reader) == code  # type: ignore[arg-type]
+    analysis = example_analysis()
+    analysis.input.explanation_language = asked
+    assert explain.explanation_language(analysis) == code
 
 
 def test_without_the_request_field_the_explanation_is_english() -> None:
