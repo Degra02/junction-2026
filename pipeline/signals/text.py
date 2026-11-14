@@ -10,6 +10,31 @@ _SENTENCE = re.compile(r"[^\n.!?…。！？]+[.!?…。！？]*[\"'”’»)\]]
 _WORD = re.compile(r"\w+")
 # Document sentences at least this long count when deciding whether a peer copies the document.
 _COPY_MIN_CHARS = 40
+# Quoted passages: double quotes, curly quotes (both directions), low-9 and guillemets (both
+# directions), curly single quotes. Straight single quotes are left alone: they double as
+# apostrophes.
+_QUOTATION = re.compile(
+    r'"[^"\n]+"|“[^“”\n]+”|”[^“”\n]+”|„[^„“”\n]+[“”]|«[^«»\n]+»|»[^«»\n]+«|‘[^‘’\n]+’'
+)
+
+
+def mask_quotations(text: str) -> str:
+    """`text` with every quoted passage replaced by an ellipsis inside its quote marks.
+
+    What a text quotes is not what it says: a fact-check quoting a hoax or a report quoting a
+    politician's insults would otherwise be scored as the author's own words and as a copy of
+    the quoted source. Language-independent; scare quotes around one word are masked too.
+    """
+    return _QUOTATION.sub(lambda m: f"{m.group()[0]}…{m.group()[-1]}", text)
+
+
+def own_words(paragraphs: list[str]) -> list[str]:
+    """The paragraphs with quotations masked, unless quotations make up most of the text: then
+    the quote is the content itself (a pasted post wrapped in quote marks) and stays."""
+    masked = [mask_quotations(p) for p in paragraphs]
+    kept = sum(len(p) for p in masked)
+    total = sum(len(p) for p in paragraphs)
+    return masked if total and kept >= 0.3 * total else list(paragraphs)
 
 
 def sentence_spans(text: str) -> list[tuple[int, int]]:

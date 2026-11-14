@@ -89,3 +89,26 @@ def test_no_document_no_evidence() -> None:
     analysis = example_analysis()
     analysis.document = None
     assert run_coordinated(analysis).evidence == []
+
+
+def test_established_newsrooms_repeating_one_text_are_syndication() -> None:
+    # Agency copy whose agency item was not retrieved: national and local outlets republishing
+    # the same text are not a network.
+    analysis = example_analysis()
+    for domain in ("patriot-voice.example", "free-nation-news.example"):
+        profile = next(s for s in analysis.sources if s.domain == domain)
+        profile.outlet_type = OutletType.national if domain[0] == "p" else OutletType.local
+    assert find_copies(analysis) == []
+
+
+def test_fact_check_quoting_the_hoax_is_not_a_copy() -> None:
+    analysis = example_analysis()
+    assert analysis.document is not None
+    hoax = analysis.document.paragraphs
+    analysis.document.outlet = "factcheck.example"
+    analysis.document.paragraphs = [
+        f"Claim: “{hoax[0]}”",
+        f"Several websites added that “{hoax[1]}”",
+        "Verdict: False. The draft law requires registration by 2028 and bans nothing.",
+    ]
+    assert find_copies(analysis) == []

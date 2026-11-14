@@ -3,9 +3,12 @@
 Works from the record only: no models, no network I/O. Families and values:
 
 - `text_reuse` / `copied_passages`: number of distinct other outlets whose text contains a
-  large share of the document's word 5-grams. Wire services and fact-checkers are never
-  counted, and passages that also appear in wire copy are removed first: syndication is the
-  main false positive (plan §12).
+  large share of the document's word 5-grams. Syndication is the main false positive (plan
+  §12): passages that also appear in wire copy are removed first, and outlets typed as news
+  agencies, fact-checkers, national or local newsrooms never count as copiers (established
+  newsrooms republishing the same text within minutes is agency copy even when the agency's
+  own item was not retrieved). Passages the document quotes are not its own text and are
+  removed too: a fact-check quoting a hoax is not a copy of it.
 - `timing` / `copies_within_window`: number of those copies published within WINDOW of the
   document (or of the earliest copy when the document has no date).
 - `infrastructure` / `shared_tracking_id`: largest number of other domains carrying one of the
@@ -34,7 +37,7 @@ from pipeline.common.contracts import (
     Span,
     UrlRef,
 )
-from pipeline.signals.text import context_ref, sentence_spans, tokens
+from pipeline.signals.text import context_ref, own_words, sentence_spans, tokens
 
 SHINGLE = 5
 # Share of the document's (non-wire) 5-grams a context item must contain to count as a copy.
@@ -42,7 +45,12 @@ COPY_CONTAINMENT = 0.2
 MIN_SHARED_SHINGLES = 8
 WINDOW = timedelta(hours=6)
 YOUNG_DAYS = 180
-_NOT_COPIERS = {OutletType.wire_service, OutletType.fact_checker}
+_NOT_COPIERS = {
+    OutletType.wire_service,
+    OutletType.fact_checker,
+    OutletType.national,
+    OutletType.local,
+}
 _MAX_REFS = 4
 
 
@@ -70,7 +78,7 @@ def find_copies(analysis: Analysis) -> list[ContextItem]:
             if _type(profiles, c.outlet) == OutletType.wire_service
         )
     )
-    mine = _shingles("\n".join(document.paragraphs)) - wire
+    mine = _shingles("\n".join(own_words(document.paragraphs))) - wire
     if len(mine) < MIN_SHARED_SHINGLES:
         return []
     best: dict[str, tuple[float, ContextItem]] = {}

@@ -125,3 +125,23 @@ def test_fit_cli_reports_without_writing(tmp_path: Path, capsys: pytest.CaptureF
     assert '"n": 6' in out and '"auc": 1.0' in out
     assert "coordinated: not enough labels" in out
     assert WEIGHTS.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    ("signal", "value", "expected"),
+    [
+        ("contradicted", 1.0, 1.0),  # every addressing source contradicts the claim
+        ("contradicted", 0.5, 0.0),  # split
+        ("contradicted", 0.0, -0.6),  # corroborated: points away, never below -0.6
+        ("tone_vs_peers", 3.0, 1.0),
+        ("tone_vs_peers", -6.0, -0.5),  # calmer than the peers: weaker evidence
+    ],
+)
+def test_corroboration_and_calm_tone_point_away(signal: str, value: float, expected: float) -> None:
+    family = Family.claim_support if signal == "contradicted" else Family.tone
+    [found] = [
+        v
+        for v in family_values([evidence("s1", family, signal, value)], SINGLE)
+        if v.family == family
+    ]
+    assert found.value == pytest.approx(expected)

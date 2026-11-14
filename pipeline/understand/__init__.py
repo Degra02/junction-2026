@@ -36,10 +36,13 @@ Return:
 the content.
 - date: the date of the event if the content states it (YYYY-MM-DD when possible), else null.
 - place: where the event happened if the content states it, else null.
-- claims: up to {MAX_CLAIMS} key factual claims, most important first. Copy each claim word for \
-word from the content: one contiguous passage, a full sentence or clause, no paraphrase, no \
-ellipsis, no added words. Choose checkable statements of fact (who did what, numbers, dates, \
-causes), not opinions, insults or questions.
+- claims: up to {MAX_CLAIMS} key factual claims that the content itself asserts as true, most \
+important first. Copy each claim word for word from the content: one contiguous passage, a full \
+sentence or clause, no paraphrase, no ellipsis, no added words. Choose checkable statements of \
+fact (who did what, numbers, dates, causes), not opinions, insults or questions. Leave out \
+statements the content only quotes, attributes to someone it disagrees with, reports as a \
+rumour, debunks or mocks: for a fact-check, take its own findings, not the claim it reviews; for \
+satire, return no claims.
 - queries: news search queries that would find other coverage of the same event: up to \
 {MAX_QUERIES_PER_LANGUAGE} in the content's language and up to {MAX_QUERIES_PER_LANGUAGE} in \
 English (only the English ones when the content is in English). Each query is 3 to 8 \

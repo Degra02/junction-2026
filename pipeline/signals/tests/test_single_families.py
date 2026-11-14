@@ -14,7 +14,13 @@ from pipeline.signals.claims import (
 )
 from pipeline.signals.source_profile import source_profile_evidence
 from pipeline.signals.techniques import CATEGORIES, technique_evidence, tone_evidence
-from pipeline.signals.text import chunks, sentence_windows, story_peers
+from pipeline.signals.text import (
+    chunks,
+    mask_quotations,
+    own_words,
+    sentence_windows,
+    story_peers,
+)
 
 LABELS = [t for _, techniques in CATEGORIES.values() for t in techniques]
 
@@ -113,6 +119,29 @@ def test_unrelated_fact_check_is_not_matched() -> None:
     assert check.fact_check is not None
     check.fact_check.claim = "The cup final was decided by penalties"
     assert fact_check_evidence(analysis.claims, analysis.context, fake_nli, ids()) == []
+
+
+def test_a_fact_check_is_not_evidence_against_its_own_article() -> None:
+    analysis = example_analysis()
+    found = fact_check_evidence(
+        analysis.claims, analysis.context, fake_nli, ids(), own_outlet="factcheck.example"
+    )
+    assert found == []
+
+
+def test_quotations_are_masked_in_any_script() -> None:
+    text = 'He called them “traitors”, «предатели» and „Verräter“ and said "they will burn".'
+    assert mask_quotations(text) == 'He called them “…”, «…» and „…“ and said "…".'
+    assert mask_quotations("It's the farmers' law, isn't it?") == "It's the farmers' law, isn't it?"
+
+
+def test_a_text_that_is_all_quote_keeps_its_words() -> None:
+    pasted = ["“The government will ban private wells by January. Share before they delete it!”"]
+    assert own_words(pasted) == pasted
+    report = ["The senator said “they are traitors” at a rally on Saturday afternoon in the city."]
+    assert own_words(report) == [
+        "The senator said “…” at a rally on Saturday afternoon in the city."
+    ]
 
 
 @pytest.mark.parametrize(

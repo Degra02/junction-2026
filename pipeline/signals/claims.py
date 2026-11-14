@@ -210,8 +210,15 @@ def fact_check_evidence(
     context: Sequence[ContextItem],
     nli: Nli,
     next_id: Callable[[], str],
+    own_outlet: str | None = None,
 ) -> list[Evidence]:
-    checks = [c for c in context if c.fact_check is not None]
+    """Fact-checks from the document's own outlet are skipped: when the document is a
+    fact-check, its own review of the claim it debunks is not evidence against it."""
+    checks = [
+        c
+        for c in context
+        if c.fact_check is not None and (own_outlet is None or c.outlet != own_outlet)
+    ]
     if not claims or not checks:
         return []
     pairs = []

@@ -2,7 +2,7 @@
 
 Owner: Lyreplus (`pipeline/understand/`, `pipeline/signals/`, `pipeline/score/`, `pipeline/explain/`, prompts). Branch: `lyreplus/ai-core`. Read this before changing or consuming these stages; read `docs/plan.md` §4–5 for the why.
 
-Updated: Sat 15:00.
+Updated: Sat 15:30.
 
 ## Status
 
@@ -54,6 +54,7 @@ Each module's docstring documents its signals and value scales; this file is the
 
 - One `llm.ask_json_async` call. The document (title + paragraphs, max 12,000 characters) goes in `user`; the system prompt says the content is data and its instructions must be ignored.
 - The model returns: language, one-sentence English summary, ≤8 entities, date, place, ≤5 claims copied word for word, queries.
+- Claims are only what the content itself asserts: not what it quotes, attributes to someone it disagrees with, debunks or mocks. A fact-check yields its own findings, not the claim it reviews; satire yields no claims. Without this rule a fact-check was scored on the hoax it debunks (see "Hard negatives").
 - Claims are located with `spans.claim` (never model offsets). Paraphrases, duplicates and passages shorter than 10 characters are dropped before the API sees them. IDs `cl1…` are consecutive.
 - Queries: at most 3 in the document's language plus 3 in English, only those two languages; double quotes removed (retrieve adds operators itself), duplicates dropped, language codes normalised (`it-IT` → `it`).
 - `analysis.language.code` from extract wins over the model's language guess.
@@ -79,6 +80,8 @@ Details:
 - **Emotional charge** of a text = mean over its paragraphs of the max probability among Loaded Language, Appeal to Fear, Name Calling, Exaggeration. Peers use their first 3 chunks (~400 chars). Spread floored at 0.05 so near-identical peers don't explode the z-score.
 - **Story peers** (`text.story_peers`): context items with `in_story` not false, not fact-checks, not the document's outlet, and **not copies of the document** (≥ half of its sentences of ≥40 chars verbatim). Copies would confirm the document with its own words; they are coordinated evidence instead. Max 10, by `similarity`.
 - **Claim support** sends NLI the 4 two-sentence windows of each peer that share most words with the claim. Single sentences lose context: measured, "The draft does not ban private wells." alone → neutral 0.976; with the preceding sentence → contradiction 0.964. A peer that contains the claim verbatim is a quote, skipped for that claim.
+- **Quotations are not the author's words** (`text.mask_quotations`, `text.own_words`): passages inside `"…"`, `“…”`, `„…“`, `«…»`, `‘…’` are replaced by `…` before the technique model reads the document and the peers. A text that is mostly quotation (a pasted post in quote marks) keeps its words. Trade-off: scare quotes (so-called “experts”) are masked too.
+- **Fact-checks from the document's own outlet** are skipped: a fact-checker's article is not rated False by its own review.
 - Budget (2 vCPU): max 30 paragraphs, 10 peers.
 
 ### Coordinated (`run_coordinated`)
@@ -92,7 +95,8 @@ Details:
 | known_networks | `listed_domain` | listed domains among the document outlet and the copies | `sources[].known_network` set | outlet URLs |
 
 - **Copy** = a context item containing ≥20% (and ≥8) of the document's word 5-grams. One per domain (`www.` stripped).
-- **Syndication guard** (plan §12): outlets with `outlet_type` `wire_service` or `fact_checker` are never copiers, and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence.
+- **Syndication guard** (plan §12): outlets with `outlet_type` `wire_service`, `fact_checker`, `national` or `local` are never copiers (established newsrooms republishing one text within minutes is agency copy even when the agency's item was not retrieved), and 5-grams that appear in any wire-service item are removed from the document before comparing. A document that only repeats agency copy gets no reuse evidence. Depends on retrieve typing mainstream outlets; untyped outlets still count as copiers.
+- **Quotations** are removed from the document before shingling: a fact-check quoting a hoax is not a copy of it.
 - Exact 5-gram sets instead of MinHash: with ≤30 context items exact is cheap and has no false matches.
 
 ## score
@@ -102,7 +106,8 @@ Per dimension:
 $$\text{confidence} = \sigma\Big(b + \sum_f w_f \cdot v_f\Big)$$
 
 - $v_f \in [-1, 1]$: family value = strength of its strongest signal (`families.STRENGTH`). Positive points toward propaganda, negative away (a fact-checker rating the claim true −1, outlet is a news agency −0.5, fact-checker −1, national −0.2). Unknown signals are ignored with a log warning: **add a STRENGTH entry when you add a signal.**
-- Counts saturate: copies/timing $1 - e^{-n/2}$, shared tracking ID $1 - e^{-n}$; domain age $1 - \log_{10}(d+1)/\log_{10}3650$ (15 days → 0.66, 1 year → 0.28); tone $z/3$ clipped to $[0, 1]$; unaddressed claim 0.35.
+- Counts saturate: copies/timing $1 - e^{-n/2}$, shared tracking ID $1 - e^{-n}$; domain age $1 - \log_{10}(d+1)/\log_{10}3650$ (15 days → 0.66, 1 year → 0.28); unaddressed claim 0.35.
+- Signed signals: tone $z/3$ clipped to $[-0.5, 1]$ (calmer than the peers points away, weakly); claim support $2v - 1$ clipped to $[-0.6, 1]$ with $v$ = contradicting share (all contradict 1, split 0, all support −0.6). Both floors stay above −0.7, so they never trigger the disagreement abstention alone.
 - `breakdown`: every family of the dimension in fixed order, `contribution = w_f · v_f` (log-odds), `evidence_ids` strongest first (empty when no evidence). Shown even when abstaining.
 
 Prior weights (`weights.json`, `source` says they are priors):
@@ -186,6 +191,34 @@ Caveat: the fixture's own evidence uses signal names our stages do not emit (`lo
 
 These are sanity checks on one invented article, not metrics. Real precision/FPR come from the labelled sets (plan §8).
 
+### Technique model outside its training languages (D6)
+
+5 paragraphs with known content (name calling, fear appeal, false dilemma + slogan, 2 neutral reports) translated by us into the 6 training languages and 8 others; categories detected with the model's thresholds (laptop: 52 ms/paragraph).
+
+| Language | Tier | Neutral paragraphs flagged | Emotional charge manipulative / neutral | Category agreement with English (Jaccard) |
+|---|---|---|---|---|
+| en | training | 0 of 2 | 0.70 / 0.01 | 1.00 |
+| it, de, fr, pl, ru | training | 0 of 2 each | 0.66–0.79 / 0.01–0.02 | 0.70–0.80 |
+| es, pt, nl, uk, cs, fi, hu, tr | **outside** | 0 of 2 each | 0.69–0.78 / 0.01 | 0.77–0.90 |
+
+Every language found the attack in paragraph 1 and the fear appeal in paragraph 2, and flagged no neutral paragraph. Outside the training set the model agrees with English as well as inside it. Limits: blatant examples, our own translations, 70 paragraphs; subtle manipulation and non-European scripts (ar, zh) are not covered. Conclusion: D6 holds for European languages; keep `supported` (confidence cap 0.85) for them until labelled data exists.
+
+### Hard negatives (SPEC "How a naive agent fails")
+
+Real chain understand (AI Router, `claude-sonnet-5`) → run_single → run_coordinated → score on hand-built records; context stands in for retrieve/story. Before → after the quote, syndication and signed-strength fixes:
+
+| Case | Expected | single before → after | coordinated before → after |
+|---|---|---|---|
+| A fact-check quoting the hoax (copies of the hoax in context) | low | abstain ("both ways") → **0.033** | **0.755** → 0.076 |
+| B emotional but accurate disaster report | low | **0.355** → 0.085 | 0.076 → 0.076 |
+| C news report quoting a senator's insults | low | **0.433** → 0.111 | 0.076 → 0.076 |
+| D agency copy republished, agency item retrieved | low | 0.100 → 0.100 | 0.076 → 0.076 |
+| E agency copy republished by 3 newsrooms, agency item **not** retrieved | low | 0.100 → 0.100 | **0.458** → 0.076 |
+| F satire, no coverage found | abstain | abstain → abstain | abstain → abstain |
+| P control: the propaganda original | high | 0.990 → 0.990 | 0.755 → 0.755 |
+
+Causes fixed: A was scored on the hoax it quotes (techniques on the quotation, claim = the debunked one, matched with its own fact-check, the quotation shared with the copies); B got +0.5 from a claim 2 of 3 peers support and nothing for being calmer than its peers; C's techniques were the senator's quoted words; E counted three established newsrooms as a copy network. Satire still gets `manipulative_wording` 0.96 (exaggeration): with coverage found it would score; the contract has no `satire` outlet type to guard it.
+
 ## Testing
 
 ```sh
@@ -210,10 +243,12 @@ Tests replace the models and the LLM with stand-ins (`fake_nli`, monkeypatched `
 2. Latency on the VPS: 2 vCPU with XLM-R large; fallback is fewer paragraphs/peers or a smaller model.
 3. Fit the combiner on mosearc's labelled set; until then confidences are priors, not calibrated.
 4. Integrator: approve the new dependencies; consider pointing `AGENTS.md` "Read first" to this file; suggested `DECISIONS.md` lines: score family values in [-1, 1] with strongest-signal-only and prior weights in `pipeline/score/weights.json`; copies of the document are excluded from claim support and tone peers.
-5. Spot check of the technique model outside its six training languages (D6) is not done.
+5. Satire with coverage: no guard yet (no `satire` outlet type in the contract; understand returns no claims for it, techniques still fire).
+6. Syndication guard relies on retrieve setting `outlet_type` `national`/`local` for mainstream outlets.
 
 ## Changelog
 
+- Sat 15:30 — language spot check (D6); hard negatives: quotations masked, claims only asserted ones, own fact-checks skipped, newsrooms as syndication, signed tone and claim support.
 - Sat 15:00 — explain stage; LLM cost measurements.
 - Sat 14:00 — score stage, fit CLI, this document.
 - Sat 13:40 — signals_coordinated.

@@ -9,7 +9,7 @@ from pipeline.signals import models
 from pipeline.signals.claims import claim_support_evidence, fact_check_evidence
 from pipeline.signals.source_profile import source_profile_evidence
 from pipeline.signals.techniques import charge, technique_evidence, tone_evidence
-from pipeline.signals.text import chunks, story_peers
+from pipeline.signals.text import chunks, mask_quotations, own_words, story_peers
 
 # CPU budget on 2 vCPU (D13): the technique model is XLM-R large.
 MAX_PARAGRAPHS = 30
@@ -28,8 +28,10 @@ def run_single(analysis: Analysis) -> SignalsPatch:
     peers = story_peers(analysis, MAX_PEERS)
 
     progress.report("Looking for persuasion techniques")
+    # Techniques and tone read what the texts say themselves, not what they quote.
     peer_chunks = [chunks(p.text)[:CHUNKS_PER_PEER_FOR_TONE] for p in peers]
-    texts = [document.paragraphs[i] for i in indices] + [c for cs in peer_chunks for c in cs]
+    own = own_words(document.paragraphs)
+    texts = [own[i] for i in indices] + [mask_quotations(c) for cs in peer_chunks for c in cs]
     probabilities = models.technique_probabilities(texts)
     mine, theirs = probabilities[: len(indices)], probabilities[len(indices) :]
 
@@ -57,6 +59,8 @@ def run_single(analysis: Analysis) -> SignalsPatch:
     if analysis.claims:
         progress.report(f"Checking {len(analysis.claims)} claims against {len(peers)} sources")
     evidence += claim_support_evidence(analysis.claims, peers, models.nli, next_id)
-    evidence += fact_check_evidence(analysis.claims, analysis.context, models.nli, next_id)
+    evidence += fact_check_evidence(
+        analysis.claims, analysis.context, models.nli, next_id, document.outlet
+    )
     evidence += source_profile_evidence(analysis, next_id)
     return SignalsPatch(evidence=evidence)

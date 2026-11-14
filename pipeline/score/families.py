@@ -44,8 +44,10 @@ def _domain_age(days: float) -> float:
     return min(max(1.0 - math.log10(max(days, 0.0) + 1.0) / math.log10(3650.0), 0.0), 1.0)
 
 
-def _clip(low: float, high: float, scale: float = 1.0) -> Callable[[float], float]:
-    return lambda v: min(max(v * scale, low), high)
+def _clip(
+    low: float, high: float, scale: float = 1.0, offset: float = 0.0
+) -> Callable[[float], float]:
+    return lambda v: min(max(v * scale + offset, low), high)
 
 
 # (family, signal) -> strength. Signal scales are documented in the signal modules.
@@ -62,10 +64,13 @@ STRENGTH: dict[tuple[Family, str], Callable[[float], float]] = {
             "manipulative_wording",
         )
     },
-    # tone: z-score vs peers; only "more charged than the peers" counts, z = 3 saturates.
-    (Family.tone, "tone_vs_peers"): _clip(0.0, 1.0, 1 / 3),
-    # claim_support: share of addressing sources that contradict the claim.
-    (Family.claim_support, "contradicted"): _clip(0.0, 1.0),
+    # tone: z-score vs peers, z = 3 saturates. Calmer than the peers points away, but at most
+    # -0.5: being calm is weaker evidence than being charged.
+    (Family.tone, "tone_vs_peers"): _clip(-0.5, 1.0, 1 / 3),
+    # claim_support: v = share of addressing sources that contradict the claim. 2v - 1 maps all
+    # contradicting to 1, a split to 0, all supporting to -1, floored at -0.6 so corroboration
+    # alone never makes the result abstain on disagreement (DISAGREEMENT = 0.7).
+    (Family.claim_support, "contradicted"): _clip(-0.6, 1.0, 2.0, -1.0),
     # Nobody else reports the claim: weak on its own.
     (Family.claim_support, "unaddressed"): lambda _: 0.35,
     # fact_checks: rating value (1 false, 0.6 misleading); a "true" rating points away.
