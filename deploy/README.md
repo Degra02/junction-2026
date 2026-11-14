@@ -4,13 +4,16 @@ Three containers on the Hostinger VPS (KVM 2: 2 vCPU, 8 GB): `caddy` (TLS, the o
 
 ## One-time VPS setup
 ```sh
-# Docker template on the VPS already has docker + compose. Then:
+# The VPS (srv2159508, KVM 2) runs Hostinger's "Ubuntu 24.04 with Docker and Traefik" template.
+# Its Traefik holds ports 80/443: keep the `traefik` Docker project stopped (hPanel → Docker
+# Manager, or the Hostinger API), Caddy terminates TLS.
+# Firewall: the hPanel/API firewall `junction` allows only TCP 22, 80, 443 and UDP 443. Do not
+# rely on ufw: ports published by Docker bypass its rules.
 fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
-ufw allow 22,80,443/tcp && ufw allow 443/udp && ufw enable    # or the hPanel firewall
 mkdir -p /opt/junction && cd /opt/junction
-# .env: copy from the team vault (LLM_*, provider keys) and add the public hostname:
-echo 'SITE_ADDRESS=srvNNNNNN.hstgr.cloud' >> .env
+# .env: LLM_* and provider keys from the team vault, plus the public hostnames:
+echo 'SITE_ADDRESS=the4thlover.tech, www.the4thlover.tech' >> .env
 # While the repo is private: a GitHub PAT with read:packages.
 echo "$PAT" | docker login ghcr.io -u <github-user> --password-stdin
 ```
