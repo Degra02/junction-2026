@@ -9,6 +9,8 @@ import { DocumentReader } from "../components/DocumentReader";
 import { ExplanationPanel } from "../components/ExplanationPanel";
 import { RerunControl, RunLedger, RunProgress } from "../components/RunProgress";
 import { ScoreBreakdown } from "../components/ScoreBreakdown";
+import { SocialSwarm } from "../components/SocialSwarm";
+import { TechniquesPanel } from "../components/TechniquesPanel";
 import { Favicon } from "../components/ui/Favicon";
 import { useAnalysisStream } from "../hooks/useAnalysisStream";
 import { createAnalysis, describeError } from "../lib/api";
@@ -408,6 +410,22 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                   onInspectCalculation={handleInspectCalculation}
                 />
               </div>
+
+              {/* What the wording does and who repeats it: shown even when a score abstains. */}
+              <TechniquesPanel
+                evidence={analysis.evidence}
+                document={analysis.document}
+                checked={analysis.steps.find((s) => s.name === "signals_single")?.state}
+                onOpenPassage={handleInspectEvidenceOrClaim}
+              />
+              <SocialSwarm
+                context={analysis.context}
+                document={analysis.document}
+                evidence={analysis.evidence}
+                documentLabel={
+                  analysis.input.kind === "text" ? "This text" : analysis.document.outlet ? "This article" : "This post"
+                }
+              />
 
               <ExplanationPanel
                 explanation={analysis.explanation}
