@@ -34,9 +34,9 @@ export interface ExplanationPanelProps {
 const PRIORS_SENTENCE_REGEX =
   /\s*(These percentages are preliminary estimates[^.]*\.|Queste percentuali sono stime preliminari[^.]*\.|Diese Prozentsätze sind vorläufige Schätzungen[^.]*\.|Ces pourcentages sont des estimations préliminaires[^.]*\.|Estos porcentajes son estimaciones preliminares[^.]*\.|Estas percentagens são estimativas preliminares[^.]*\.|Te wartości procentowe są wstępnymi szacunkami[^.]*\.|Deze percentages zijn voorlopige schattingen[^.]*\.|Эти проценты являются предварительными оценками[^.]*\.|Ці відсотки є попередніми оцінками[^.]*\.)/i;
 const SUMMARY_TONE_CLASS: Record<Exclude<SummaryTone, "plain">, string> = {
-  low: "font-bold text-[#15803d] dark:text-[#4ade80]",
-  caution: "font-bold text-[#b45309] dark:text-[#fbbf24]",
-  high: "font-bold text-[#dc2626] dark:text-[#f87171]",
+  low: "text-[19px] leading-none font-bold text-[#15803d] dark:text-[#4ade80]",
+  caution: "text-[19px] leading-none font-bold text-[#b45309] dark:text-[#fbbf24]",
+  high: "text-[19px] leading-none font-bold text-[#dc2626] dark:text-[#f87171]",
 };
 export function ExplanationPanel({
   explanation,
