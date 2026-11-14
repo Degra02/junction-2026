@@ -10,7 +10,8 @@
 target
 data
 node_modules
-web/node_modules
+# The UI is built into the caddy image only (deploy/caddy.Dockerfile has its own ignore file).
+web
 docs
 plans
 worker/tests

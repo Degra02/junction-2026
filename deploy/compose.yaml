@@ -1,11 +1,12 @@
-# Production stack on the VPS. Files next to it: Caddyfile, web/ (the UI build), .env (secrets,
-# from the team vault) and release.env (IMAGE_TAG, written by the deploy workflow).
+# Production stack on the VPS. Files next to it: .env (secrets, from the team vault) and
+# release.env (IMAGE_TAG, written by the deploy workflow).
 #   docker compose --env-file .env --env-file release.env up -d
 name: junction
 
 services:
   caddy:
-    image: docker.io/library/caddy:2.11-alpine
+    # Caddy with deploy/Caddyfile and the web/ build baked in (deploy/caddy.Dockerfile).
+    image: ${IMAGE_REPO:-ghcr.io/degra02/junction-2026}-caddy:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-80}:80"
@@ -14,9 +15,7 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Static build of web/, copied here by the deploy workflow; empty until the UI ships.
-      - ./web:/srv:ro
+      # Certificates and the ACME account: without it every restart re-issues the certificates.
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
