@@ -34,6 +34,11 @@ Sets (plan §8):
     hard_emotional      — emotional but accurate reporting
     hard_wire_copy      — wire services (AP, Reuters, ANSA) republished
     hard_press_releases — corporate/government press releases
+  Both classes:
+    semeval_memes       — SemEval-2024 Task 4 subtask 2b memes (single = the annotators'
+                          propagandistic / not); built by `download_data.sh` into the gitignored
+                          `MEMES` file, never committed. Items carry `image` (a path under
+                          `evals/data/`) and are submitted as `kind: image` data URIs.
 """
 
 from __future__ import annotations
@@ -61,6 +66,15 @@ HARD_NEGATIVE_SETS = {
 
 NEGATIVE_SETS = {"mainstream"} | HARD_NEGATIVE_SETS
 
+# Sets labelled in both classes by their source: reported as their own rows, never merged into
+# the article headline (plans/persuasion-analysis.md §6: a meme positive means "uses persuasion
+# techniques", an article positive mostly "debunked by a fact-checker").
+MIXED_SETS = {"semeval_memes"}
+
+DATA = Path(__file__).resolve().parents[2] / "data"
+# Meme items (dataset-derived, gitignored): loaded next to labelled.jsonl when present.
+MEMES = DATA / "semeval2024" / "labelled.jsonl"
+
 # A claim quoted by a fact-checker is a sentence or two; anything longer is an article body.
 MAX_TEXT_CHARS = 600
 
@@ -76,6 +90,24 @@ class LabelledItem:
     source: str = ""
     source_url: str = ""
     notes: str = ""
+    # Path of an image under evals/data/ (dataset items only, never committed).
+    image: str = ""
+
+
+def load_sets(paths: list[Path]) -> list[LabelledItem]:
+    """Several labelled files as one set (labelled.jsonl, then the gitignored meme file)."""
+    items: list[LabelledItem] = []
+    for path in paths:
+        items.extend(load_labelled(path))
+    ids = [i.id for i in items]
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicates:
+        raise ValueError(f"duplicate ids across files: {', '.join(duplicates[:5])}")
+    return items
+
+
+def default_paths(labelled: Path) -> list[Path]:
+    return [labelled, *([MEMES] if MEMES.exists() else [])]
 
 
 def load_labelled(path: Path) -> list[LabelledItem]:
@@ -97,6 +129,7 @@ def load_labelled(path: Path) -> list[LabelledItem]:
                 source=d.get("source", ""),
                 source_url=d.get("source_url", ""),
                 notes=d.get("notes", ""),
+                image=d.get("image") or "",
             )
             _validate(item, lineno)
             if item.id in seen:
@@ -131,13 +164,13 @@ def _validate(item: LabelledItem, lineno: int) -> None:
     where = f"line {lineno} ({item.id or 'no id'})"
     if not item.id:
         raise ValueError(f"line {lineno}: missing id")
-    if not item.url and not item.text:
-        raise ValueError(f"{where}: needs a url or a text")
+    if not item.url and not item.text and not item.image:
+        raise ValueError(f"{where}: needs a url, a text or an image")
     if len(item.text) > MAX_TEXT_CHARS:
         raise ValueError(
             f"{where}: text longer than {MAX_TEXT_CHARS} characters; commit the url, not the body"
         )
-    if item.set_name not in POSITIVE_SETS | NEGATIVE_SETS:
+    if item.set_name not in POSITIVE_SETS | NEGATIVE_SETS | MIXED_SETS:
         raise ValueError(f"{where}: unknown set '{item.set_name}'")
     for dim in DIMENSIONS:
         if dim not in item.labels:

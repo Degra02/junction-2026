@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .labelled import DIMENSIONS, LabelledItem
+from .labelled import DIMENSIONS, MIXED_SETS, LabelledItem
 
 # Families whose evidence comes from the same source as the label: the VIGINUM list labels
 # `viginum_pravda` and is the `known_networks` signal; a ClaimReview defines a debunked claim
@@ -255,16 +255,15 @@ def evaluate(
             if pred is None:
                 dr.missing += 1
                 continue
-            buckets = [
-                dr.overall,
-                _bucket(dr.per_set, item.set_name),
-                _bucket(dr.per_language, item.language or "unknown"),
-            ]
+            # A mixed set (memes) is its own construct: only its per-set rows, never the
+            # headline, the per-language rows or the calibration of the article set.
+            article = item.set_name not in MIXED_SETS
+            buckets = [_bucket(dr.per_set, item.set_name)]
+            if article:
+                buckets += [dr.overall, _bucket(dr.per_language, item.language or "unknown")]
             ablation_buckets = {
-                f: [
-                    _bucket(dr.ablation, f),
-                    _bucket(dr.ablation_per_set.setdefault(f, {}), item.set_name),
-                ]
+                f: [_bucket(dr.ablation_per_set.setdefault(f, {}), item.set_name)]
+                + ([_bucket(dr.ablation, f)] if article else [])
                 for f in families
             }
             if pred.failed:
@@ -274,7 +273,7 @@ def evaluate(
             score = pred.scores.get(dim)
             for m in buckets:
                 m.update(score, gold, threshold)
-            if score is not None:
+            if score is not None and article:
                 pairs.append((score, gold))
             recorded = pred.ablation.get(dim, {})
             for f, ms in ablation_buckets.items():

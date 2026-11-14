@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from tabulate import tabulate
 
-from .labelled import HARD_NEGATIVE_SETS
+from .labelled import HARD_NEGATIVE_SETS, MIXED_SETS
 from .metrics import LABEL_SOURCE_FAMILY, SET_SOURCE_FAMILY, BinaryMetrics, EvalResult
 
 
@@ -142,6 +142,18 @@ def format_hard_negative_table(result: EvalResult) -> str:
     return _table(rows, headers)
 
 
+def format_mixed_sets_table(result: EvalResult) -> str:
+    rows = [
+        _row([dim, set_name], dr.per_set[set_name])
+        for dim, dr in result.dimensions.items()
+        for set_name in sorted(MIXED_SETS)
+        if set_name in dr.per_set
+    ]
+    if not rows:
+        return "(no meme items in this run)"
+    return _table(rows, ["Dimension", "Set", *METRIC_HEADERS])
+
+
 def format_language_table(result: EvalResult) -> str:
     rows = [
         _row([dim, lang], m)
@@ -207,6 +219,11 @@ def format_full_report(result: EvalResult) -> str:
         "",
         "## Hard-negative false-positive rates\n",
         format_hard_negative_table(result),
+        "",
+        "## Memes (own rows, not in the headline)\n",
+        "SemEval-2024 Task 4 subtask 2b: a positive means the annotators found persuasion "
+        "techniques, not a debunked claim. Never merged with the article numbers above.\n",
+        format_mixed_sets_table(result),
         "",
         "## Per language\n",
         format_language_table(result),

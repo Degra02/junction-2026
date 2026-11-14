@@ -58,6 +58,7 @@ Ground truth. Labels come from third parties (fact-checkers via ClaimReview, EUv
 | `hard_emotional` | both false | Emotional but accurate reporting |
 | `hard_wire_copy` | both false | Agency copy (AP, Reuters, AFP, dpa, EFE, ANSA) republished by many outlets |
 | `hard_press_releases` | both false | Government/corporate releases and their republications |
+| `semeval_memes` | single = the annotators' label, coordinated null | SemEval-2024 Task 4 subtask 2b (propagandistic / not); downloaded, never committed (below) |
 
 Positives cover pro-Kremlin operations (EUvsDisinfo, VIGINUM) plus domestic misinformation (fact-checkers). The `known_networks` family reads the same VIGINUM list that labels `viginum_pravda`: read the coordinated metrics next to the ablation row "without known_networks".
 
@@ -97,6 +98,17 @@ Per dimension: precision, recall, F1, FPR with Wilson 95% intervals; FPR per har
 - **Headline with and without the label's own source.** `known_networks` reads the VIGINUM list that labels `viginum_pravda`, `fact_checks` the ClaimReview that defines `fact_checker_debunk`, and `outlet_fact_checker` (family `source_profile`) fires on `hard_fact_checks`: each separates the classes by construction. `headline` gives each dimension with all families and without that family, and the `hard_fact_checks` FPR without `source_profile`. Quote the "without" row next to the headline. The runner's ablation re-scores with the same weights; the fit's refit without the family (`weights.json → cv.ablation.<family>.auc_without`, read with `--weights`, default `pipeline/score/weights.json`) is quoted alongside once the weights are fitted.
 
 `--output report.md` writes the markdown report, `--json evals/metrics.json` the numbers only (no item text or URLs): `headline`, `fit` (the fitted weights' cross-validated AUC, log loss and per-family ablation; empty for priors) and `dimensions`. `evals/metrics.json` is committed and served unchanged by `/api/metrics` for the metrics page.
+
+## Memes (`semeval_memes`)
+
+About 100 English memes of SemEval-2024 Task 4 subtask 2b, balanced between the annotators' "propagandistic" and "non_propagandistic". `bash evals/download_data.sh` downloads them into `evals/data/semeval2024/` and writes their items to `evals/data/semeval2024/labelled.jsonl` (gitignored, like the images): nothing from the dataset is committed, not even its labels. `validate`, `stats`, `run` and `eval` load that file next to `labelled.jsonl` when it exists (not when `--labelled` points elsewhere).
+
+- Items carry `image` (a path under `evals/data/`); the runner submits it as a `kind: image` data URI. An image over the API's 450,000-character data-URI limit fails that item, not the run.
+- A meme positive means "uses persuasion techniques", an article positive mostly "debunked by a fact-checker": the meme set is reported in its own rows ("Memes" in the report, `per_set.semeval_memes` in the JSON) and never counted in the headline, the per-language rows or the calibration (`MIXED_SETS`).
+
+## Symmetry check (`symmetry`)
+
+`evals/symmetry.jsonl`: 10 pasted-text pairs written by us, each a meme's text and visual description with only the political target swapped (US parties and leaders, UK, DE, IT, FR, ES parties, immigration stance, climate, EU). Not labels: neither side is right. `mise run eval -- symmetry [--api URL]` submits both sides as text and reports |Δ single| per pair, its mean and maximum over the pairs scored on both sides, and the pairs where only one side abstained (also an asymmetry). A gap above 0.1 is a finding to fix in the rater prompt before the phase 2 PR (`plans/persuasion-analysis.md` §6). Output: `evals/results/symmetry.json`.
 
 ## Fixtures
 
