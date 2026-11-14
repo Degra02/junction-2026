@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 import pytest
+from propaganda_eval.format import format_full_report
 from propaganda_eval.labelled import LabelledItem, load_labelled
-from propaganda_eval.metrics import Prediction, _wilson, evaluate, to_json
+from propaganda_eval.metrics import Prediction, _wilson, evaluate, fit_summary, to_json
 
 
 def item(
@@ -100,6 +101,85 @@ def test_metrics_json_has_numbers_but_no_item_content():
     text = json.dumps(data)
     assert "secret sentence" not in text and "example.org" not in text
     assert data["dimensions"]["single"]["per_set"]["hard_satire"]["fpr"] == 1.0
+
+
+def test_abstained_positives_show_as_coverage_and_count_as_misses_in_recall_all():
+    items = [item(f"p{i}", "fact_checker_debunk", True, None) for i in range(4)]
+    predictions = {
+        "p0": Prediction("p0", {"single": 0.9}),
+        "p1": Prediction("p1", {"single": None}),
+        "p2": Prediction("p2", {"single": None}),
+        "p3": Prediction("p3", {}, failed=True),
+    }
+    single = evaluate(items, predictions).dimensions["single"].overall
+    assert single.recall == 1.0  # on the one scored positive...
+    assert single.coverage_pos == pytest.approx(1 / 4)  # ...which is 1 of 4
+    assert single.recall_all == pytest.approx(1 / 4)
+    # No negatives at all: nothing to compute an FPR on, which is not an FPR of 0.
+    assert single.fpr is None and single.fpr_ci is None and single.coverage_neg is None
+
+    data = to_json(evaluate(items, predictions))["dimensions"]["single"]["overall"]
+    assert data["fpr"] is None and data["recall_all"] == 0.25
+
+
+def test_all_abstained_reads_n_a_not_zero():
+    items = [item("p1", "fact_checker_debunk", True, None), item("n1", "mainstream", False)]
+    predictions = {
+        "p1": Prediction("p1", {"single": None, "coordinated": None}),
+        "n1": Prediction("n1", {"single": None, "coordinated": None}),
+    }
+    result = evaluate(items, predictions)
+    single = result.dimensions["single"].overall
+    assert single.precision is None and single.recall is None and single.f1 is None
+    assert single.recall_all == 0.0  # the one positive was not caught
+    row = next(line for line in format_full_report(result).splitlines() if "| single  " in line)
+    assert "n/a" in row and "0.000 " not in row.split("|")[2]
+
+
+def test_headline_reports_coordinated_without_the_list_that_labels_it():
+    items = [
+        item("v1", "viginum_pravda", None, True),
+        item("v2", "viginum_pravda", None, True),
+        item("w1", "hard_wire_copy", False),
+    ]
+    predictions = {
+        # Only the VIGINUM list fired on v1; v2 was caught by copies, which survive the ablation.
+        "v1": Prediction(
+            "v1", {"coordinated": 0.9}, ablation={"coordinated": {"known_networks": 0.2}}
+        ),
+        "v2": Prediction("v2", {"coordinated": 0.8}, ablation={"coordinated": {"text_reuse": 0.3}}),
+        "w1": Prediction("w1", {"coordinated": 0.1}),
+    }
+    result = evaluate(items, predictions)
+    result.fit = fit_summary(
+        {
+            "coordinated": {
+                "n": 3,
+                "cv": {
+                    "auc": 1.0,
+                    "ablation": {"known_networks": {"auc_without": 0.6, "auc_alone": 1.0}},
+                },
+            },
+            "single": {"n": 0, "cv": None},
+        }
+    )
+    headline = to_json(result)["headline"]["coordinated"]
+    assert headline["family_removed"] == "known_networks"
+    assert headline["with"]["recall"] == 1.0
+    # v2 keeps its score without known_networks: it is not in the ablation row as missing.
+    assert headline["without"]["recall"] == 0.5 and headline["without"]["positives"] == 2
+    assert headline["fit"] == {"n": 3, "auc": 1.0, "auc_without": 0.6, "auc_alone": 1.0}
+    assert to_json(result)["headline"]["single"]["fit"] is None
+
+
+def test_hard_fact_checks_fpr_is_also_reported_without_source_profile():
+    items = [item("f1", "hard_fact_checks", False), item("f2", "hard_fact_checks", False)]
+    predictions = {
+        "f1": Prediction("f1", {"single": 0.6}, ablation={"single": {"source_profile": 0.7}}),
+        "f2": Prediction("f2", {"single": 0.2}, ablation={"single": {"source_profile": 0.55}}),
+    }
+    entry = to_json(evaluate(items, predictions))["headline"]["single/hard_fact_checks"]
+    assert entry["with"]["fpr"] == 0.5 and entry["without"]["fpr"] == 1.0
 
 
 def test_labels_must_be_bool_or_null(tmp_path: Path):

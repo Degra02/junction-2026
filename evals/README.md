@@ -92,7 +92,11 @@ Re-running resumes: items already finished are skipped, failed ones run again. `
 
 Per dimension: precision, recall, F1, FPR with Wilson 95% intervals; FPR per hard-negative set; metrics per set and per language; calibration table; abstain rate (of finished analyses) and failure rate, reported apart; missing items (no prediction); ablation per family.
 
-`--output report.md` writes the markdown report, `--json evals/metrics.json` the numbers only (no item text or URLs). `evals/metrics.json` is committed and served unchanged by `/api/metrics` for the metrics page.
+- **Coverage next to every rate.** Precision, recall and FPR are computed on the items that got a score; the pipeline abstains often (old debunked claims have no coverage in today's feeds). Each is published with its coverage, scored/labelled: `coverage` (all), `coverage_pos` (positives, next to recall), `coverage_neg` (negatives, next to FPR). `recall_all` counts abstained and failed positives as misses. "Recall 1.000 on 3 of 40 positives" reads as such, never as "recall 1.000".
+- **`n/a`, not 0.** An empty denominator is `n/a` in the report and `null` in the JSON (rate and interval), never `0.000 [0.00, 1.00]`.
+- **Headline with and without the label's own source.** `known_networks` reads the VIGINUM list that labels `viginum_pravda`, `fact_checks` the ClaimReview that defines `fact_checker_debunk`, and `outlet_fact_checker` (family `source_profile`) fires on `hard_fact_checks`: each separates the classes by construction. `headline` gives each dimension with all families and without that family, and the `hard_fact_checks` FPR without `source_profile`. Quote the "without" row next to the headline. The runner's ablation re-scores with the same weights; the fit's refit without the family (`weights.json → cv.ablation.<family>.auc_without`, read with `--weights`, default `pipeline/score/weights.json`) is quoted alongside once the weights are fitted.
+
+`--output report.md` writes the markdown report, `--json evals/metrics.json` the numbers only (no item text or URLs): `headline`, `fit` (the fitted weights' cross-validated AUC, log loss and per-family ablation; empty for priors) and `dimensions`. `evals/metrics.json` is committed and served unchanged by `/api/metrics` for the metrics page.
 
 ## Fixtures
 
