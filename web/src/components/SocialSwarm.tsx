@@ -123,7 +123,8 @@ export function SocialSwarm({ context, document, evidence, documentLabel }: Read
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs min-w-0">
               <span className="font-mono-num text-[var(--fg-primary)] truncate">{post.account}</span>
               <span className={tagClass("neutral")}>{post.platform}</span>
-              {post.citedAs.includes("text_reuse") && <span className={tagClass("indigo")}>Counted as a copy</span>}
+              {/* Evidence cites up to 4 copies, so this marks the cited ones, not every copy counted. */}
+              {post.citedAs.includes("text_reuse") && <span className={tagClass("indigo")}>Cited as evidence</span>}
             </div>
             <div className="text-right font-mono-num text-[11px] text-[var(--fg-muted)] whitespace-nowrap">
               {formatDateTime(post.item.published_at) ?? "no date"}

@@ -3,8 +3,9 @@ import { SOCIAL_PLATFORMS } from "./labels";
 
 /**
  * Social media posts in `context[]` (`pipeline/retrieve/social.py`): public posts that repeat the
- * document's wording, one per account. `retrieved_by` is the platform, `title` names the account
- * ("Post by @name on Bluesky"), `published_at` is the exact posting time. Everything here only
+ * document's wording, one per account. `retrieved_by` is the platform, `author` the account
+ * (older records: only in the title, "Post by @name on Bluesky"), `published_at` is the exact
+ * posting time. Everything here only
  * arranges what retrieve found; nothing is scored in the browser.
  */
 
@@ -46,6 +47,8 @@ export function isSocialPost(item: ContextItem): boolean {
 }
 
 function accountOf(item: ContextItem): string {
+  if (item.author) return item.author;
+  // Records from before `context[].author`: the account is in the title.
   const fromTitle = item.title ? ACCOUNT_RE.exec(item.title)?.[1] : undefined;
   if (fromTitle) return fromTitle;
   try {
