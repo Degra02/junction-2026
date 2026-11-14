@@ -988,6 +988,7 @@
         "description": "Signal family; inside a family only the strongest signal counts (plan §5).",
         "enum": [
           "techniques",
+          "rhetoric",
           "tone",
           "claim_support",
           "fact_checks",
@@ -1693,6 +1694,13 @@
               "string",
               "null"
             ]
+          },
+          "implied_claims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the content asserts by implication (a meme, sarcasm, a rhetorical question): up to\n3 English sentences written by `understand`, empty for plain reporting. They are our\nparaphrase, not the author's words: used for fact-check search and matching only, never\ncompared with other reports (`claim_support`) and never shown as a quotation."
           }
         }
       },

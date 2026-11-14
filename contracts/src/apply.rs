@@ -453,6 +453,7 @@ mod tests {
                 entities: vec![],
                 date: None,
                 place: None,
+                implied_claims: vec![],
             },
             claims,
             queries: vec![],
