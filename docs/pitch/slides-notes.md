@@ -1,6 +1,6 @@
 # Slide deck: speaker notes
 
-`slides.pdf` (9 slides, 16:9; source `slides.html`). Target **about 4 minutes**; the times add up to 4:10, and the optional cuts bring it to 3:30. Numbers come from `report.pdf`. Never say "propaganda / not propaganda" (D4): say "signs of", "confidence", "evidence".
+`slides.pdf` (9 slides, 16:9, alternating light and dark in the website's design: its colour tokens, Newsreader headings, Geist text, Geist Mono data, logo mark; source `slides.html`, which loads the fonts from `web/node_modules`, so run `bun install` in `web/` before re-rendering). Target **about 4 minutes**; the times add up to 4:10, and the optional cuts bring it to 3:30. Numbers come from `report.pdf`. Never say "propaganda / not propaganda" (D4): say "signs of", "confidence", "evidence".
 
 | # | Slide | Time | Say |
 |---|---|---|---|

@@ -4,101 +4,148 @@
 <meta charset="utf-8">
 <title>The4thLover — slides</title>
 <style>
+  /* The website's fonts (web/DESIGN.md), from the web app's dependencies (`bun install` in web/). */
+  @font-face { font-family: "Geist"; font-weight: 100 900; src: url("../../web/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Geist Mono"; font-weight: 100 900; src: url("../../web/node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Newsreader"; font-weight: 200 800; src: url("../../web/node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2") format("woff2"); }
+
   @page { size: 338.67mm 190.5mm; margin: 0; }
-  :root { --ink:#111110; --muted:#6b6b66; --line:#dcdcd6; --accent:#3b4bd8; --violet:#7a4cc2; --soft:#f4f4f1; --caution:#9a6200; --teal:#0f7a6c; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
-  .s { width: 338.67mm; height: 190.5mm; padding: 16mm 20mm; position: relative; break-after: page; overflow: hidden; background: #fbfbf9; }
+  body { margin: 0; }
+
+  /* Tokens of web/src/index.css: light (:root) and dark (.dark). Odd slides light, even slides dark. */
+  .s {
+    --bg-canvas: #f8f8f6; --bg-surface: #ffffff; --bg-subtle: #f1f1ee;
+    --fg-primary: #111110; --fg-secondary: #4f4d4a; --fg-muted: #75726d;
+    --border-subtle: #e7e6e2; --border-strong: #d4d2cd;
+    --accent: #3e63dd; --accent-soft: #eef2fe; --indigo: #6e56cf; --indigo-soft: #f4f0fe;
+    --caution: #a35200; --caution-soft: #fff5e0; --caution-border: #f5d48f;
+    --glow-a: rgba(62, 99, 221, 0.10); --glow-b: rgba(110, 86, 207, 0.06);
+    --shadow: 0 1px 2px rgba(17, 17, 16, 0.04);
+  }
+  .s:nth-child(even) {
+    --bg-canvas: #09090a; --bg-surface: #111112; --bg-subtle: #19191b;
+    --fg-primary: #ededec; --fg-secondary: #a3a19c; --fg-muted: #75736f;
+    --border-subtle: #232325; --border-strong: #323235;
+    --accent: #8da4ef; --accent-soft: rgba(141, 164, 239, 0.12); --indigo: #b1a3f4; --indigo-soft: rgba(177, 163, 244, 0.12);
+    --caution: #f1b04c; --caution-soft: rgba(241, 176, 76, 0.10); --caution-border: rgba(241, 176, 76, 0.30);
+    --glow-a: rgba(141, 164, 239, 0.10); --glow-b: rgba(177, 163, 244, 0.07);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .s {
+    width: 338.67mm; height: 190.5mm; padding: 26mm 22mm 20mm; position: relative; overflow: hidden;
+    break-after: page; background: var(--bg-canvas); color: var(--fg-primary);
+    font-family: "Geist", ui-sans-serif, system-ui, sans-serif; font-size: 19pt; line-height: 1.45;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   .s:last-child { break-after: auto; }
-  h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; margin: 0 0 8mm; line-height: 1.15; }
-  h1 { font-size: 64pt; }
-  h2 { font-size: 34pt; }
-  p, li { font-size: 19pt; line-height: 1.4; }
-  ul { margin: 0; padding-left: 8mm; }
+  .s::before { /* the site's backdrop glow */
+    content: ""; position: absolute; inset: -30% -10% auto -10%; height: 150mm; pointer-events: none;
+    background: radial-gradient(42% 60% at 50% 0%, var(--glow-a), transparent 72%),
+                radial-gradient(30% 45% at 80% 10%, var(--glow-b), transparent 70%);
+  }
+  .s > * { position: relative; }
+
+  /* Header and footer: the site's logo mark and wordmark; data in Geist Mono. */
+  .brand { position: absolute; top: 10mm; left: 22mm; display: flex; align-items: center; gap: 2.5mm; font-family: "Newsreader", Georgia, serif; font-size: 15pt; font-weight: 500; letter-spacing: -0.01em; }
+  .brand svg { width: 6mm; height: 6mm; color: var(--fg-primary); }
+  .foot { position: absolute; bottom: 9mm; left: 22mm; right: 22mm; display: flex; justify-content: space-between; font-family: "Geist Mono", monospace; font-size: 10.5pt; color: var(--fg-muted); }
+
+  .display, h1, h2 { font-family: "Newsreader", Georgia, serif; font-optical-sizing: auto; font-weight: 500; letter-spacing: -0.015em; text-wrap: balance; margin: 0 0 9mm; line-height: 1.12; }
+  h1 { font-size: 72pt; }
+  h2 { font-size: 36pt; }
+  p { margin: 0 0 4mm; }
+  ul { margin: 0; padding-left: 7mm; }
   li { margin-bottom: 4mm; }
-  .muted { color: var(--muted); }
-  .kicker { font-size: 14pt; color: var(--muted); margin-bottom: 6mm; letter-spacing: .02em; }
-  .foot { position: absolute; bottom: 9mm; left: 20mm; right: 20mm; display: flex; justify-content: space-between; font-size: 11pt; color: var(--muted); }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14mm; }
-  .big { font-family: Georgia, serif; font-size: 54pt; font-weight: 600; line-height: 1; }
-  .card { background: #fff; border: 1px solid var(--line); border-radius: 4mm; padding: 7mm 8mm; }
-  .card h3 { margin: 0 0 3mm; font-size: 17pt; color: var(--muted); font-weight: 500; }
-  .card p { font-size: 16pt; margin: 2mm 0 0; }
-  .card p.big { font-size: 54pt; }
-  .tag { display: inline-block; border-radius: 2mm; padding: 1mm 3mm; font-size: 13pt; background: #ece9fb; color: var(--violet); margin: 0 2mm 2mm 0; }
-  .warn { border-left: 5px solid var(--caution); background: #fff8ec; padding: 5mm 7mm; border-radius: 0 3mm 3mm 0; }
-  .warn p { margin: 0; font-size: 17pt; }
-  table { border-collapse: collapse; width: 100%; font-size: 16pt; }
-  td, th { padding: 3mm 4mm; border-bottom: 1px solid var(--line); text-align: left; }
-  th { color: var(--muted); font-weight: 500; }
-  td.n { text-align: right; font-variant-numeric: tabular-nums; }
-  .mono { font-family: "DejaVu Sans Mono", Menlo, monospace; }
-  svg text { font-family: Arial, sans-serif; }
+  li::marker { color: var(--fg-muted); }
+  b { font-weight: 600; }
+  .muted { color: var(--fg-muted); }
+  .secondary { color: var(--fg-secondary); }
+  .kicker { font-size: 13pt; color: var(--fg-muted); margin-bottom: 6mm; }
+  .mono { font-family: "Geist Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: start; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border-subtle); box-shadow: var(--shadow); border-radius: 4mm; padding: 7mm 8mm; }
+  .card .label { font-size: 13pt; font-weight: 500; color: var(--fg-muted); margin: 0 0 3mm; }
+  .card p { font-size: 16pt; color: var(--fg-secondary); }
+  .card p:last-child { margin-bottom: 0; }
+  /* Headline numbers: Geist semibold, tabular, tight (web/DESIGN.md). */
+  .num { font-family: "Geist", sans-serif; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; font-size: 52pt; line-height: 1; color: var(--fg-primary); }
+  .num.accent { color: var(--accent); }
+  .tag { display: inline-flex; align-items: center; height: 8mm; padding: 0 2.5mm; border-radius: 1.6mm; font-size: 12.5pt; font-weight: 500; background: var(--indigo-soft); color: var(--indigo); margin: 0 2mm 2mm 0; }
+  .warn { border: 1px solid var(--caution-border); background: var(--caution-soft); border-radius: 3mm; padding: 5mm 6mm; }
+  .warn p { margin: 0; font-size: 15pt; color: var(--fg-primary); }
+  table { border-collapse: collapse; width: 100%; font-size: 15pt; }
+  td, th { padding: 2.8mm 3mm; border-top: 1px solid var(--border-subtle); text-align: left; vertical-align: top; }
+  th { color: var(--fg-muted); font-weight: 500; font-size: 13pt; border-top: none; }
+  td.n { text-align: right; font-family: "Geist Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  svg text { font-family: "Geist", sans-serif; }
 </style>
 </head>
 <body>
 
-<!-- 1 -->
-<section class="s" style="display:flex;flex-direction:column;justify-content:center">
+<!-- 1 · light -->
+<section class="s" style="display:flex;flex-direction:column;justify-content:center;padding-top:20mm">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <div class="kicker">Junction 2026 · Hostinger “Decode the Noise”</div>
   <h1>The4thLover</h1>
-  <p style="font-size:26pt;max-width:240mm;font-family:Georgia,serif">Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.</p>
+  <p class="display" style="font-size:27pt;max-width:235mm;color:var(--fg-secondary)">Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.</p>
   <div class="foot"><span>the4thlover.tech</span><span>Degra02 · Lyreplus · ck-lithium · mosearc</span></div>
 </section>
 
-<!-- 2 -->
+<!-- 2 · dark -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>Is this manipulation, or one voice in a network?</h2>
-  <div class="cols" style="margin-top:10mm">
-    <div>
-      <p>Answering that today is <b>hours of manual OSINT</b>: read for techniques, find other coverage, look for fact-checks, check the domain, search for copies, compare tracking codes.</p>
-    </div>
+  <div class="cols" style="margin-top:6mm">
+    <p class="secondary" style="font-size:21pt">Answering that today is <b style="color:var(--fg-primary)">hours of manual OSINT</b>: read for techniques, find other coverage, look for fact-checks, check the domain, search for copies, compare tracking codes.</p>
     <div class="card">
-      <h3>Why not just ask an AI?</h3>
+      <div class="label">Why not just ask an AI?</div>
       <p>Its opinion of the text alone is not evidence: biased by language, prompt-injectable, and nobody can check it.</p>
     </div>
   </div>
-  <div class="foot"><span>Problem</span><span>2</span></div>
+  <div class="foot"><span>Problem</span><span>02</span></div>
 </section>
 
-<!-- 3 -->
+<!-- 3 · light -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>We go and find how everyone else covered it</h2>
-  <svg viewBox="0 0 900 150" width="100%" style="margin:4mm 0 8mm">
-    <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b6b66"/></marker></defs>
-    <g font-size="17" text-anchor="middle">
-      <rect x="5" y="45" width="150" height="60" rx="10" fill="#fff" stroke="#bbb"/><text x="80" y="72">Text · link</text><text x="80" y="94">· image</text>
-      <rect x="200" y="45" width="170" height="60" rx="10" fill="#fff" stroke="#bbb"/><text x="285" y="72">What does it</text><text x="285" y="94">claim?</text>
-      <rect x="415" y="45" width="190" height="60" rx="10" fill="#ece9fb" stroke="#7a4cc2"/><text x="510" y="72">Other coverage,</text><text x="510" y="94">fact-checks, copies</text>
-      <rect x="650" y="10" width="240" height="56" rx="10" fill="#fff" stroke="#3b4bd8"/><text x="770" y="44">Single-actor confidence</text>
-      <rect x="650" y="84" width="240" height="56" rx="10" fill="#fff" stroke="#7a4cc2"/><text x="770" y="118">Coordinated confidence</text>
+  <svg viewBox="0 0 900 150" width="100%" style="margin:0 0 7mm">
+    <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--fg-muted)"/></marker></defs>
+    <g font-size="17" text-anchor="middle" fill="var(--fg-primary)">
+      <rect x="5" y="45" width="150" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="80" y="72">Text · link</text><text x="80" y="94">· image</text>
+      <rect x="200" y="45" width="170" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="285" y="72">What does it</text><text x="285" y="94">claim?</text>
+      <rect x="415" y="45" width="190" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="510" y="72">Other coverage,</text><text x="510" y="94">fact-checks, copies</text>
+      <rect x="650" y="10" width="240" height="56" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="770" y="44" fill="var(--accent)">Single-actor confidence</text>
+      <rect x="650" y="84" width="240" height="56" rx="10" fill="var(--indigo-soft)" stroke="var(--indigo)"/><text x="770" y="118" fill="var(--indigo)">Coordinated confidence</text>
     </g>
-    <g stroke="#6b6b66" stroke-width="2" fill="none" marker-end="url(#a)">
+    <g stroke="var(--fg-muted)" stroke-width="2" fill="none" marker-end="url(#a)">
       <path d="M155,75 L196,75"/><path d="M370,75 L411,75"/><path d="M605,70 L646,40"/><path d="M605,80 L646,110"/>
     </g>
   </svg>
   <div class="cols">
-    <div class="card"><h3>Single-actor: does the author manipulate?</h3><p>Persuasion techniques · tone far more charged than other reports · claims the coverage contradicts · fact-checker ratings · a brand-new domain</p></div>
-    <div class="card"><h3>Coordinated: is it pushed by sites acting together?</h3><p>Same paragraphs on unrelated sites · within hours · shared tracking codes · a documented network (VIGINUM)</p></div>
+    <div class="card"><div class="label" style="color:var(--accent)">Single-actor: does the author manipulate?</div><p>Persuasion techniques · tone far more charged than other reports · claims the coverage contradicts · fact-checker ratings · a brand-new domain</p></div>
+    <div class="card"><div class="label" style="color:var(--indigo)">Coordinated: is it pushed by sites acting together?</div><p>Same paragraphs on unrelated sites · within hours · shared tracking codes · a documented network (VIGINUM)</p></div>
   </div>
-  <div class="foot"><span>Product</span><span>3</span></div>
+  <div class="foot"><span>Product</span><span>03</span></div>
 </section>
 
-<!-- 4 -->
+<!-- 4 · dark -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>A confidence and its evidence. Never a verdict.</h2>
   <div class="cols">
-    <div>
-      <ul>
-        <li>No “propaganda / not propaganda” label: that would pose as ground truth.</li>
-        <li><b>“Not enough evidence”</b>, with the reason, instead of a guess.</li>
-        <li>Every reason links to its source; every quote is checked word for word, or dropped.</li>
-        <li><b>An LLM never sets the score.</b></li>
-      </ul>
-    </div>
+    <ul class="secondary">
+      <li>No “propaganda / not propaganda” label: that would pose as ground truth.</li>
+      <li><b style="color:var(--fg-primary)">“Not enough evidence”</b>, with the reason, instead of a guess.</li>
+      <li>Every reason links to its source; every quote is checked word for word, or dropped.</li>
+      <li><b style="color:var(--fg-primary)">An LLM never sets the score.</b></li>
+    </ul>
     <div class="card">
-      <h3>achgut.com: “Are the climate data manipulated?” (de)</h3>
-      <p class="big" style="margin:3mm 0 5mm;color:var(--accent)">83%</p>
+      <div class="label">achgut.com · “Are the climate data manipulated?” · de</div>
+      <div class="num accent" style="margin:2mm 0 5mm">83%</div>
       <table>
         <tr><td>Starting point</td><td class="n">−2.00</td></tr>
         <tr><td>Fact-check matched across languages: Climate Feedback, “Inaccurate”</td><td class="n">+2.50</td></tr>
@@ -107,90 +154,95 @@
       </table>
     </div>
   </div>
-  <div class="foot"><span>“Show how we calculated this”: one number per signal family, added up by a logistic regression (weights in use on this run)</span><span>4</span></div>
+  <div class="foot"><span>“Show how we calculated this”: one number per signal family, added up by a logistic regression (weights in use on this run)</span><span>04</span></div>
 </section>
 
-<!-- 5 -->
+<!-- 5 · light -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>Built against the ways a naive detector fails</h2>
-  <table style="margin-top:4mm">
-    <tr><th>A naive detector flags…</th><th>We…</th></tr>
-    <tr><td>a fact-check that <b>quotes</b> the hoax</td><td>mask quotations; only score what the author asserts</td></tr>
-    <tr><td>agency copy republished by hundreds of newsrooms</td><td>never count news agencies and newsrooms as copiers</td></tr>
-    <tr><td>satire, op-eds, emotional but accurate reporting</td><td>compare tone with peers on the same story; satire abstains</td></tr>
-    <tr><td>a confident score from one weak signal</td><td>count only the strongest signal per family; abstain when evidence points both ways</td></tr>
-    <tr><td>English only</td><td>multilingual models, queries in the item's language and English</td></tr>
-  </table>
-  <div class="foot"><span>Each guard has its own hard-negative test set</span><span>5</span></div>
+  <div class="card" style="padding:4mm 6mm">
+    <table>
+      <tr><th>A naive detector flags…</th><th>We…</th></tr>
+      <tr><td>a fact-check that <b>quotes</b> the hoax</td><td class="secondary">mask quotations; only score what the author asserts</td></tr>
+      <tr><td>agency copy republished by hundreds of newsrooms</td><td class="secondary">never count news agencies and newsrooms as copiers</td></tr>
+      <tr><td>satire, op-eds, emotional but accurate reporting</td><td class="secondary">compare tone with peers on the same story; satire abstains</td></tr>
+      <tr><td>a confident score from one weak signal</td><td class="secondary">count only the strongest signal per family; abstain when evidence points both ways</td></tr>
+      <tr><td>English only</td><td class="secondary">multilingual models, queries in the item's language and English</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>Each guard has its own hard-negative test set</span><span>05</span></div>
 </section>
 
-<!-- 6 -->
+<!-- 6 · dark -->
 <section class="s">
-  <h2>Measured on third-party labels, not our opinion</h2>
-  <p class="muted" style="font-size:16pt;margin-top:-4mm">284 items · 12 languages · fact-checkers, EUvsDisinfo, VIGINUM · 6 hard-negative sets</p>
-  <div class="cols" style="margin-top:6mm">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
+  <h2 style="margin-bottom:3mm">Measured on third-party labels, not our opinion</h2>
+  <p class="muted" style="font-size:15pt;margin-bottom:7mm">284 items · 12 languages · fact-checkers, EUvsDisinfo, VIGINUM · 6 hard-negative sets</p>
+  <div class="cols">
     <div class="card">
-      <h3>Single-actor</h3>
-      <p><span class="big">0.98</span> precision <span class="muted">[0.91–1.00]</span></p>
-      <p><span class="big">0.03</span> false-positive rate <span class="muted">[0.00–0.13]</span></p>
-      <p style="margin-top:5mm">Scores 43% of items, abstains on the rest → catches <b>46%</b> of all positives</p>
+      <div class="label" style="color:var(--accent)">Single-actor</div>
+      <p><span class="num">0.98</span>&nbsp; precision <span class="mono muted">[0.91–1.00]</span></p>
+      <p><span class="num">0.03</span>&nbsp; false-positive rate <span class="mono muted">[0.00–0.13]</span></p>
+      <p style="margin-top:5mm">Scores 43% of items, abstains on the rest → catches <b style="color:var(--fg-primary)">46%</b> of all positives</p>
     </div>
     <div class="card">
-      <h3>Coordinated</h3>
-      <p><span class="big">1.00</span> on the set</p>
-      <div class="warn" style="margin-top:5mm"><p>…because the VIGINUM list labels the positives <b>and</b> is a signal. Without it: AUC <b>0.38</b>. We publish that next to the headline.</p></div>
+      <div class="label" style="color:var(--indigo)">Coordinated</div>
+      <p><span class="num">1.00</span>&nbsp; on the set</p>
+      <div class="warn" style="margin-top:6mm"><p>…because the VIGINUM list labels the positives <b>and</b> is a signal. Without it: AUC <b>0.38</b>. We publish that next to the headline.</p></div>
     </div>
   </div>
-  <div class="foot"><span>Wilson 95% intervals · AUCs 5-fold cross-validated · single-actor AUC 0.98, 0.84 without fact-checks</span><span>6</span></div>
+  <div class="foot"><span>Wilson 95% intervals · AUCs 5-fold cross-validated · single-actor AUC 0.98, 0.84 without fact-checks</span><span>06</span></div>
 </section>
 
-<!-- 7 -->
+<!-- 7 · light -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>A map of sites that act together</h2>
   <div class="cols">
     <div>
-      <p style="margin-top:0"><span class="big">902</span> sites · <b>535</b> ties · <b>29</b> groups, built from every analysis</p>
-      <p>Tied by: <span class="tag">same analytics ID</span><span class="tag">copied text</span><span class="tag">translated text</span><span class="tag">same owner</span></p>
-      <p>Finds all <b>18</b> Pravda-network editions as one group <b>without using the list</b>, plus 6 unlisted sister sites.</p>
+      <p><span class="num">902</span>&nbsp; sites <span class="secondary">· <b>535</b> ties · <b>29</b> groups, built from every analysis</span></p>
+      <p style="margin-top:5mm"><span class="tag">Same analytics ID</span><span class="tag">Copied text</span><span class="tag">Translated text</span><span class="tag">Same operator</span></p>
+      <p class="secondary" style="margin-top:3mm">Finds all <b style="color:var(--fg-primary)">18</b> Pravda-network editions as one group <b style="color:var(--fg-primary)">without using the list</b>, plus 6 unlisted sister sites.</p>
     </div>
     <div class="card">
-      <h3>A tie is a relationship, not a verdict</h3>
+      <div class="label">A tie is a relationship, not a verdict.</div>
       <p>The UN's sites, AFP's fact-check editions and Nexstar newsrooms are in the map too. Every tie shows its raw evidence (the exact tracker ID, the article pair), and anyone can ask for a correction.</p>
     </div>
   </div>
-  <div class="foot"><span>the4thlover.tech/sources</span><span>7</span></div>
+  <div class="foot"><span>the4thlover.tech/sources</span><span>07</span></div>
 </section>
 
-<!-- 8 -->
+<!-- 8 · dark -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>Live on one Hostinger VPS</h2>
   <div class="cols">
-    <div>
-      <ul>
-        <li>2 vCPU, 8 GB, <b>no GPU</b>: all models on CPU</li>
-        <li>About <b>a minute</b> per analysis, progress live step by step</li>
-        <li>Rust API + Python worker; every merge deploys</li>
-        <li>Web app, metrics page, source map, browser extension</li>
-      </ul>
-    </div>
+    <ul class="secondary">
+      <li>2 vCPU, 8 GB, <b style="color:var(--fg-primary)">no GPU</b>: all models on CPU</li>
+      <li>About <b style="color:var(--fg-primary)">a minute</b> per analysis, progress live step by step</li>
+      <li>Rust API + Python worker; every merge deploys</li>
+      <li>Web app, metrics page, source map, browser extension</li>
+    </ul>
     <div class="card">
-      <h3>Scale and impact</h3>
+      <div class="label">Scale and impact</div>
       <p>The coordinated detector works on any set of sites. A host could run it across the domains it hosts to surface networks like Portal Kombat, which only the host can see across sites.</p>
     </div>
   </div>
-  <div class="foot"><span>Oxylabs for blocked pages and exact-phrase search · Hostinger AI Router for the two LLM calls</span><span>8</span></div>
+  <div class="foot"><span>Oxylabs for blocked pages and exact-phrase search · Hostinger AI Router for the two LLM calls</span><span>08</span></div>
 </section>
 
-<!-- 9 -->
+<!-- 9 · light -->
 <section class="s">
+  <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>What's next</h2>
-  <ul style="margin-top:6mm">
-    <li><b>Find networks without a list</b>: feed the site map into the coordinated score, fitted and measured like every signal.</li>
-    <li><b>Memes</b>: the persuasion rater already shows its evidence on images; next, score it after a refit with a meme test set and a left/right symmetry check.</li>
-    <li><b>More coverage, fewer abstentions</b>, and a held-out test set.</li>
+  <ul class="secondary">
+    <li><b style="color:var(--fg-primary)">Find networks without a list</b>: feed the site map into the coordinated score, fitted and measured like every signal.</li>
+    <li><b style="color:var(--fg-primary)">Memes</b>: the persuasion rater already shows its evidence on images; next, score it after a refit with a meme test set and a left/right symmetry check.</li>
+    <li><b style="color:var(--fg-primary)">More coverage, fewer abstentions</b>, and a held-out test set.</li>
   </ul>
-  <p style="margin-top:14mm;font-family:Georgia,serif;font-size:26pt">Try it: <b>the4thlover.tech</b></p>
-  <div class="foot"><span>Code: github.com/Degra02/junction-2026 (MIT) · full report: docs/pitch/report.pdf</span><span>9</span></div>
+  <p class="display" style="margin-top:12mm;font-size:28pt">Try it: <span style="color:var(--accent)">the4thlover.tech</span></p>
+  <div class="foot"><span>github.com/Degra02/junction-2026 (MIT) · full report: docs/pitch/report.pdf</span><span>09</span></div>
 </section>
 
 </body>
