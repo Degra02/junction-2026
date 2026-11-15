@@ -66,6 +66,9 @@ def main() -> None:
     sym_p.add_argument("--concurrency", type=int, default=2)
     sym_p.add_argument("--timeout", type=float, default=420.0, help="Seconds per analysis")
 
+    memes_p = sub.add_parser("fetch-memes", help="Download the SemEval-2021 Task 6 meme set")
+    memes_p.add_argument("--positives", type=int, default=64)
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -78,6 +81,15 @@ def main() -> None:
         _cmd_eval(args)
     elif args.command == "symmetry":
         _cmd_symmetry(args)
+    elif args.command == "fetch-memes":
+        from .memes import fetch
+
+        counts = fetch(args.positives)
+        print(
+            f"semeval_memes: {counts['items']} items ({counts['positives']} with a technique, "
+            f"{counts['negatives']} without), {counts['skipped']} images over the API limit "
+            "skipped"
+        )
     else:
         parser.print_help()
 

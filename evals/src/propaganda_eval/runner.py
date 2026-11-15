@@ -29,7 +29,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import mimetypes
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,13 +65,27 @@ def payload(item: LabelledItem) -> dict[str, str]:
 
 
 def image_data_uri(path: Path) -> str:
-    mime = mimetypes.guess_type(path.name)[0] or ""
-    if not mime.startswith("image/"):
-        raise ValueError(f"{path.name}: not an image file")
-    uri = f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+    data = path.read_bytes()
+    mime = image_mime(data)
+    if mime is None:
+        raise ValueError(f"{path.name}: not a JPEG, PNG, GIF or WebP image")
+    uri = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
     if len(uri) > MAX_IMAGE_DATA_URI_CHARS:
         raise ValueError(f"{path.name}: {len(uri)} characters as a data URI, over the API's limit")
     return uri
+
+
+def image_mime(data: bytes) -> str | None:
+    """From the file's first bytes, not its name: datasets save JPEGs as `.png`."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def failure(analysis: Analysis) -> str | None:
