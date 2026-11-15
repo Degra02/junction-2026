@@ -1,11 +1,11 @@
 {
- "built_at": "2026-11-14T22:12:08+00:00",
+ "built_at": "2026-11-15T01:11:02+00:00",
  "counts": {
   "analyses": 277,
   "articles": 1561,
   "outlets": 739,
   "edges": 492,
-  "clusters": 29
+  "clusters": 21
  },
  "outlets": [
   {
@@ -26,7 +26,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 11
+   "cluster": 8
   },
   {
    "domain": "20minutes.fr",
@@ -96,7 +96,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 5
+   "cluster": null
   },
   {
    "domain": "abcnews.com",
@@ -146,7 +146,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 12
+   "cluster": 9
   },
   {
    "domain": "actualite.cd",
@@ -336,7 +336,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 8
+   "cluster": null
   },
   {
    "domain": "andreitrusov.com",
@@ -486,7 +486,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 6
+   "cluster": 5
   },
   {
    "domain": "au.news.yahoo.com",
@@ -916,7 +916,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 13
+   "cluster": null
   },
   {
    "domain": "carbonbrief.org",
@@ -946,7 +946,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 14
+   "cluster": 10
   },
   {
    "domain": "casrai.org",
@@ -1296,7 +1296,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 15
+   "cluster": 11
   },
   {
    "domain": "consent.yahoo.com",
@@ -1456,7 +1456,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 16
+   "cluster": 12
   },
   {
    "domain": "data.unicef.org",
@@ -1466,7 +1466,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 17
+   "cluster": 13
   },
   {
    "domain": "dataurgente.com",
@@ -1496,7 +1496,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 7
+   "cluster": 6
   },
   {
    "domain": "de.headtopics.com",
@@ -1506,7 +1506,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 6
+   "cluster": 5
   },
   {
    "domain": "de.topwar.ru",
@@ -1526,7 +1526,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 18
+   "cluster": null
   },
   {
    "domain": "decheckers.be",
@@ -1546,7 +1546,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 19
+   "cluster": null
   },
   {
    "domain": "defence24.pl",
@@ -1556,7 +1556,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 19
+   "cluster": null
   },
   {
    "domain": "defenceleaders.com",
@@ -1956,7 +1956,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 8
+   "cluster": null
   },
   {
    "domain": "eldebate.com",
@@ -1976,7 +1976,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 8
+   "cluster": null
   },
   {
    "domain": "elestandar.press",
@@ -2016,7 +2016,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 20
+   "cluster": null
   },
   {
    "domain": "eluniversal.com",
@@ -2076,7 +2076,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 9
+   "cluster": 7
   },
   {
    "domain": "en.interfax.com.ua",
@@ -2096,7 +2096,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 21
+   "cluster": 14
   },
   {
    "domain": "en.kremlin.ru",
@@ -2236,7 +2236,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 7
+   "cluster": 6
   },
   {
    "domain": "es.headtopics.com",
@@ -2246,7 +2246,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 6
+   "cluster": 5
   },
   {
    "domain": "es.news-front.su",
@@ -2266,7 +2266,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 13
+   "cluster": null
   },
   {
    "domain": "esrt.press",
@@ -2276,7 +2276,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 2,
-   "cluster": 12
+   "cluster": 9
   },
   {
    "domain": "esteri.it",
@@ -2286,7 +2286,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 15
+   "cluster": 11
   },
   {
    "domain": "ethicasocietas.it",
@@ -2376,7 +2376,7 @@
    "known_network": null,
    "articles": 15,
    "analysed": 0,
-   "cluster": 7
+   "cluster": 6
   },
   {
    "domain": "euronews.ro",
@@ -2536,7 +2536,7 @@
    "known_network": null,
    "articles": 3,
    "analysed": 0,
-   "cluster": 22
+   "cluster": null
   },
   {
    "domain": "factual.afp.com",
@@ -2596,7 +2596,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 23
+   "cluster": 15
   },
   {
    "domain": "financite.be",
@@ -2756,7 +2756,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 24
+   "cluster": 16
   },
   {
    "domain": "fra.europa.eu",
@@ -3186,7 +3186,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 11
+   "cluster": 8
   },
   {
    "domain": "hsph.harvard.edu",
@@ -3266,7 +3266,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 6
+   "cluster": 5
   },
   {
    "domain": "igualdad.gob.es",
@@ -3336,7 +3336,7 @@
    "known_network": null,
    "articles": 5,
    "analysed": 0,
-   "cluster": 9
+   "cluster": 7
   },
   {
    "domain": "indianexpress.com",
@@ -3406,7 +3406,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 25
+   "cluster": 17
   },
   {
    "domain": "infomigrants.net",
@@ -3476,7 +3476,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 25
+   "cluster": 17
   },
   {
    "domain": "internazionale.it",
@@ -3496,7 +3496,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 14
+   "cluster": 10
   },
   {
    "domain": "iogpeurope.org",
@@ -3566,7 +3566,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 26
+   "cluster": 18
   },
   {
    "domain": "it.euronews.com",
@@ -3576,7 +3576,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 7
+   "cluster": 6
   },
   {
    "domain": "it.topwar.ru",
@@ -3636,7 +3636,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 21
+   "cluster": 14
   },
   {
    "domain": "janfigel.com",
@@ -3736,7 +3736,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 22
+   "cluster": null
   },
   {
    "domain": "kunstforum.de",
@@ -3766,7 +3766,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 5
+   "cluster": null
   },
   {
    "domain": "kyiv24.com",
@@ -3816,7 +3816,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 9
+   "cluster": 7
   },
   {
    "domain": "lacnews24.it",
@@ -4366,7 +4366,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 27
+   "cluster": 19
   },
   {
    "domain": "mind.ua",
@@ -4586,7 +4586,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 5
+   "cluster": null
   },
   {
    "domain": "nbcnews.com",
@@ -4656,7 +4656,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 27
+   "cluster": 19
   },
   {
    "domain": "news-pravda.com",
@@ -4686,7 +4686,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 28
+   "cluster": 20
   },
   {
    "domain": "news.rambler.ru",
@@ -4696,7 +4696,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 23
+   "cluster": 15
   },
   {
    "domain": "news.un.org",
@@ -4706,7 +4706,7 @@
    "known_network": null,
    "articles": 5,
    "analysed": 0,
-   "cluster": 10
+   "cluster": 21
   },
   {
    "domain": "newsthump.com",
@@ -4816,7 +4816,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 20
+   "cluster": null
   },
   {
    "domain": "noticiaslatam.lat",
@@ -4996,7 +4996,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 28
+   "cluster": 20
   },
   {
    "domain": "ouest-france.fr",
@@ -5496,7 +5496,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 10
+   "cluster": null
   },
   {
    "domain": "rentenberater.de",
@@ -5686,7 +5686,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 29
+   "cluster": null
   },
   {
    "domain": "rtbf.be",
@@ -5736,7 +5736,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 1,
-   "cluster": 29
+   "cluster": null
   },
   {
    "domain": "rts.ch",
@@ -5846,7 +5846,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 16
+   "cluster": 12
   },
   {
    "domain": "sciencedirect.com",
@@ -6516,7 +6516,7 @@
    "known_network": null,
    "articles": 5,
    "analysed": 0,
-   "cluster": 5
+   "cluster": null
   },
   {
    "domain": "thejournal.ie",
@@ -6636,7 +6636,7 @@
    "known_network": null,
    "articles": 3,
    "analysed": 0,
-   "cluster": 24
+   "cluster": 16
   },
   {
    "domain": "timfullerton.substack.com",
@@ -6666,7 +6666,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 18
+   "cluster": null
   },
   {
    "domain": "touteleurope.eu",
@@ -6796,7 +6796,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 26
+   "cluster": 18
   },
   {
    "domain": "uk.news.yahoo.com",
@@ -6866,7 +6866,7 @@
    "known_network": null,
    "articles": 2,
    "analysed": 0,
-   "cluster": 10
+   "cluster": 21
   },
   {
    "domain": "unhcr.org",
@@ -6896,7 +6896,7 @@
    "known_network": null,
    "articles": 1,
    "analysed": 0,
-   "cluster": 17
+   "cluster": 13
   },
   {
    "domain": "united24media.com",
@@ -7401,102 +7401,10 @@
  ],
  "edges": [
   {
-   "a": "en.iz.ru",
-   "b": "iz.ru",
-   "strength": 1.0,
-   "coordination": 0.778,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "analytics_id",
-     "count": 2,
-     "evidence": [
-      {
-       "id": "G-GP6VDHB9PV"
-      },
-      {
-       "id": "UA-100222249-1"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "factcheck.afp.com",
-   "b": "factuel.afp.com",
-   "strength": 1.0,
-   "coordination": 0.778,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "analytics_id",
-     "count": 2,
-     "evidence": [
-      {
-       "id": "GTM-KBTC73M"
-      },
-      {
-       "id": "UA-110059162-1"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "factcheck.afp.com",
-   "b": "faktencheck.afp.com",
-   "strength": 1.0,
-   "coordination": 0.778,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "analytics_id",
-     "count": 2,
-     "evidence": [
-      {
-       "id": "GTM-KBTC73M"
-      },
-      {
-       "id": "UA-110059162-1"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "factuel.afp.com",
-   "b": "faktencheck.afp.com",
-   "strength": 1.0,
-   "coordination": 0.778,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "analytics_id",
-     "count": 2,
-     "evidence": [
-      {
-       "id": "GTM-KBTC73M"
-      },
-      {
-       "id": "UA-110059162-1"
-      }
-     ]
-    }
-   ]
-  },
-  {
    "a": "au.headtopics.com",
    "b": "de.headtopics.com",
    "strength": 1.0,
-   "coordination": 0.742,
+   "coordination": 0.685,
    "layers": [
     {
      "kind": "same_operator"
@@ -7533,10 +7441,102 @@
    ]
   },
   {
+   "a": "en.iz.ru",
+   "b": "iz.ru",
+   "strength": 1.0,
+   "coordination": 0.648,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "analytics_id",
+     "count": 2,
+     "evidence": [
+      {
+       "id": "G-GP6VDHB9PV"
+      },
+      {
+       "id": "UA-100222249-1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "factcheck.afp.com",
+   "b": "factuel.afp.com",
+   "strength": 1.0,
+   "coordination": 0.648,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "analytics_id",
+     "count": 2,
+     "evidence": [
+      {
+       "id": "GTM-KBTC73M"
+      },
+      {
+       "id": "UA-110059162-1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "factcheck.afp.com",
+   "b": "faktencheck.afp.com",
+   "strength": 1.0,
+   "coordination": 0.648,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "analytics_id",
+     "count": 2,
+     "evidence": [
+      {
+       "id": "GTM-KBTC73M"
+      },
+      {
+       "id": "UA-110059162-1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "factuel.afp.com",
+   "b": "faktencheck.afp.com",
+   "strength": 1.0,
+   "coordination": 0.648,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "analytics_id",
+     "count": 2,
+     "evidence": [
+      {
+       "id": "GTM-KBTC73M"
+      },
+      {
+       "id": "UA-110059162-1"
+      }
+     ]
+    }
+   ]
+  },
+  {
    "a": "actualidad-rt.com",
    "b": "esrt.press",
-   "strength": 0.748,
-   "coordination": 0.705,
+   "strength": 0.692,
+   "coordination": 0.64,
    "layers": [
     {
      "kind": "analytics_id",
@@ -7565,151 +7565,6 @@
       {
        "from": "esrt.press",
        "to": "actualidad-rt.com"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "au.headtopics.com",
-   "b": "es.headtopics.com",
-   "strength": 1.0,
-   "coordination": 0.623,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "ad_account",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "pub-2382315170155951"
-      }
-     ]
-    },
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-LZX0ZWGWZK"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "au.headtopics.com",
-   "b": "ie.headtopics.com",
-   "strength": 1.0,
-   "coordination": 0.623,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "ad_account",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "pub-2382315170155951"
-      }
-     ]
-    },
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-LZX0ZWGWZK"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "de.headtopics.com",
-   "b": "es.headtopics.com",
-   "strength": 1.0,
-   "coordination": 0.623,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "ad_account",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "pub-2382315170155951"
-      }
-     ]
-    },
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-LZX0ZWGWZK"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "de.headtopics.com",
-   "b": "ie.headtopics.com",
-   "strength": 1.0,
-   "coordination": 0.623,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "ad_account",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "pub-2382315170155951"
-      }
-     ]
-    },
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-LZX0ZWGWZK"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "es.headtopics.com",
-   "b": "ie.headtopics.com",
-   "strength": 1.0,
-   "coordination": 0.623,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "ad_account",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "pub-2382315170155951"
-      }
-     ]
-    },
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
@@ -7774,309 +7629,199 @@
    ]
   },
   {
-   "a": "news.un.org",
-   "b": "un.org",
+   "a": "au.headtopics.com",
+   "b": "es.headtopics.com",
    "strength": 1.0,
-   "coordination": 0.569,
+   "coordination": 0.541,
    "layers": [
     {
      "kind": "same_operator"
+    },
+    {
+     "kind": "ad_account",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "pub-2382315170155951"
+      }
+     ]
     },
     {
      "kind": "analytics_id",
      "count": 1,
      "evidence": [
       {
-       "id": "GTM-LQCS"
+       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
    ]
   },
   {
-   "a": "abc4.com",
-   "b": "kxan.com",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "au.headtopics.com",
+   "b": "ie.headtopics.com",
+   "strength": 1.0,
+   "coordination": 0.541,
    "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "ad_account",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "pub-2382315170155951"
+      }
+     ]
+    },
     {
      "kind": "analytics_id",
      "count": 1,
      "evidence": [
       {
-       "id": "GTM-KJJZHXD"
+       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
    ]
   },
   {
-   "a": "abc4.com",
-   "b": "nbc4i.com",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "de.headtopics.com",
+   "b": "es.headtopics.com",
+   "strength": 1.0,
+   "coordination": 0.541,
    "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "ad_account",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "pub-2382315170155951"
+      }
+     ]
+    },
     {
      "kind": "analytics_id",
      "count": 1,
      "evidence": [
       {
-       "id": "GTM-KJJZHXD"
+       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
    ]
   },
   {
-   "a": "abc4.com",
-   "b": "thehill.com",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "de.headtopics.com",
+   "b": "ie.headtopics.com",
+   "strength": 1.0,
+   "coordination": 0.541,
    "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "ad_account",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "pub-2382315170155951"
+      }
+     ]
+    },
     {
      "kind": "analytics_id",
      "count": 1,
      "evidence": [
       {
-       "id": "GTM-KJJZHXD"
+       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
    ]
   },
   {
-   "a": "andaluciainformacion.es",
-   "b": "elconfidencialdigital.com",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "es.headtopics.com",
+   "b": "ie.headtopics.com",
+   "strength": 1.0,
+   "coordination": 0.541,
    "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "ad_account",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "pub-2382315170155951"
+      }
+     ]
+    },
     {
      "kind": "analytics_id",
      "count": 1,
      "evidence": [
       {
-       "id": "G-DZD8C8RYLW"
+       "id": "G-LZX0ZWGWZK"
       }
      ]
     }
    ]
   },
   {
-   "a": "andaluciainformacion.es",
-   "b": "eldiariodemadrid.es",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "deutsch.news-pravda.com",
+   "b": "usa.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.506,
    "layers": [
     {
-     "kind": "analytics_id",
-     "count": 1,
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 2,
      "evidence": [
       {
-       "id": "G-DZD8C8RYLW"
+       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917775.html",
+       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
+       "similarity": 0.937
+      },
+      {
+       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917807.html",
+       "b": "https://usa.news-pravda.com/usa/2026/11/14/952757.html",
+       "similarity": 0.936
       }
      ]
     }
    ]
   },
   {
-   "a": "caranddriver.com",
-   "b": "esquire.com",
-   "strength": 0.569,
-   "coordination": 0.569,
+   "a": "francais.news-pravda.com",
+   "b": "spanish.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.506,
    "layers": [
     {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-P5CSJ2ZJ"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "decanter.com",
-   "b": "tomshardware.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
+     "kind": "same_operator"
+    },
     {
-     "kind": "analytics_id",
-     "count": 1,
+     "kind": "translation",
+     "count": 2,
      "evidence": [
       {
-       "id": "GTM-WWBWRXL"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "defence24.com",
-   "b": "defence24.pl",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
+       "a": "https://francais.news-pravda.com/world/2026/11/14/1073368.html",
+       "b": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
+       "similarity": 0.953
+      },
       {
-       "id": "GTM-NH45WL2"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "elconfidencialdigital.com",
-   "b": "eldiariodemadrid.es",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-DZD8C8RYLW"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "elperiodico.com",
-   "b": "noticiasdenavarra.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-K3F8ZWT"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "factchequeado.com",
-   "b": "kunr.org",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-VFW0Y02WRH"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "kxan.com",
-   "b": "nbc4i.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-KJJZHXD"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "kxan.com",
-   "b": "thehill.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-KJJZHXD"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "nbc4i.com",
-   "b": "thehill.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-KJJZHXD"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "news.un.org",
-   "b": "reliefweb.int",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-LQCS"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "reliefweb.int",
-   "b": "un.org",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "GTM-LQCS"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "rt-english.com",
-   "b": "rtrunews.com",
-   "strength": 0.569,
-   "coordination": 0.569,
-   "layers": [
-    {
-     "kind": "analytics_id",
-     "count": 1,
-     "evidence": [
-      {
-       "id": "G-WSRRLSJZ2D"
+       "a": "https://francais.news-pravda.com/world/2026/11/14/1073376.html",
+       "b": "https://spanish.news-pravda.com/ukraine/2026/11/14/1238561.html",
+       "similarity": 0.941
       }
      ]
     }
@@ -8131,27 +7876,441 @@
    ]
   },
   {
-   "a": "deutsch.news-pravda.com",
-   "b": "usa.news-pravda.com",
+   "a": "news.un.org",
+   "b": "un.org",
    "strength": 1.0,
-   "coordination": 0.442,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-LQCS"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "abc4.com",
+   "b": "kxan.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "abc4.com",
+   "b": "nbc4i.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "abc4.com",
+   "b": "thehill.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "andaluciainformacion.es",
+   "b": "elconfidencialdigital.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "G-DZD8C8RYLW"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "andaluciainformacion.es",
+   "b": "eldiariodemadrid.es",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "G-DZD8C8RYLW"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "caranddriver.com",
+   "b": "esquire.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-P5CSJ2ZJ"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "decanter.com",
+   "b": "tomshardware.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-WWBWRXL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "defence24.com",
+   "b": "defence24.pl",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-NH45WL2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "elconfidencialdigital.com",
+   "b": "eldiariodemadrid.es",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "G-DZD8C8RYLW"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "elperiodico.com",
+   "b": "noticiasdenavarra.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-K3F8ZWT"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "factchequeado.com",
+   "b": "kunr.org",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "G-VFW0Y02WRH"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "kxan.com",
+   "b": "nbc4i.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "kxan.com",
+   "b": "thehill.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "nbc4i.com",
+   "b": "thehill.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-KJJZHXD"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "news.un.org",
+   "b": "reliefweb.int",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-LQCS"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "reliefweb.int",
+   "b": "un.org",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "GTM-LQCS"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "rt-english.com",
+   "b": "rtrunews.com",
+   "strength": 0.474,
+   "coordination": 0.474,
+   "layers": [
+    {
+     "kind": "analytics_id",
+     "count": 1,
+     "evidence": [
+      {
+       "id": "G-WSRRLSJZ2D"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "austria.news-pravda.com",
+   "b": "dutch.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
    "layers": [
     {
      "kind": "same_operator"
     },
     {
      "kind": "translation",
-     "count": 2,
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://austria.news-pravda.com/world/2026/11/14/49471.html",
+       "b": "https://dutch.news-pravda.com/eu/2026/11/14/197542.html",
+       "similarity": 0.938
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "czechia.news-pravda.com",
+   "b": "dutch.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://czechia.news-pravda.com/ukraine/2026/11/14/454602.html",
+       "b": "https://dutch.news-pravda.com/ukraine/2026/11/14/197554.html",
+       "similarity": 0.94
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "deutsch.news-pravda.com",
+   "b": "francais.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
      "evidence": [
       {
        "a": "https://deutsch.news-pravda.com/world/2026/11/14/917775.html",
-       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
-       "similarity": 0.937
-      },
+       "b": "https://francais.news-pravda.com/world/2026/11/14/1073368.html",
+       "similarity": 0.94
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "deutsch.news-pravda.com",
+   "b": "spanish.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
       {
-       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917807.html",
-       "b": "https://usa.news-pravda.com/usa/2026/11/14/952757.html",
-       "similarity": 0.936
+       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917775.html",
+       "b": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
+       "similarity": 0.935
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "en.topwar.ru",
+   "b": "it.topwar.ru",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.937
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "en.topwar.ru",
+   "b": "ro.topwar.ru",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.937
       }
      ]
     }
@@ -8159,26 +8318,158 @@
   },
   {
    "a": "francais.news-pravda.com",
-   "b": "spanish.news-pravda.com",
+   "b": "usa.news-pravda.com",
    "strength": 1.0,
-   "coordination": 0.442,
+   "coordination": 0.315,
    "layers": [
     {
      "kind": "same_operator"
     },
     {
      "kind": "translation",
-     "count": 2,
+     "count": 1,
      "evidence": [
       {
        "a": "https://francais.news-pravda.com/world/2026/11/14/1073368.html",
-       "b": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
-       "similarity": 0.953
+       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
+       "similarity": 0.936
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "france.news-pravda.com",
+   "b": "germany.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://france.news-pravda.com/france/2026/11/14/288762.html",
+       "b": "https://germany.news-pravda.com/world/2026/11/14/370859.html",
+       "similarity": 0.931
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "france.news-pravda.com",
+   "b": "spain.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://france.news-pravda.com/france/2026/11/14/288762.html",
+       "b": "https://spain.news-pravda.com/world/2026/11/14/134387.html",
+       "similarity": 0.946
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "it.topwar.ru",
+   "b": "pt.topwar.ru",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.954
       },
       {
-       "a": "https://francais.news-pravda.com/world/2026/11/14/1073376.html",
-       "b": "https://spanish.news-pravda.com/ukraine/2026/11/14/1238561.html",
-       "similarity": 0.941
+       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.948
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "it.topwar.ru",
+   "b": "ro.topwar.ru",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.952
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "italy.news-pravda.com",
+   "b": "portuguese.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "b": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
+       "similarity": 0.949
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "italy.news-pravda.com",
+   "b": "romania.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.951
       }
      ]
     }
@@ -8201,6 +8492,121 @@
        "a": "https://mina.news/en/article/montenegro-expands-framework-for-exchange-of-intelligence-and-security-data",
        "b": "https://new.mina.news/article/montenegro-expands-framework-for-exchange-of-intelligence-and-security-data",
        "share": 1.0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "portugal.news-pravda.com",
+   "b": "romania.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://portugal.news-pravda.com/world/2026/11/14/12768.html",
+       "b": "https://romania.news-pravda.com/eu/2026/11/14/135021.html",
+       "similarity": 0.946
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "portuguese.news-pravda.com",
+   "b": "romania.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.94
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "pt.topwar.ru",
+   "b": "ro.topwar.ru",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.945
+      },
+      {
+       "a": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.944
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "spanish.news-pravda.com",
+   "b": "usa.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
+       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
+       "similarity": 0.944
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "sweden.news-pravda.com",
+   "b": "usa.news-pravda.com",
+   "strength": 1.0,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "same_operator"
+    },
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://sweden.news-pravda.com/russia/2026/11/14/30341.html",
+       "b": "https://usa.news-pravda.com/russia/2026/11/14/952731.html",
+       "similarity": 0.943
       }
      ]
     }
@@ -9098,6 +9504,44 @@
    ]
   },
   {
+   "a": "en.topwar.ru",
+   "b": "italy.news-pravda.com",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "similarity": 0.934
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "en.topwar.ru",
+   "b": "romania.news-pravda.com",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.937
+      }
+     ]
+    }
+   ]
+  },
+  {
    "a": "evedomosti.md",
    "b": "nvo.ng.ru",
    "strength": 0.315,
@@ -9225,6 +9669,87 @@
        "a": "https://www.infodemiology.com/study-claims-that-covid-19-vaccines-reduce-life-expectancy/",
        "b": "https://publichealthcollaborative.org/alerts/study-claims-that-covid-19-vaccines-reduce-life-expectancy/",
        "share": 0.66
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "it.topwar.ru",
+   "b": "portuguese.news-pravda.com",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
+       "similarity": 0.949
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "it.topwar.ru",
+   "b": "romania.news-pravda.com",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.951
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "italy.news-pravda.com",
+   "b": "pt.topwar.ru",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "b": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.952
+      },
+      {
+       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "b": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.948
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "italy.news-pravda.com",
+   "b": "ro.topwar.ru",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.951
       }
      ]
     }
@@ -9464,6 +9989,49 @@
    ]
   },
   {
+   "a": "portuguese.news-pravda.com",
+   "b": "ro.topwar.ru",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
+       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "similarity": 0.94
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "a": "pt.topwar.ru",
+   "b": "romania.news-pravda.com",
+   "strength": 0.315,
+   "coordination": 0.315,
+   "layers": [
+    {
+     "kind": "translation",
+     "count": 1,
+     "evidence": [
+      {
+       "a": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.945
+      },
+      {
+       "a": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
+       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
+       "similarity": 0.944
+      }
+     ]
+    }
+   ]
+  },
+  {
    "a": "punchng.com",
    "b": "theheraldghana.com",
    "strength": 0.315,
@@ -9553,574 +10121,6 @@
        "a": "https://www.tribunadoagreste.com.br/geral/2026/11/14/1021746-bulgaria-suspende-apoio-militar-a-ucrania-diz-primeiro-ministro",
        "b": "https://www.tribunadosertao.com.br/geral/2026/11/14/1021745-sem-armas-e-dinheiro-bulgaria-suspende-apoio-a-ucrania-afirma-primeiro-ministro",
        "share": 0.71
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "austria.news-pravda.com",
-   "b": "dutch.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://austria.news-pravda.com/world/2026/11/14/49471.html",
-       "b": "https://dutch.news-pravda.com/eu/2026/11/14/197542.html",
-       "similarity": 0.938
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "czechia.news-pravda.com",
-   "b": "dutch.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://czechia.news-pravda.com/ukraine/2026/11/14/454602.html",
-       "b": "https://dutch.news-pravda.com/ukraine/2026/11/14/197554.html",
-       "similarity": 0.94
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "deutsch.news-pravda.com",
-   "b": "francais.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917775.html",
-       "b": "https://francais.news-pravda.com/world/2026/11/14/1073368.html",
-       "similarity": 0.94
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "deutsch.news-pravda.com",
-   "b": "spanish.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://deutsch.news-pravda.com/world/2026/11/14/917775.html",
-       "b": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
-       "similarity": 0.935
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "en.topwar.ru",
-   "b": "it.topwar.ru",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.937
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "en.topwar.ru",
-   "b": "ro.topwar.ru",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.937
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "francais.news-pravda.com",
-   "b": "usa.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://francais.news-pravda.com/world/2026/11/14/1073368.html",
-       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
-       "similarity": 0.936
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "france.news-pravda.com",
-   "b": "germany.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://france.news-pravda.com/france/2026/11/14/288762.html",
-       "b": "https://germany.news-pravda.com/world/2026/11/14/370859.html",
-       "similarity": 0.931
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "france.news-pravda.com",
-   "b": "spain.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://france.news-pravda.com/france/2026/11/14/288762.html",
-       "b": "https://spain.news-pravda.com/world/2026/11/14/134387.html",
-       "similarity": 0.946
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "it.topwar.ru",
-   "b": "pt.topwar.ru",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.954
-      },
-      {
-       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.948
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "it.topwar.ru",
-   "b": "ro.topwar.ru",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.952
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "italy.news-pravda.com",
-   "b": "portuguese.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "b": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
-       "similarity": 0.949
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "italy.news-pravda.com",
-   "b": "romania.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.951
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "portugal.news-pravda.com",
-   "b": "romania.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://portugal.news-pravda.com/world/2026/11/14/12768.html",
-       "b": "https://romania.news-pravda.com/eu/2026/11/14/135021.html",
-       "similarity": 0.946
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "portuguese.news-pravda.com",
-   "b": "romania.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.94
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "pt.topwar.ru",
-   "b": "ro.topwar.ru",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.945
-      },
-      {
-       "a": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.944
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "spanish.news-pravda.com",
-   "b": "usa.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://spanish.news-pravda.com/russia/2026/11/14/1238552.html",
-       "b": "https://usa.news-pravda.com/world/2026/11/14/952740.html",
-       "similarity": 0.944
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "sweden.news-pravda.com",
-   "b": "usa.news-pravda.com",
-   "strength": 1.0,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "same_operator"
-    },
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://sweden.news-pravda.com/russia/2026/11/14/30341.html",
-       "b": "https://usa.news-pravda.com/russia/2026/11/14/952731.html",
-       "similarity": 0.943
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "en.topwar.ru",
-   "b": "italy.news-pravda.com",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "similarity": 0.934
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "en.topwar.ru",
-   "b": "romania.news-pravda.com",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://en.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.937
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "it.topwar.ru",
-   "b": "portuguese.news-pravda.com",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
-       "similarity": 0.949
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "it.topwar.ru",
-   "b": "romania.news-pravda.com",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://it.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.951
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "italy.news-pravda.com",
-   "b": "pt.topwar.ru",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "b": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.952
-      },
-      {
-       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "b": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.948
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "italy.news-pravda.com",
-   "b": "ro.topwar.ru",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://italy.news-pravda.com/russia/2026/11/14/565199.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.951
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "portuguese.news-pravda.com",
-   "b": "ro.topwar.ru",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://portuguese.news-pravda.com/world/2026/11/14/471276.html",
-       "b": "https://ro.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "similarity": 0.94
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "a": "pt.topwar.ru",
-   "b": "romania.news-pravda.com",
-   "strength": 0.275,
-   "coordination": 0.275,
-   "layers": [
-    {
-     "kind": "translation",
-     "count": 1,
-     "evidence": [
-      {
-       "a": "https://pt.topwar.ru/amp/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.945
-      },
-      {
-       "a": "https://pt.topwar.ru/293543-vsledstvie-ataki-drona-vsu-pogib-76-letnij-zhitel-brjanskoj-oblasti.html",
-       "b": "https://romania.news-pravda.com/world/2026/11/14/135045.html",
-       "similarity": 0.944
       }
      ]
     }
@@ -15085,7 +15085,8 @@
    "listed": 18,
    "joined_by": [
     "copy",
-    "same_operator"
+    "same_operator",
+    "translation"
    ]
   },
   {
@@ -15139,19 +15140,6 @@
   {
    "id": 5,
    "outlets": [
-    "abc4.com",
-    "kxan.com",
-    "nbc4i.com",
-    "thehill.com"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 6,
-   "outlets": [
     "au.headtopics.com",
     "de.headtopics.com",
     "es.headtopics.com",
@@ -15166,7 +15154,7 @@
    ]
   },
   {
-   "id": 7,
+   "id": 6,
    "outlets": [
     "de.euronews.com",
     "es.euronews.com",
@@ -15179,19 +15167,7 @@
    ]
   },
   {
-   "id": 8,
-   "outlets": [
-    "andaluciainformacion.es",
-    "elconfidencialdigital.com",
-    "eldiariodemadrid.es"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 9,
+   "id": 7,
    "outlets": [
     "en.ilsole24ore.com",
     "ilsole24ore.com",
@@ -15203,20 +15179,7 @@
    ]
   },
   {
-   "id": 10,
-   "outlets": [
-    "news.un.org",
-    "reliefweb.int",
-    "un.org"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id",
-    "same_operator"
-   ]
-  },
-  {
-   "id": 11,
+   "id": 8,
    "outlets": [
     "2021-2025.state.gov",
     "history.state.gov"
@@ -15227,7 +15190,7 @@
    ]
   },
   {
-   "id": 12,
+   "id": 9,
    "outlets": [
     "actualidad-rt.com",
     "esrt.press"
@@ -15239,18 +15202,7 @@
    ]
   },
   {
-   "id": 13,
-   "outlets": [
-    "caranddriver.com",
-    "esquire.com"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 14,
+   "id": 10,
    "outlets": [
     "cartaidentita.interno.gov.it",
     "interno.gov.it"
@@ -15261,7 +15213,7 @@
    ]
   },
   {
-   "id": 15,
+   "id": 11,
    "outlets": [
     "consbruxelles.esteri.it",
     "esteri.it"
@@ -15272,7 +15224,7 @@
    ]
   },
   {
-   "id": 16,
+   "id": 12,
    "outlets": [
     "data.giss.nasa.gov",
     "science.nasa.gov"
@@ -15283,7 +15235,7 @@
    ]
   },
   {
-   "id": 17,
+   "id": 13,
    "outlets": [
     "data.unicef.org",
     "unicef.org"
@@ -15294,40 +15246,7 @@
    ]
   },
   {
-   "id": 18,
-   "outlets": [
-    "decanter.com",
-    "tomshardware.com"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 19,
-   "outlets": [
-    "defence24.com",
-    "defence24.pl"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 20,
-   "outlets": [
-    "elperiodico.com",
-    "noticiasdenavarra.com"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 21,
+   "id": 14,
    "outlets": [
     "en.iz.ru",
     "iz.ru"
@@ -15339,18 +15258,7 @@
    ]
   },
   {
-   "id": 22,
-   "outlets": [
-    "factchequeado.com",
-    "kunr.org"
-   ],
-   "listed": 0,
-   "joined_by": [
-    "analytics_id"
-   ]
-  },
-  {
-   "id": 23,
+   "id": 15,
    "outlets": [
     "finance.rambler.ru",
     "news.rambler.ru"
@@ -15361,7 +15269,7 @@
    ]
   },
   {
-   "id": 24,
+   "id": 16,
    "outlets": [
     "fr.timesofisrael.com",
     "timesofisrael.com"
@@ -15372,7 +15280,7 @@
    ]
   },
   {
-   "id": 25,
+   "id": 17,
    "outlets": [
     "infoelectoral.interior.gob.es",
     "interior.gob.es"
@@ -15383,7 +15291,7 @@
    ]
   },
   {
-   "id": 26,
+   "id": 18,
    "outlets": [
     "it.diplomatie.gouv.fr",
     "uk.diplomatie.gouv.fr"
@@ -15394,7 +15302,7 @@
    ]
   },
   {
-   "id": 27,
+   "id": 19,
    "outlets": [
     "mina.news",
     "new.mina.news"
@@ -15405,7 +15313,7 @@
    ]
   },
   {
-   "id": 28,
+   "id": 20,
    "outlets": [
     "news.mail.ru",
     "otvet.mail.ru"
@@ -15416,21 +15324,21 @@
    ]
   },
   {
-   "id": 29,
+   "id": 21,
    "outlets": [
-    "rt-english.com",
-    "rtrunews.com"
+    "news.un.org",
+    "un.org"
    ],
    "listed": 0,
    "joined_by": [
-    "analytics_id"
+    "same_operator"
    ]
   }
  ],
  "evaluation": {
   "listed_outlets": 18,
   "listed_clustered_together": 18,
-  "listed_clustered_together_without_same_operator": 0,
+  "listed_clustered_together_without_same_operator": 4,
   "listed_tied_to_another_listed_without_same_operator": 15,
   "unlisted_in_their_clusters": [
    "de.topwar.ru",
