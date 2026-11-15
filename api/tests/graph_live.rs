@@ -8,8 +8,8 @@ mod common;
 
 use common::*;
 use junction_contracts::{
-    AnalysisStatus, Created, GraphObservation, GraphPatch, GraphPatchArticle, GraphPatchOutlet,
-    Input, InputKind, StageName, StepState,
+    AnalysisEvent, AnalysisStatus, Created, GraphObservation, GraphPatch, GraphPatchArticle,
+    GraphPatchOutlet, Input, InputKind, StageName, StepState,
 };
 use serde_json::{Value, json};
 use wiremock::ResponseTemplate;
@@ -193,4 +193,38 @@ async fn failed_graph_step_still_allows_cache_reuse() {
         .unwrap();
     assert!(second.cached);
     assert_eq!(second.id, first_id);
+}
+
+#[tokio::test]
+async fn legacy_analyses_without_graph_step_replay_and_rerun_cleanly() {
+    let app = TestApp::spawn().await;
+    mount_pipeline(&app.worker, &[]).await;
+
+    let id = app.submit(PARAGRAPH).await;
+    let mut legacy = app.wait_finished(id).await;
+    legacy.steps.retain(|s| s.name != StageName::Graph);
+    assert_eq!(legacy.steps.len(), 8);
+    app.state.db.save(&legacy).await.unwrap();
+
+    let events = app
+        .read_event_stream(&format!("/api/analyses/{id}/events?replay=true"))
+        .await;
+    let Some(AnalysisEvent::Snapshot { analysis: first }) = events.first() else {
+        panic!("expected snapshot first: {events:?}");
+    };
+    assert_eq!(first.steps.len(), 8);
+    assert!(matches!(events.last(), Some(AnalysisEvent::Done { .. })));
+
+    let rerun: Created = app
+        .http
+        .post(app.url(&format!("/api/analyses/{id}/rerun?from=signals_single")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let after = app.wait_finished(rerun.id).await;
+    assert_eq!(after.status, AnalysisStatus::Done);
+    assert_eq!(after.step(StageName::Graph).state, StepState::Done);
 }

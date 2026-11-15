@@ -74,12 +74,21 @@ impl Analysis {
         }
     }
 
-    /// The step entry of `stage`.
+    /// The step entry of `stage`, inserting a pending entry in [`StageName::ALL`] order when a
+    /// stored record predates `stage`.
     pub fn step_mut(&mut self, stage: StageName) -> &mut Step {
-        self.steps
-            .iter_mut()
-            .find(|s| s.name == stage)
-            .expect("Analysis::new creates one step per stage")
+        if let Some(idx) = self.steps.iter().position(|s| s.name == stage) {
+            return &mut self.steps[idx];
+        }
+        let order = |name: StageName| StageName::ALL.iter().position(|&s| s == name);
+        let target = order(stage);
+        let pos = self
+            .steps
+            .iter()
+            .position(|s| order(s.name) > target)
+            .unwrap_or(self.steps.len());
+        self.steps.insert(pos, Step::pending(stage));
+        &mut self.steps[pos]
     }
 
     /// The step entry of `stage`.
