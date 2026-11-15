@@ -3,8 +3,11 @@
 One LLM call (`pipeline.common.llm`) writes from the evidence and the scores only: the user
 message is a JSON digest of them (strongest evidence first, at most MAX_EVIDENCE items) plus the
 document title and claims. The model never changes the score; it may only restate the given
-confidences. Every reason must cite evidence IDs and may quote only text that appears verbatim
-in the document, the context or an evidence detail.
+confidence. The reader sees one number (the noisy-OR of the two dimensions, as the web score card
+computes it), so the digest carries that number and the dimension that raised it most, not a
+percentage per dimension, and the summary names what prevailed instead of each dimension.
+Every reason must cite evidence IDs and may quote only text that appears verbatim in the
+document, the context or an evidence detail.
 
 The API enforces the same rules (reasons without valid evidence or with a non-verbatim quotation
 are dropped, a misquoting summary is blanked); this stage applies them first, mirroring
@@ -34,15 +37,17 @@ from pipeline.common.contracts import (
     Evidence,
     ExplainPatch,
     Explanation,
+    LanguageSupport,
     Reason,
     Score,
 )
 from pipeline.common.errors import StageError
-from pipeline.score import WEIGHTS, DimensionWeights
-from pipeline.score.families import strength
+from pipeline.score import WEIGHTS
+from pipeline.score.families import COORDINATED, strength
 
 MAX_REASONS = 3
 MAX_EVIDENCE = 20
+CAP = 0.85  # the web caps the number for languages covered but not evaluated
 MIN_QUOTE_CHARS = 12
 _EDGE = " \t\n.,;:!?…"
 # Opening mark -> marks that close it (same table as the API).
@@ -62,13 +67,18 @@ together.
 Never rename them (not "reliability", "credibility", "source quality" or similar), and write \
 their names without quotation marks.
 A dimension either has a confidence between 0 and 1, or abstained ("not enough evidence") with \
-a reason. When a dimension has "calibrated": false, its confidence comes from hand-set weights: \
-call it an estimate, never a calibrated score, a probability or a measured accuracy.
+a reason. The two confidences are combined into the one number the reader sees ("combined"). \
+When "combined.calibrated" is false, it comes from hand-set weights: call it an estimate, never \
+a calibrated score, a probability or a measured accuracy.
 
 Write:
-- summary: one or two short sentences on what the evidence shows, giving each dimension's \
-confidence as a percentage or saying that it abstained. When a dimension has "evidence_count": \
-0, say that its low percentage means no signals of that dimension were found in the coverage. \
+- summary: one or two short sentences. The reader sees one number, "combined" in the digest: \
+when it is present, give its confidence once as a percentage and say what raised it, naming \
+the dimension in "combined.driven_by" and the strongest evidence behind it. Never give the two \
+dimensions' separate percentages, and do not mention a dimension that abstained or added \
+little. When "combined.evidence_count" is 0, say that the percentage is low because no signals \
+were found in the content or its coverage. When "combined" is null, give no percentage: \
+describe what the evidence shows. \
 Never call the content "propaganda" or "not propaganda" as a verdict; describe what was found.
 - reasons: up to {MAX_REASONS}, most important first, each one plain sentence a non-expert \
 understands, with "evidence_ids": the IDs of the evidence items it is based on (at least one, \
@@ -201,15 +211,57 @@ def digest(analysis: Analysis) -> str:
     ranked = sorted(analysis.evidence, key=lambda e: -abs(strength(e) or 0.0))[:MAX_EVIDENCE]
     scores = analysis.scores
     payload = {
+        "combined": combined(analysis),
         "scores": {
-            "single": _score(scores.single, WEIGHTS.single) if scores else None,
-            "coordinated": _score(scores.coordinated, WEIGHTS.coordinated) if scores else None,
+            "single": _score(scores.single) if scores else None,
+            "coordinated": _score(scores.coordinated) if scores else None,
         },
         "evidence": [_evidence(e) for e in ranked],
         "title": analysis.document.title if analysis.document else None,
         "claims": [c.text for c in analysis.claims],
     }
     return json.dumps(payload, ensure_ascii=False, indent=1)
+
+
+def combined(analysis: Analysis) -> dict[str, object] | None:
+    """The one number the reader sees, computed as the web score card does
+    (`web/src/components/DimensionScoreCard.tsx`): noisy-OR of the dimensions that were scored,
+    capped at CAP when the language is covered but not evaluated. None when the card shows no
+    number: `single` abstained and `coordinated` found nothing."""
+    scores = analysis.scores
+    if scores is None:
+        return None
+    single = scores.single if not scores.single.abstained else None
+    coordinated = scores.coordinated if not scores.coordinated.abstained else None
+    has_network = any(e.family in COORDINATED for e in analysis.evidence)
+    if coordinated is not None and not (has_network or single is not None):
+        coordinated = None
+    if single is None and (coordinated is None or not has_network):
+        return None
+    shown = [
+        (name, score, weights)
+        for name, score, weights in (
+            ("single", single, WEIGHTS.single),
+            ("coordinated", coordinated, WEIGHTS.coordinated),
+        )
+        if score is not None and score.confidence is not None
+    ]
+    if not shown:
+        return None
+    rest = 1.0
+    for _, score, _ in shown:
+        rest *= 1.0 - (score.confidence or 0.0)
+    value = 1.0 - rest
+    if analysis.language is not None and analysis.language.support == LanguageSupport.supported:
+        value = min(value, CAP)
+    # What raised it: the dimension with the largest share, by the same noisy-OR.
+    driven_by = max(shown, key=lambda s: s[1].confidence or 0.0)[0]
+    return {
+        "confidence": round(value, 3),
+        "calibrated": all(weights.calibrated for _, _, weights in shown),
+        "driven_by": driven_by,
+        "evidence_count": sum(len(b.evidence_ids) for _, s, _ in shown for b in s.breakdown),
+    }
 
 
 def check(analysis: Analysis, draft: Draft) -> Explanation:
@@ -265,12 +317,11 @@ def quotable(analysis: Analysis) -> list[str]:
     return texts + [e.detail for e in analysis.evidence]
 
 
-def _score(score: Score, weights: DimensionWeights) -> dict[str, object]:
+def _score(score: Score) -> dict[str, object]:
     if score.abstained:
         return {"abstained": True, "reason": score.reason}
+    # No percentage per dimension: the reader sees only the combined one.
     return {
-        "confidence": score.confidence,
-        "calibrated": weights.calibrated,
         "evidence_count": sum(len(b.evidence_ids) for b in score.breakdown),
         "contributions": {
             b.family.value: b.contribution for b in score.breakdown if b.contribution
