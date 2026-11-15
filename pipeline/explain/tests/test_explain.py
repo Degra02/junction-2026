@@ -55,7 +55,14 @@ def test_misquoting_summary_is_blanked() -> None:
 
 def test_digest_carries_scores_and_strongest_evidence_first() -> None:
     payload = json.loads(digest(example_analysis()))
-    assert payload["scores"]["single"]["confidence"] == 0.86
+    # One number, as the reader sees it: 1 - (1 - 0.86)(1 - 0.78); none per dimension.
+    assert payload["combined"] == {
+        "confidence": 0.969,
+        "calibrated": True,
+        "driven_by": "single",
+        "evidence_count": 8,
+    }
+    assert "confidence" not in payload["scores"]["single"]
     assert payload["scores"]["single"]["evidence_count"] == 5
     assert payload["scores"]["coordinated"]["evidence_count"] == 3
     ids = [e["id"] for e in payload["evidence"]]
@@ -64,6 +71,41 @@ def test_digest_carries_scores_and_strongest_evidence_first() -> None:
     assert ranked == sorted(ranked, reverse=True) and ranked[0] == 1.0
     assert set(ids) == set(by_id)
     assert payload["claims"][0] == "The government will ban private wells by January"
+
+
+def test_combined_is_what_prevailed_when_content_abstains() -> None:
+    # The case on screen: content abstained (too little coverage), the network scored.
+    analysis = example_analysis()
+    assert analysis.scores is not None
+    single = analysis.scores.single
+    single.abstained, single.confidence, single.reason = True, None, "Too little coverage."
+    analysis.scores.coordinated.confidence = 0.95
+    payload = json.loads(digest(analysis))
+    assert payload["combined"]["confidence"] == 0.95
+    assert payload["combined"]["driven_by"] == "coordinated"
+    assert payload["combined"]["evidence_count"] == 3
+    assert payload["scores"]["single"] == {"abstained": True, "reason": "Too little coverage."}
+
+
+def test_no_combined_number_when_the_card_shows_none() -> None:
+    # Content abstained and the network found nothing: the score card shows no percentage.
+    analysis = example_analysis()
+    assert analysis.scores is not None
+    single = analysis.scores.single
+    single.abstained, single.confidence, single.reason = True, None, "Too little coverage."
+    analysis.evidence = [e for e in analysis.evidence if e.family not in explain.COORDINATED]
+    assert explain.combined(analysis) is None
+
+
+def test_combined_is_capped_for_languages_not_evaluated() -> None:
+    analysis = example_analysis()
+    assert analysis.language is not None
+    analysis.language.support = explain.LanguageSupport.supported
+    assert explain.combined(analysis)["confidence"] == explain.CAP
+
+
+def test_prompt_asks_for_one_number() -> None:
+    assert "Never give the two" in explain.SYSTEM and '"combined.driven_by"' in explain.SYSTEM
 
 
 def test_run_sends_evidence_as_user_content(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -117,7 +159,7 @@ def test_prior_confidences_are_disclosed_whatever_the_model_writes(
 ) -> None:
     monkeypatch.setattr(explain, "WEIGHTS", _uncalibrated_weights())
     payload = json.loads(digest(example_analysis()))
-    assert payload["scores"]["single"]["calibrated"] is False
+    assert payload["combined"]["calibrated"] is False
     summary = _run_with(monkeypatch, example_analysis(), "Single-actor signs: 86%.")
     assert summary == f"Single-actor signs: 86%. {explain.PRIORS_NOTES['en']}"
     # A misquoting summary is blanked; the note still stands alone.
