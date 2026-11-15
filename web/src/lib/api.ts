@@ -51,9 +51,9 @@ export function describeError(err: unknown): string {
   }
   switch (err.code) {
     case "rate_limited":
-      return "Too many new analyses from your connection. Wait a minute and try again; the examples still work.";
+      return "Too many new analyses from your connection. Wait a minute and try again; cached results still open.";
     case "busy":
-      return "The service reached its hourly limit of new analyses. Earlier results and the examples still work.";
+      return "The service reached its hourly limit of new analyses. Earlier results still open.";
     case "not_found":
       return "This analysis no longer exists. Start a new one.";
   }

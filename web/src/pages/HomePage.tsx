@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { AnalysisInputForm, type PrefillValue } from "../components/AnalysisInputForm";
-import { DemoPresets } from "../components/DemoPresets";
 import { RecentAnalyses } from "../components/RecentAnalyses";
-import type { DemoPreset } from "../data/presets";
 import { GENTLE_SPRING } from "../lib/motion";
 
 export type HomePageProps = Record<string, never>;
@@ -53,10 +51,6 @@ export function HomePage(_props: Readonly<HomePageProps>) {
     }
   }, [searchParams]);
 
-  function handleSelectPreset(preset: DemoPreset) {
-    setPrefill({ value: preset.value, kind: preset.kind, nonce: Date.now() });
-  }
-
   return (
     <div className="max-w-[680px] mx-auto pt-[6vh] sm:pt-[10vh] pb-10 space-y-10">
       <div className="space-y-4 text-center">
@@ -90,7 +84,6 @@ export function HomePage(_props: Readonly<HomePageProps>) {
         className="space-y-8"
       >
         <AnalysisInputForm prefill={prefill} />
-        <DemoPresets onSelectPreset={handleSelectPreset} />
         <RecentAnalyses />
         <p className="text-center">
           <Link

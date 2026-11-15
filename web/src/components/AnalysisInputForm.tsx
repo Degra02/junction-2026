@@ -126,8 +126,8 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
   const [error, setError] = useState<string | null>(null);
   const [modeOpen, setModeOpen] = useState(false);
   const [focused, setFocused] = useState(false);
-  // Text the user had before an example or Clear replaced it, for Undo.
-  const [replaced, setReplaced] = useState<{ text: string; by: "example" | "clear" } | null>(null);
+  // Text the user had before a prefill or Clear replaced it, for Undo.
+  const [replaced, setReplaced] = useState<{ text: string; by: "prefill" | "clear" } | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -151,7 +151,7 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
     } else {
       const previous = valueRef.current;
       setReplaced(
-        previous.trim() && previous !== nextValue ? { text: previous, by: "example" } : null,
+        previous.trim() && previous !== nextValue ? { text: previous, by: "prefill" } : null,
       );
       setAttachedImage(null);
       setValue(nextValue);
@@ -741,7 +741,7 @@ export function AnalysisInputForm({ prefill }: Readonly<AnalysisInputFormProps>)
             exit={{ opacity: 0, y: -4 }}
             className="px-1 flex items-center gap-1.5 text-[13px] text-[var(--fg-muted)]"
           >
-            {replaced.by === "clear" ? "Text cleared." : "Your text was replaced by the example."}
+            {replaced.by === "clear" ? "Text cleared." : "Your text was replaced."}
             <button
               type="button"
               onClick={() => {
