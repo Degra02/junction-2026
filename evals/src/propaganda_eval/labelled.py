@@ -35,10 +35,11 @@ Sets (plan §8):
     hard_wire_copy      — wire services (AP, Reuters, ANSA) republished
     hard_press_releases — corporate/government press releases
   Both classes:
-    semeval_memes       — SemEval-2024 Task 4 subtask 2b memes (single = the annotators'
-                          propagandistic / not); built by `download_data.sh` into the gitignored
-                          `MEMES` file, never committed. Items carry `image` (a path under
-                          `evals/data/`) and are submitted as `kind: image` data URIs.
+    semeval_memes       — SemEval-2021 Task 6 memes (single = at least one of the 22 persuasion
+                          techniques the annotators marked; none = negative). Built by
+                          `download_data.sh` (`fetch-memes`) into the gitignored `MEMES` file,
+                          never committed. Items carry `image` (a path under `evals/data/`) and
+                          are submitted as `kind: image` data URIs.
 """
 
 from __future__ import annotations
@@ -73,7 +74,7 @@ MIXED_SETS = {"semeval_memes"}
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 # Meme items (dataset-derived, gitignored): loaded next to labelled.jsonl when present.
-MEMES = DATA / "semeval2024" / "labelled.jsonl"
+MEMES = DATA / "semeval2021" / "labelled.jsonl"
 
 # A claim quoted by a fact-checker is a sentence or two; anything longer is an article body.
 MAX_TEXT_CHARS = 600

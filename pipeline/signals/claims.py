@@ -9,10 +9,11 @@
 - `claim_support` / `unaddressed`: value 1.0 when none of at least MIN_PEERS sources
   addresses the claim.
 - `fact_checks` / `rated_false` (1.0), `rated_misleading` (0.6), `rated_true` (0.0): a
-  published fact-check that matches a key claim (by entailment/overlap with the reviewed claim,
-  or, for false/misleading ratings across languages or phrasings, when the fact-checker's own
-  debunking verdict contradicts the claim in both directions). Ratings outside the vocabulary
-  below are skipped rather than guessed.
+  published fact-check that matches a key claim or `topic.implied_claims` (by entailment/overlap
+  with the reviewed claim, or, for false/misleading ratings across languages or phrasings, when
+  the fact-checker's own debunking verdict contradicts the claim in both directions). Implied
+  claims have no document span, so their evidence cites the fact-check context item only. Ratings
+  outside the vocabulary below are skipped rather than guessed.
 
 System-One + selective cascade (`systemone`, `judge.verify_pairs`):
 - Cross-lingual NLI (`mDeBERTa-v3-base-xnli`) runs locally on unquoted peer windows first,
@@ -30,7 +31,7 @@ from collections.abc import Callable, Sequence
 
 import numpy as np
 
-from pipeline.common.contracts import Claim, ContextItem, DocumentRef, Evidence, Family
+from pipeline.common.contracts import Claim, ContextItem, DocumentRef, Evidence, Family, Span
 from pipeline.signals.systemone import calibrate_choice
 from pipeline.signals.text import (
     contains,
@@ -282,22 +283,43 @@ def fact_check_evidence(
     nli: Nli,
     next_id: Callable[[], str],
     own_outlet: str | None = None,
+    implied_claims: Sequence[str] = (),
 ) -> list[Evidence]:
     """Fact-checks from the document's own outlet are skipped: when the document is a
-    fact-check, its own review of the claim it debunks is not evidence against it."""
+    fact-check, its own review of the claim it debunks is not evidence against it.
+
+    Matches verbatim `claims` first and falls back to `implied_claims`
+    (`plans/persuasion-analysis.md` P-L3); an implied claim has no span in the document, so its
+    evidence cites only `check`.
+    """
     checks = [
         c
         for c in context
         if c.fact_check is not None and (own_outlet is None or c.outlet != own_outlet)
     ]
-    if not claims or not checks:
+    candidates: list[tuple[str, Span | None]] = [(c.text, c.span) for c in claims] + [
+        (text.strip(), None) for text in implied_claims if text and text.strip()
+    ]
+    if not candidates or not checks:
         return []
     pairs = []
     for check in checks:
         assert check.fact_check is not None
-        for claim in claims:
-            pairs += [(check.fact_check.claim, claim.text), (claim.text, check.fact_check.claim)]
-    probabilities = nli(pairs)[:, ENTAIL].reshape(len(checks), len(claims), 2).max(axis=2)
+        for text, _ in candidates:
+            pairs += [(check.fact_check.claim, text), (text, check.fact_check.claim)]
+    probabilities = nli(pairs)[:, ENTAIL].reshape(len(checks), len(candidates), 2).max(axis=2)
+    n_verbatim = len(claims)
+
+    def _direct_match(k: int, start: int, end: int) -> int | None:
+        assert checks[k].fact_check is not None
+        reviewed = checks[k].fact_check.claim
+        passing = [
+            (max(float(probabilities[k, j]), _overlap_score(reviewed, candidates[j][0])), j)
+            for j in range(start, end)
+            if probabilities[k, j] >= FACT_CHECK_ENTAIL
+            or _overlap_score(reviewed, candidates[j][0]) >= FACT_CHECK_OVERLAP
+        ]
+        return max(passing, key=lambda item: item[0])[1] if passing else None
 
     evidence = []
     for k, check in enumerate(checks):
@@ -305,22 +327,20 @@ def fact_check_evidence(
         signal = rating_signal(check.fact_check.rating)
         if signal is None:
             continue
-        scores = [
-            max(float(probabilities[k, j]), _overlap_score(check.fact_check.claim, claim.text))
-            for j, claim in enumerate(claims)
-        ]
-        j = int(np.argmax(scores))
+        j = _direct_match(k, 0, n_verbatim)
+        if j is None:
+            j = _direct_match(k, n_verbatim, len(candidates))
         verdict_quote: str | None = None
-        if (
-            probabilities[k, j] < FACT_CHECK_ENTAIL
-            and _overlap_score(check.fact_check.claim, claims[j].text) < FACT_CHECK_OVERLAP
-        ):
+        if j is None:
             if signal[0] not in {"rated_false", "rated_misleading"}:
                 continue
-            matched = _verdict_match(check, claims, nli)
+            matched = _verdict_match(
+                check, [text for text, _ in candidates], nli, n_verbatim=n_verbatim
+            )
             if matched is None:
                 continue
             j, verdict_quote = matched
+        _, span = candidates[j]
         rating = check.fact_check.rating
         publisher = check.fact_check.publisher or check.outlet or "A fact-checker"
         quote = (
@@ -328,25 +348,34 @@ def fact_check_evidence(
             if verdict_quote and verdict_quote in check.text
             else (rating if rating in check.text else None)
         )
+        what = "this claim" if span is not None else "an implied claim"
+        refs = (
+            [DocumentRef(kind="document", span=span), context_ref(check, quote)]
+            if span is not None
+            else [context_ref(check, quote)]
+        )
         evidence.append(
             Evidence(
                 id=next_id(),
                 family=Family.fact_checks,
                 signal=signal[0],
                 value=signal[1],
-                detail=f"{publisher} rated this claim “{rating}”.",
-                source_refs=[
-                    DocumentRef(kind="document", span=claims[j].span),
-                    context_ref(check, quote),
-                ],
+                detail=f"{publisher} rated {what} “{rating}”.",
+                source_refs=refs,
             )
         )
     return evidence
 
 
-def _verdict_match(check: ContextItem, claims: Sequence[Claim], nli: Nli) -> tuple[int, str] | None:
+def _verdict_match(
+    check: ContextItem,
+    claim_texts: Sequence[str],
+    nli: Nli,
+    *,
+    n_verbatim: int = 0,
+) -> tuple[int, str] | None:
     """`(claim_index, verdict_passage)` when a passage of `check` debunks both the reviewed
-    claim (`>= DECISIVE` two-way contradiction) and a document claim (`>= CONTRADICTION`
+    claim (`>= DECISIVE` two-way contradiction) and a candidate claim (`>= CONTRADICTION`
     two-way contradiction). Catches cross-lingual or differently scoped phrasings of the same
     hoax while rejecting the quoted hoax line itself and unrelated claims in roundup articles.
     """
@@ -359,7 +388,7 @@ def _verdict_match(check: ContextItem, claims: Sequence[Claim], nli: Nli) -> tup
             candidates.append(window)
         if len(candidates) >= VERDICT_PASSAGES:
             break
-    if not candidates:
+    if not candidates or not claim_texts:
         return None
     reviewed = check.fact_check.claim
     vs_reviewed = nli([(p, reviewed) for p in candidates] + [(reviewed, p) for p in candidates])
@@ -372,18 +401,26 @@ def _verdict_match(check: ContextItem, claims: Sequence[Claim], nli: Nli) -> tup
     ]
     if not verdicts:
         return None
-    pairs = [(v, claim.text) for v in verdicts for claim in claims]
+    pairs = [(v, text) for v in verdicts for text in claim_texts]
     forward = nli(pairs)
     suspects = [i for i, probs in enumerate(forward) if probs[CONTRADICT] >= CONTRADICTION]
     if not suspects:
         return None
     backward = nli([(pairs[i][1], pairs[i][0]) for i in suspects])
-    best: tuple[float, int, str] | None = None
+    best_verbatim: tuple[float, int, str] | None = None
+    best_any: tuple[float, int, str] | None = None
     for i, probs in zip(suspects, backward, strict=True):
         both = min(float(forward[i, CONTRADICT]), float(probs[CONTRADICT]))
-        if both >= CONTRADICTION and (best is None or both > best[0]):
-            best = (both, i % len(claims), pairs[i][0])
-    return (best[1], best[2]) if best else None
+        if both < CONTRADICTION:
+            continue
+        claim_idx = i % len(claim_texts)
+        hit = (both, claim_idx, pairs[i][0])
+        if claim_idx < n_verbatim and (best_verbatim is None or both > best_verbatim[0]):
+            best_verbatim = hit
+        if best_any is None or both > best_any[0]:
+            best_any = hit
+    chosen = best_verbatim or best_any
+    return (chosen[1], chosen[2]) if chosen else None
 
 
 def _overlap_score(a: str, b: str) -> float:

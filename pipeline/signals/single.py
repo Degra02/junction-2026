@@ -104,17 +104,21 @@ def run_single(analysis: Analysis) -> SignalsPatch:
         evidence += rhetoric.rhetoric_evidence(
             analysis, lambda _text, _img: rhetoric_answer, next_id
         )
-    if not indices:
-        evidence += source_profile_evidence(analysis, next_id)
-        return SignalsPatch(evidence=evidence)
-    if analysis.claims:
+    implied_claims = analysis.topic.implied_claims if analysis.topic else ()
+    if indices and analysis.claims:
         progress.report(f"Checking {len(analysis.claims)} claims against {len(peers)} sources")
-    evidence += claim_support_evidence(
-        analysis.claims, peers, models.nli, next_id, cascade=judge.verify_pairs
-    )
-    evidence += fact_check_evidence(
-        analysis.claims, analysis.context, models.nli, next_id, document.outlet
-    )
+        evidence += claim_support_evidence(
+            analysis.claims, peers, models.nli, next_id, cascade=judge.verify_pairs
+        )
+    if analysis.claims or implied_claims:
+        evidence += fact_check_evidence(
+            analysis.claims,
+            analysis.context,
+            models.nli,
+            next_id,
+            document.outlet,
+            implied_claims=implied_claims,
+        )
     evidence += source_profile_evidence(analysis, next_id)
     return SignalsPatch(evidence=evidence)
 

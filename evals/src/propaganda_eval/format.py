@@ -221,8 +221,8 @@ def format_full_report(result: EvalResult) -> str:
         format_hard_negative_table(result),
         "",
         "## Memes (own rows, not in the headline)\n",
-        "SemEval-2024 Task 4 subtask 2b: a positive means the annotators found persuasion "
-        "techniques, not a debunked claim. Never merged with the article numbers above.\n",
+        "SemEval-2021 Task 6: a positive means the annotators marked at least one persuasion "
+        "technique, not a debunked claim. Never merged with the article numbers above.\n",
         format_mixed_sets_table(result),
         "",
         "## Per language\n",

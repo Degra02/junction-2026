@@ -54,6 +54,11 @@ else
     echo "[claimreview] OK: $(du -h "$CLAIMREVIEW_JSON" | cut -f1)"
 fi
 
+# --- 4. SemEval-2021 Task 6 memes (semeval_memes, ~100 images, ~6 MB) ---
+# "Free for general research use"; images and the derived labelled file stay in data/.
+echo "[memes] building semeval_memes from the SemEval-2021 Task 6 corpus..."
+(cd "$SCRIPT_DIR/.." && PYTHONPATH=evals/src uv run --frozen python -m propaganda_eval.cli fetch-memes)
+
 # --- Summary ---
 echo ""
 echo "Data directory: $DATA_DIR"

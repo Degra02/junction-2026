@@ -233,6 +233,40 @@ def test_cross_lingual_fact_check_matches_via_debunking_verdict() -> None:
     assert fact_check_evidence(analysis.claims[:1], analysis.context, fake_nli, ids()) == []
 
 
+def test_implied_claim_matches_fact_check_with_context_ref_only() -> None:
+    analysis = example_analysis()
+    analysis.claims = []
+    implied = ["The government will ban private wells by January"]
+    [item] = fact_check_evidence([], analysis.context, fake_nli, ids(), implied_claims=implied)
+    assert (item.family, item.signal, item.value) == (Family.fact_checks, "rated_false", 1.0)
+    assert "rated an implied claim" in item.detail
+    # Implied claims have no document span and are never quoted in detail.
+    assert [type(r.root) for r in item.source_refs] == [ContextRef]
+    assert item.source_refs[0].root.id == "ctx4"
+    assert item.source_refs[0].root.quote == "False"
+    assert implied[0] not in item.detail
+    assert_refs_valid(analysis, [item])
+
+
+def test_implied_claim_cross_lingual_verdict_and_verbatim_claim_preference() -> None:
+    analysis = example_analysis()
+    check = next(c for c in analysis.context if c.fact_check is not None)
+    assert check.fact_check is not None
+    check.fact_check.claim = "Die Regierung plant ein ban der Brunnen bis Januar"
+    implied = ["The government will ban private wells by January"]
+    # Without verbatim claims, cross-lingual debunking verdict still matches the implied claim.
+    [from_implied] = fact_check_evidence(
+        [], analysis.context, fake_nli, ids(), implied_claims=implied
+    )
+    assert [type(r.root) for r in from_implied.source_refs] == [ContextRef]
+    assert_refs_valid(analysis, [from_implied])
+    # When a verbatim claim also matches, its document span is kept alongside the context ref.
+    [from_verbatim] = fact_check_evidence(
+        analysis.claims, analysis.context, fake_nli, ids(), implied_claims=implied
+    )
+    assert [type(r.root) for r in from_verbatim.source_refs] == [DocumentRef, ContextRef]
+
+
 def test_quotations_are_masked_in_any_script() -> None:
     text = 'He called them “traitors”, «предатели» and „Verräter“ and said "they will burn".'
     assert mask_quotations(text) == 'He called them “…”, «…» and „…“ and said "…".'
