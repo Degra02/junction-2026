@@ -139,7 +139,7 @@ def test_image_url_sends_no_data_uri_and_unavailable_model_returns_empty() -> No
     assert rhetoric_evidence(analysis, lambda _t, _i: None, ids(), family=target_family()) == []
 
 
-def test_satire_meme_skips_rhetoric_and_phase1_keeps_rhetoric_out_of_single() -> None:
+def test_satire_meme_skips_rhetoric_and_phase2_registers_rhetoric_in_single() -> None:
     analysis = meme_analysis()
     assert analysis.document is not None
     analysis.document.paragraphs[-1] = "[Satire/humour meme] Pure joke reaction meme."
@@ -154,7 +154,4 @@ def test_satire_meme_skips_rhetoric_and_phase1_keeps_rhetoric_out_of_single() ->
         == []
     )
     assert called == []
-
-    # Phase 1 gate (Rule 1): `rhetoric` must NOT be in `families.SINGLE` before Phase 2 refit.
-    if (rf := rhetoric_family()) is not None:
-        assert rf not in SINGLE
+    assert Family.rhetoric in SINGLE
