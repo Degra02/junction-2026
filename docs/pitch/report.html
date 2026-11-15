@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The4thLover — Project report</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+  :root { --ink:#111110; --muted:#5f5f5b; --line:#d9d9d4; --accent:#3b4bd8; --soft:#f3f3f0; --caution:#9a6200; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.45; color: var(--ink); margin: 0; }
+  h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; line-height: 1.2; }
+  h1 { font-size: 26pt; margin: 0 0 4mm; }
+  h2 { font-size: 15pt; margin: 9mm 0 3mm; padding-top: 2mm; border-top: 1px solid var(--line); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 2mm; break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1mm; }
+  code, .mono { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 8.6pt; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; break-inside: avoid; }
+  th, td { border-bottom: 1px solid var(--line); padding: 1.4mm 1.8mm; text-align: left; vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); border-bottom: 1.5px solid var(--ink); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cover { height: 245mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover .kicker { color: var(--muted); font-size: 11pt; }
+  .cover .lead { font-family: Georgia, serif; font-size: 14pt; line-height: 1.4; max-width: 150mm; }
+  .meta td { border: none; padding: 0.6mm 4mm 0.6mm 0; font-size: 9.5pt; }
+  .meta td:first-child { color: var(--muted); }
+  .box { background: var(--soft); border-left: 3px solid var(--accent); padding: 3mm 4mm; margin: 3mm 0 4mm; break-inside: avoid; }
+  .box.warn { border-left-color: var(--caution); }
+  .box p:last-child { margin: 0; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 3mm 0 4mm; }
+  .stat { border: 1px solid var(--line); border-radius: 2mm; padding: 2.5mm 3mm; }
+  .stat b { display: block; font-size: 16pt; font-family: Georgia, serif; }
+  .stat span { color: var(--muted); font-size: 8.5pt; }
+  .small { font-size: 8.5pt; color: var(--muted); }
+  .formula { font-family: Georgia, serif; font-size: 12pt; text-align: center; margin: 3mm 0; }
+  .pb { break-before: page; }
+  svg text { font-family: Arial, sans-serif; }
+  .toc li { margin-bottom: 0.6mm; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div>
+    <div class="kicker">Junction 2026 · Hostinger challenge “Decode the Noise”</div>
+    <h1 style="font-size:38pt;margin-top:30mm">The4thLover</h1>
+    <p class="lead">Context-aware propaganda detection: one piece of online content, compared with how everyone else covered the same event. A confidence per dimension, every piece of evidence linked to its source, and “Not enough evidence” instead of a guess.</p>
+    <p class="kicker" style="margin-top:8mm">Project report</p>
+  </div>
+  <div>
+    <table class="meta">
+      <tr><td>Live system</td><td>https://the4thlover.tech (API docs: /api/docs)</td></tr>
+      <tr><td>Source</td><td>https://github.com/Degra02/junction-2026 (MIT)</td></tr>
+      <tr><td>State described</td><td><span class="mono">main</span> at <span class="mono">83492fb</span>, live pipeline <span class="mono">sha-83492fb</span>, Sun 15 Nov 2026</td></tr>
+      <tr><td>Team</td><td>Degra02 (integrator) · Lyreplus (AI core) · ck-lithium (product, retrieval, web) · mosearc (evaluation, spec, pitch)</td></tr>
+      <tr><td>Hosting</td><td>One Hostinger VPS KVM 2: 2 vCPU, 8 GB RAM, no GPU</td></tr>
+    </table>
+  </div>
+</section>
+
+<h2 class="pb" style="border-top:none">Contents</h2>
+<ol class="toc">
+  <li>Summary</li>
+  <li>Problem and product</li>
+  <li>Architecture and pipeline</li>
+  <li>Signals and how the score is calculated</li>
+  <li>Evaluation</li>
+  <li>Persuasion in memes and short posts</li>
+  <li>Source graph</li>
+  <li>The live system</li>
+  <li>User interfaces</li>
+  <li>Limitations</li>
+  <li>Next steps</li>
+  <li>Appendix: decisions, demo analyses, reproducing the numbers</li>
+</ol>
+
+<h2>1. Summary</h2>
+<ul>
+  <li><b>What it does.</b> Paste a text, a link or an image. The pipeline extracts the content, works out what it claims, finds how other outlets, fact-checkers and copies covered the same event, and answers two separate questions: how strongly the content shows signs of <b>propaganda by its author</b> (single-actor) and of <b>coordinated propaganda</b> (the same message pushed by outlets acting together).</li>
+  <li><b>What it never does.</b> It never returns a “propaganda / not propaganda” label (decision D4). Each dimension gets a confidence with its evidence, or “Not enough evidence” with the reason. No LLM sets a score: the score is a logistic regression over measured signal families, and every quotation is checked word for word by the API.</li>
+  <li><b>How well it works</b> on 284 items labelled by third parties (fact-checkers, EUvsDisinfo, VIGINUM) in 12 languages:
+    <ul>
+      <li>Single-actor: precision <b>0.98</b> [0.91–1.00] and false-positive rate <b>0.03</b> [0.00–0.13] on the items it scores; it scores 43% of items and abstains on the rest, so it catches <b>46%</b> of all positives. Cross-validated AUC 0.98, <b>0.84 without fact-check matches</b>.</li>
+      <li>Coordinated: perfect on the set, but only because the VIGINUM list both labels the positives and is a signal. Without it the cross-validated AUC is <b>0.38</b>: today the coordinated score is the list, not copy detection. We publish that next to the headline.</li>
+    </ul>
+  </li>
+  <li><b>Beyond the plan.</b> A source graph of 908 outlets tied by shared analytics IDs, copied and translated text (live at <span class="mono">/sources</span>), and phase 1 of persuasion analysis for memes (a multimodal rater whose evidence is shown but not yet scored).</li>
+  <li><b>Runs live</b> on one CPU-only Hostinger VPS; a full analysis takes about a minute (median 64 s).</li>
+</ul>
+
+<h2>2. Problem and product</h2>
+<p>A reader sees an article or a post and cannot tell whether it is manipulation by its author, or one node of a network pushing the same story. Answering that today is manual OSINT: read for techniques, find other coverage, check fact-checkers, look up the domain, search for copies, compare tracking IDs. A model's opinion of the text alone is not evidence: it is biased by language, can be prompt-injected, and the reader cannot check it.</p>
+<p>The product does the OSINT and shows its work. Inspiration is Ground News's story-level comparison (an item judged against its peers on the same event), without third-party political-bias ratings (D9): we use measurable outlet types instead (news agency, fact-checker, satire, national or local newsroom, state-affiliated).</p>
+<table>
+  <tr><th>Dimension</th><th>Question</th><th>Signal families</th></tr>
+  <tr><td>Single-actor</td><td>Does the author manipulate?</td><td>persuasion techniques; tone compared with peers on the same story; claims the coverage contradicts; fact-checker ratings; source profile (domain age, outlet type)</td></tr>
+  <tr><td>Coordinated</td><td>Is the message pushed by outlets acting together?</td><td>copied passages across unrelated outlets; copies within hours; shared tracking IDs and young copying domains; membership of a documented network (VIGINUM Portal Kombat)</td></tr>
+</table>
+
+<h3>Designed against the ways a naive detector fails</h3>
+<table>
+  <tr><th>Failure</th><th>Guard in the pipeline</th></tr>
+  <tr><td>Flags fact-checks and reports that <i>quote</i> propaganda</td><td>Quotations are masked before the technique model and the copy detector read the text; only claims the content itself asserts are extracted; a fact-checker's own reviews are skipped</td></tr>
+  <tr><td>Treats agency copy and press releases as a swarm</td><td>News agencies, fact-checkers, satire, national and local newsrooms are never copiers; 5-grams found in agency items are removed before comparing</td></tr>
+  <tr><td>Flags satire, op-eds, emotional but accurate journalism</td><td>Tone is compared with peers on the same story, not judged in absolute; satire outlets make single-actor abstain</td></tr>
+  <tr><td>A confident score from one weak signal</td><td>Only the strongest signal per family counts; abstention on too little context or on families pointing both ways</td></tr>
+  <tr><td>The LLM invents quotes or evidence</td><td>The LLM never sets a score; claims and quotations are checked verbatim at code-point spans by the API; reasons without valid evidence are dropped</td></tr>
+  <tr><td>Prompt injection inside the analysed content</td><td>Content goes only in the LLM's user message; the explanation is written from the evidence digest</td></tr>
+  <tr><td>English-only judgement</td><td>Multilingual models, queries in the item's language plus English, language support tiers shown to the user (D2)</td></tr>
+</table>
+
+<h2 class="pb">3. Architecture and pipeline</h2>
+<p>A Rust API (axum, SQLite) owns jobs, the queue, progress over server-sent events, caching, re-runs and replays, and validates every stage's output against the contract. It calls one Python worker (FastAPI) per stage with the full analysis record; each stage returns a patch of its own fields. The contract is written as Rust types and generated into Python (pydantic) and TypeScript; CI fails on drift.</p>
+
+<svg viewBox="0 0 760 120" width="100%" style="margin:2mm 0 4mm">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f5f5b"/></marker></defs>
+  <g font-size="11" text-anchor="middle">
+    <rect x="5" y="40" width="70" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="40" y="61">extract</text>
+    <rect x="95" y="40" width="80" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="135" y="61">understand</text>
+    <rect x="195" y="40" width="70" height="34" rx="6" fill="#e8eaff" stroke="#3b4bd8"/><text x="230" y="61">retrieve</text>
+    <rect x="285" y="40" width="60" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="315" y="61">story</text>
+    <rect x="370" y="8" width="120" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="430" y="29">signals_single</text>
+    <rect x="370" y="74" width="120" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="430" y="95">signals_coordinated</text>
+    <rect x="515" y="40" width="60" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="545" y="61">score</text>
+    <rect x="595" y="40" width="70" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="630" y="61">explain</text>
+    <rect x="685" y="40" width="70" height="34" rx="6" fill="#f3f3f0" stroke="#999"/><text x="720" y="61">graph</text>
+  </g>
+  <g stroke="#5f5f5b" stroke-width="1.3" fill="none" marker-end="url(#a)">
+    <path d="M75,57 L93,57"/><path d="M175,57 L193,57"/><path d="M265,57 L283,57"/>
+    <path d="M345,57 L368,27"/><path d="M345,57 L368,91"/>
+    <path d="M490,25 L513,55"/><path d="M490,91 L513,60"/>
+    <path d="M575,57 L593,57"/><path d="M665,57 L683,57"/>
+  </g>
+</svg>
+
+<table>
+  <tr><th>Stage</th><th>Owner</th><th>Does</th></tr>
+  <tr><td>extract</td><td>ck-lithium</td><td>Text, URL or image → paragraphs, outlet, date, author, tracking IDs; language (lingua) with support tier; images read by a vision model, including what the image implies</td></tr>
+  <tr><td>understand</td><td>Lyreplus</td><td>One LLM call: summary, entities, up to 5 verbatim one-fact claims, implied claims (memes, sarcasm), search queries in the item's language and English</td></tr>
+  <tr><td>retrieve</td><td>ck-lithium</td><td>The only web I/O after extract: curated outlet feeds, GDELT and Oxylabs exact-phrase and news search, Google Fact Check Tools; full article bodies; a profile per outlet (RDAP registration, first certificate, outlet type, country, VIGINUM membership)</td></tr>
+  <tr><td>story</td><td>ck-lithium</td><td>Multilingual e5 embeddings: which retrieved items cover the same event (threshold 0.90 same language, 0.845 across languages, date window)</td></tr>
+  <tr><td>signals_single / coordinated</td><td>Lyreplus</td><td>Evidence items per family, each with source references; no web access</td></tr>
+  <tr><td>score</td><td>Lyreplus</td><td>Fitted combiner, abstention rules, per-family breakdown in log-odds</td></tr>
+  <tr><td>explain</td><td>Lyreplus</td><td>One LLM call: summary and three reasons from the evidence only, optionally in the reader's language (D14); never changes the score</td></tr>
+  <tr><td>graph</td><td>Lyreplus</td><td>Ingests the analysis into the live source graph (outlets, articles, IDs, ties)</td></tr>
+</table>
+<p><b>Contract validation by the API.</b> A stage fails on duplicate IDs, evidence outside its dimension or an invalid score. Claims that are not verbatim at their span, evidence without a source reference or with a non-verbatim quote, and reasons quoting text that is not in the document, the context or an evidence detail are dropped and listed in the step's detail.</p>
+
+<h2>4. Signals and how the score is calculated</h2>
+<h3>Evidence families</h3>
+<table>
+  <tr><th>Family</th><th>Signal</th><th>Value</th></tr>
+  <tr><td colspan="3"><b>Single-actor</b></td></tr>
+  <tr><td>techniques</td><td>six SemEval-2023 technique categories (attack on reputation, justification, simplification, distraction, call, manipulative wording)</td><td>share of paragraphs with the technique (XLM-R large persuasion model, its own thresholds); quotations masked</td></tr>
+  <tr><td>tone</td><td>tone vs peers</td><td>z-score of emotional charge against up to 10 independent story peers (copies excluded)</td></tr>
+  <tr><td>claim_support</td><td>contradicted / unaddressed</td><td>smoothed share of addressing peers that contradict a claim (multilingual NLI, contradiction required in both directions, ambiguous cases escalated to a batched LLM check)</td></tr>
+  <tr><td>fact_checks</td><td>rated false / misleading / true</td><td>a fact-check matched to a claim, including across languages via the verdict passage</td></tr>
+  <tr><td>source_profile</td><td>domain age; outlet type</td><td>young domains point toward propaganda; agencies, fact-checkers, satire and newsrooms point away</td></tr>
+  <tr><td colspan="3"><b>Coordinated</b></td></tr>
+  <tr><td>text_reuse</td><td>copied passages</td><td>number of distinct copying outlets (≥ 20% and ≥ 8 of the document's word 5-grams)</td></tr>
+  <tr><td>timing</td><td>copies within window</td><td>copies published within 6 hours</td></tr>
+  <tr><td>infrastructure</td><td>shared tracking ID; young copying domains</td><td>other domains carrying the document's Google Analytics, Tag Manager or AdSense ID; copiers registered &lt; 180 days earlier</td></tr>
+  <tr><td>known_networks</td><td>listed domain</td><td>the outlet, a copy or a same-story sister site on VIGINUM's Portal Kombat list</td></tr>
+</table>
+
+<h3>The combiner</h3>
+<p class="formula">confidence = σ( b + Σ<sub>f</sub> w<sub>f</sub> · v<sub>f</sub> )</p>
+<p>Each family value v<sub>f</sub> ∈ [−1, 1] is the strength of its <b>strongest signal only</b>, so correlated evidence is not counted twice; negative values point away from propaganda. The weights are a non-negative logistic regression fitted on the labelled set (L2 toward hand-set priors, 5-fold cross-validation). The contributions w<sub>f</sub>·v<sub>f</sub> are the numbers shown to the reader in “Show how we calculated this”.</p>
+<table>
+  <tr><th>Dimension</th><th class="n">n fitted</th><th class="n">Intercept</th><th>Coefficients</th><th class="n">CV AUC</th><th class="n">without label source</th></tr>
+  <tr><td>single</td><td class="n">98</td><td class="n">−1.60</td><td>fact_checks 4.05 · claim_support 1.59 · source_profile 1.28 · techniques 1.28 · tone 0.41</td><td class="n">0.975</td><td class="n">0.841 (no fact_checks)</td></tr>
+  <tr><td>coordinated</td><td class="n">132</td><td class="n">−2.88</td><td>known_networks 5.04 · infrastructure 1.99 · text_reuse 1.35 · timing 0.68</td><td class="n">1.000</td><td class="n">0.375 (no known_networks)</td></tr>
+</table>
+<h3>Abstention (“Not enough evidence”)</h3>
+<ul>
+  <li>Both dimensions: no text, or an unsupported language. A supported but not evaluated language caps confidence at 0.85 (D2).</li>
+  <li>Single-actor: a satire outlet; fewer than 3 related reports and no fact-check match.</li>
+  <li>Coordinated: no copies, no listed domain and fewer than 3 items found.</li>
+  <li>Either: one family ≥ 0.7 while another ≤ −0.7 (“evidence points both ways”).</li>
+</ul>
+
+<h2 class="pb">5. Evaluation</h2>
+<h3>Labelled set</h3>
+<p>Labels come from third parties, never from our reading of the text. Article bodies are never committed: items carry a URL or a short claim quoted by a fact-checker. A dimension the source says nothing about is left unlabelled.</p>
+<table>
+  <tr><th>Set</th><th class="n">Items</th><th>Label</th><th>Source of the label</th></tr>
+  <tr><td>fact_checker_debunk</td><td class="n">91</td><td>single = 1</td><td>ClaimReview ratings (PolitiFact, FactCheck.org, dpa, BR24, DW, RTBF, Pagella Politica, Maldita, Newtral, EFE…)</td></tr>
+  <tr><td>euvsDisinfo</td><td class="n">29</td><td>single = 1</td><td>EUvsDisinfo case database (original outlet URLs)</td></tr>
+  <tr><td>viginum_pravda</td><td class="n">56</td><td>coordinated = 1</td><td>articles on VIGINUM-listed Portal Kombat editions, 11 languages</td></tr>
+  <tr><td>mainstream</td><td class="n">20</td><td>both 0</td><td>public-service broadcasters, newspapers of record</td></tr>
+  <tr><td>hard_fact_checks</td><td class="n">31</td><td>both 0</td><td>fact-check pages quoting the claims above</td></tr>
+  <tr><td>hard_wire_copy</td><td class="n">15</td><td>both 0</td><td>agency copy (AP, AFP, dpa, ANSA, EFE, AGI) and its republications</td></tr>
+  <tr><td>hard_emotional · hard_press_releases · hard_satire · hard_op_eds</td><td class="n">11 · 11 · 10 · 10</td><td>both 0</td><td>emotional but accurate reporting; official releases; self-declared satire; signed op-eds</td></tr>
+  <tr><td><b>Total</b></td><td class="n"><b>284</b></td><td colspan="2">single 120 positive / 108 negative; coordinated 56 / 108 · en 57, es 54, de 51, it 43, fr 41, nl 18, pl 6, ru 5, pt 4, ro 3, cs 1, sv 1</td></tr>
+</table>
+
+<h3>Results (threshold 0.5)</h3>
+<p>277 of 284 analyses finished (7 failed in extract: 5 paywalls, 1 HTTP 403, 1 timeout). Every rate is shown next to its coverage, the share of labelled items that got a score; empty denominators are n/a, never 0.</p>
+<table>
+  <tr><th>Dimension</th><th class="n">Precision</th><th class="n">Recall (scored)</th><th class="n">Recall (all positives)</th><th class="n">FPR</th><th class="n">Scored / labelled</th><th class="n">Abstained</th></tr>
+  <tr><td>single</td><td class="n">0.982 [0.91, 1.00]</td><td class="n">0.932 [0.84, 0.97]</td><td class="n">0.458 [0.37, 0.55]</td><td class="n">0.026 [0.00, 0.13]</td><td class="n">98 / 228 (43%)</td><td class="n">60 pos, 63 neg</td></tr>
+  <tr><td>coordinated</td><td class="n">1.000 [0.94, 1.00]</td><td class="n">1.000 [0.94, 1.00]</td><td class="n">1.000</td><td class="n">0.000 [0.00, 0.05]</td><td class="n">132 / 164 (80%)</td><td class="n">0 pos, 26 neg</td></tr>
+</table>
+<p class="small">Wilson 95% intervals in brackets. Precision, recall and FPR are measured on the same items the weights were fitted on; only the AUCs are cross-validated.</p>
+
+<h3>Single-actor per set</h3>
+<table>
+  <tr><th>Set</th><th class="n">TP</th><th class="n">FN</th><th class="n">FP</th><th class="n">TN</th><th class="n">Abstained</th><th class="n">Failed</th></tr>
+  <tr><td>fact_checker_debunk</td><td class="n">55</td><td class="n">0</td><td class="n">–</td><td class="n">–</td><td class="n">36</td><td class="n">0</td></tr>
+  <tr><td>euvsDisinfo</td><td class="n">0</td><td class="n">4</td><td class="n">–</td><td class="n">–</td><td class="n">24</td><td class="n">1</td></tr>
+  <tr><td>mainstream</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">11</td><td class="n">7</td><td class="n">2</td></tr>
+  <tr><td>hard_wire_copy</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">11</td><td class="n">3</td><td class="n">1</td></tr>
+  <tr><td>hard_press_releases</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">6</td><td class="n">5</td><td class="n">0</td></tr>
+  <tr><td>hard_emotional</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">5</td><td class="n">6</td><td class="n">0</td></tr>
+  <tr><td>hard_fact_checks</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">2</td><td class="n">29</td><td class="n">0</td></tr>
+  <tr><td>hard_op_eds</td><td class="n">–</td><td class="n">–</td><td class="n">0</td><td class="n">2</td><td class="n">5</td><td class="n">3</td></tr>
+  <tr><td>hard_satire</td><td class="n">–</td><td class="n">–</td><td class="n">1</td><td class="n">1</td><td class="n">8</td><td class="n">0</td></tr>
+</table>
+<p>Coordinated: 0 false positives on every hard-negative set (mainstream 0/17, wire copy 0/13, fact-checks 0/13, press releases 0/10, emotional 0/9, op-eds 0/7, satire 0/7); all 56 Pravda-network articles scored above threshold.</p>
+
+<div class="box warn">
+  <p><b>Read the headline with its caveats.</b></p>
+  <ul>
+    <li><b>Coordinated is the VIGINUM list today.</b> The list labels <span class="mono">viginum_pravda</span> and is the <span class="mono">known_networks</span> signal. Refitted without it the AUC falls to 0.375; text reuse alone reaches 0.498. Retrieval rarely finds the network's own cross-edition copies (news search does not index <span class="mono">*.news-pravda.com</span>).</li>
+    <li><b>Single-actor rests mostly on fact-check matches.</b> <span class="mono">fact_checks</span> alone reaches AUC 0.943; without it 0.841. Techniques alone 0.497, claim support alone 0.806, source profile alone 0.717.</li>
+    <li><b>Abstention is frequent.</b> Old debunked articles have no coverage in today's feeds, so single-actor abstains on more than half of the positives. The metrics page counts abstentions as coverage, not as wins.</li>
+    <li><b>Positives skew pro-Kremlin</b> (EUvsDisinfo, VIGINUM); fact-checker debunks of domestic misinformation partly balance this. The set is small: quote the intervals, not only the point values.</li>
+  </ul>
+</div>
+
+<h3>Every remaining error on scored items</h3>
+<table>
+  <tr><th>Kind</th><th>Item</th><th class="n">Score</th><th>Cause</th></tr>
+  <tr><td>FP single</td><td><span class="mono">sat_es_001</span> (elmundotoday.com)</td><td class="n">0.523</td><td>Satire site not yet typed during the run; comedy triggered techniques and tone. The satire outlet list merged since (#61) makes single-actor abstain.</td></tr>
+  <tr><td>FN single</td><td><span class="mono">eud_en_001</span> (punchng.com)</td><td class="n">0.089</td><td>A daily relaying an embassy denial: its factual clauses are true and corroborated; the narrative framing is beyond claim-level NLI.</td></tr>
+  <tr><td>FN single</td><td><span class="mono">eud_en_002</span>, <span class="mono">eud_ru_002</span>, <span class="mono">eud_ru_005</span></td><td class="n">0.26–0.29</td><td>Mirror domains untyped; EUvsDisinfo debunks are not in ClaimReview; same-language search found aligned outlets that agreed with the claim (echo-chamber corroboration).</td></tr>
+</table>
+
+<h3>Other measurements</h3>
+<ul>
+  <li><b>Technique model outside its training languages</b> (D6): 5 paragraphs in 14 languages; the attack and the fear appeal were found in every language, no neutral paragraph was flagged, and agreement with English was 0.77–0.90 outside the training languages against 0.70–0.80 inside. European languages without labelled data stay “supported, not evaluated” (cap 0.85).</li>
+  <li><b>Hard-negative regression cases</b> (hand-built records): a fact-check quoting the hoax, emotional disaster reporting, a report quoting insults, agency copy republished by three newsrooms all score 0.02–0.10 single and 0.08 coordinated; the propaganda original scores 0.98 / 0.76.</li>
+  <li><b>Symmetry probe</b> (10 meme-style text pairs with only the political target swapped, US, UK, DE, IT, FR, ES, immigration, climate, EU): with the phase 2 scorer, 10 of 10 pairs scored on both sides, mean |Δ| 0.011, maximum 0.109 (FR: Renaissance ↔ Rassemblement national, from one technique flagged on one side). Before the refit; see section 6.</li>
+</ul>
+
+<h2>6. Persuasion in memes and short posts</h2>
+<p>A political meme from r/Conservative came back “Not enough evidence” on both dimensions. Memes argue by implication and juxtaposition, the technique model sees nothing in 3- to 8-word text blocks, and single-actor abstained whatever it found because no related coverage existed. The plan (<span class="mono">plans/persuasion-analysis.md</span>) splits the fix in two phases.</p>
+<table>
+  <tr><th>Phase</th><th>Content</th><th>State</th></tr>
+  <tr><td>1, score-neutral</td><td>New family <span class="mono">rhetoric</span>: a multimodal LLM rates persuasion techniques on the text and the image, every quote located verbatim, visual items cite our description of the image; implied claims for fact-check search and matching only; the vision step states what an image implies; image posts on Reddit and X read through vision; web labels</td><td><b>Live.</b> The rater's evidence is shown, not scored</td></tr>
+  <tr><td>2, the score change</td><td><span class="mono">rhetoric</span> in the single-actor combiner; single-actor scored on its intrinsic families when coverage is missing; refit with the meme set; metrics and symmetry check in the same PR</td><td><b>Not merged</b> (draft #53): the eval run could not finish before the Sun 06:00 cut-off and was stopped. Waits for after submission</td></tr>
+</table>
+<ul>
+  <li><b>Meme set.</b> SemEval-2024 Task 4 was rejected: its terms restrict the data to that shared task. We use 99 English memes from the SemEval-2021 Task 6 corpus (“free for general research use”): 64 with at least one annotated persuasion technique, 35 with none. The positive/negative mapping is ours, the negatives are hard ones, and nothing from the dataset is committed. Memes are reported in their own rows, never in the article headline.</li>
+  <li><b>Observed on phase 1.</b> On two test memes the rater marked a clear “attack on reputation” on both the positive and the negative one: a hint, not a measured false-positive rate, to check in the refit.</li>
+</ul>
+
+<h2>7. Source graph</h2>
+<p>Every stored analysis also shows which outlets are tied to each other, and by what evidence. The graph is built from analyses and, since #64, ingested live after each analysis. It answers a measured weakness: without the VIGINUM list, the coordinated score cannot find a network.</p>
+<div class="grid">
+  <div class="stat"><b>908</b><span>outlets</span></div>
+  <div class="stat"><b>537</b><span>ties</span></div>
+  <div class="stat"><b>29</b><span>groups</span></div>
+  <div class="stat"><b>2,146</b><span>articles from 369 analyses</span></div>
+</div>
+<table>
+  <tr><th>Layer</th><th class="n">Ties</th><th>Meaning</th></tr>
+  <tr><td>analytics_id</td><td class="n">35</td><td>same Google Analytics or Tag Manager ID in the page source</td></tr>
+  <tr><td>ad_account</td><td class="n">37</td><td>same AdSense publisher ID (weak: resellers reuse them)</td></tr>
+  <tr><td>copy</td><td class="n">82</td><td>an article holds most of the other's wording after quotations, agency copy and boilerplate are removed</td></tr>
+  <tr><td>translation</td><td class="n">28</td><td>articles in different languages with the same headline and lead, within a week</td></tr>
+  <tr><td>link</td><td class="n">116</td><td>one site's article links to the other (context, never coordination)</td></tr>
+  <tr><td>same_operator</td><td class="n">284</td><td>one organisation owns both domains</td></tr>
+</table>
+<ul>
+  <li><b>What it finds without the list.</b> All 18 VIGINUM-listed editions fall in one group (#1, 24 sites), and 15 of them are tied to another listed edition by copied or translated text, not only by a common operator. Six unlisted <span class="mono">topwar.ru</span> language editions sit in the same group, four of them strongly tied to a listed edition: four Pravda editions carry topwar.ru articles word for word. RT's Spanish mirrors (actualidad-rt.com, esrt.press) share an analytics ID and copied text.</li>
+  <li><b>What it also finds, by design.</b> The UN's sites, AFP's fact-check editions, EU institutions and Nexstar's local newsrooms (one shared Tag Manager ID) form groups too. A tie is evidence that two sites are related, never a judgement of either (D4); covering the same topic is never a tie; published lists never create one.</li>
+  <li><b>Guards.</b> Text ties from hard negatives: 0 strong, 33 weak. The graph is not in the score: it enters only after a fit with its own ablation. No per-outlet track record is built or shown.</li>
+</ul>
+
+<h2>8. The live system</h2>
+<p>Hostinger VPS KVM 2 (2 vCPU, 8 GB, no GPU, D13) at the4thlover.tech: Caddy (TLS and the static UI), the Rust API with SQLite, and the Python worker with the CPU models. Images are built in GitHub Actions and pulled from GHCR; every merge to <span class="mono">main</span> deploys UI, proxy and backend together under one tag.</p>
+<table>
+  <tr><th>Stage (live, <span class="mono">sha-83492fb</span>)</th><th class="n">Median</th><th class="n">95th percentile</th></tr>
+  <tr><td>extract</td><td class="n">0.3 s</td><td class="n">8.4 s</td></tr>
+  <tr><td>understand (LLM)</td><td class="n">1.6 s</td><td class="n">3.1 s</td></tr>
+  <tr><td>retrieve</td><td class="n">44.1 s</td><td class="n">78.3 s</td></tr>
+  <tr><td>story</td><td class="n">0.8 s</td><td class="n">2.4 s</td></tr>
+  <tr><td>signals_single</td><td class="n">6.2 s</td><td class="n">54.0 s</td></tr>
+  <tr><td>signals_coordinated · score</td><td class="n">&lt; 0.01 s</td><td class="n">0.02 s</td></tr>
+  <tr><td>explain (LLM)</td><td class="n">1.4 s</td><td class="n">2.0 s</td></tr>
+  <tr><td>graph</td><td class="n">0.4 s</td><td class="n">1.3 s</td></tr>
+  <tr><td><b>Whole analysis</b></td><td class="n"><b>64 s</b></td><td class="n"><b>212 s</b></td></tr>
+</table>
+<p class="small">From /api/stats over 234 analyses since the last restart (210 done, 24 failed), measured while evaluation runs were also loading the server.</p>
+<ul>
+  <li><b>Models</b> (CPU, loaded once at worker start): <span class="mono">Mishtar4/persuasion-detector-xlm-roberta</span> (XLM-R large, techniques and tone), <span class="mono">mDeBERTa-v3-base-xnli-multilingual</span> (claim support, fact-check matching), multilingual e5 (story), lingua (language). LLM: <span class="mono">gemini-3.1-flash-lite</span> through Hostinger AI Router, about 0.15 credits per analysis.</li>
+  <li><b>Limits:</b> 300 s per analysis, 120 s per stage, 4 analyses at once, 30 new analyses per minute per client and 600 per hour in total; cached results are free. <span class="mono">?force=true</span>, <span class="mono">rerun?from=&lt;stage&gt;</span> and <span class="mono">events?replay=true</span> for iteration and demos.</li>
+  <li><b>No Chromium</b> in the worker: pages that refuse a plain HTTP client are read through Oxylabs AI Studio, which also runs the exact-phrase and news searches.</li>
+</ul>
+
+<h2>9. User interfaces</h2>
+<table>
+  <tr><th>Page</th><th>What it shows</th></tr>
+  <tr><td><span class="mono">/</span></td><td>One input for text, a link or an image; recent analyses in this browser</td></tr>
+  <tr><td><span class="mono">/analyses/{id}</span></td><td>Live run ledger over SSE; a <b>combined confidence</b> at the top, 1 − (1 − p<sub>content</sub>)(1 − p<sub>network</sub>) over the two dimensions (“Content 83% · Network 8%”; a dimension that abstained is shown as unrated, the network one counts only with coordination evidence or a scored content dimension; capped at 85% for languages without labelled data), then each dimension with its evidence or “Not enough evidence”; three reasons linked to evidence; the article with verbatim highlights; coverage view; “Show how we calculated this” (log-odds per family); the outlet's partial source network</td></tr>
+  <tr><td><span class="mono">/metrics</span></td><td>The evaluation above, with intervals, coverage, per-set false-positive rates and the headline without the label's own source</td></tr>
+  <tr><td><span class="mono">/sources</span></td><td>The source graph: map, groups with what joins them, every tie's raw evidence (IDs, article pairs, links), a panel per outlet, and the notice “A tie is a relationship, not a verdict” with a correction link</td></tr>
+  <tr><td><span class="mono">/extension</span></td><td>Browser extension (Manifest V3): check the current page or highlighted text, side panel with live progress, handoff to the full breakdown</td></tr>
+</table>
+<p>Design rule throughout: no “propaganda”, “fake”, “safe” or “verified” labels, no red/green verdict colours.</p>
+
+<h2 class="pb">10. Limitations</h2>
+<ul>
+  <li><b>Coordinated detection depends on a published list.</b> Without VIGINUM the cross-validated AUC is 0.375. The graph shows the network is findable from copies and translations, but that is not yet in the score.</li>
+  <li><b>Single-actor depends on fact-checks and fresh coverage.</b> Without a fact-check match the AUC is 0.84, and old or niche items abstain. Persuasion scoring without coverage (phase 2) is built but not fitted.</li>
+  <li><b>In-sample rates.</b> Precision, recall and FPR are measured on the items the weights were fitted on; only AUCs are cross-validated. A held-out set does not exist yet.</li>
+  <li><b>Coverage.</b> Single-actor gives a score on 43% of labelled items.</li>
+  <li><b>The combined number on the result page is not evaluated on its own.</b> It is computed from the two dimension confidences (noisy-OR); the metrics in section 5 are per dimension.</li>
+  <li><b>Claim-level NLI</b> still produces false contradictions between two moments of one story; a batched LLM check filters the ambiguous ones.</li>
+  <li><b>Same-language echo chambers.</b> Peers from a closed media ecosystem can corroborate a false claim (EUvsDisinfo false negatives).</li>
+  <li><b>Label skew.</b> EUvsDisinfo and VIGINUM cover pro-Kremlin operations only.</li>
+  <li><b>Retrieval gaps.</b> News search does not index the Pravda editions; paywalls and blocked sites fail extract (5 of 7 failures).</li>
+  <li><b>Throughput.</b> One 2-vCPU server: about a minute per analysis, four at once.</li>
+  <li><b>Research-only model.</b> The technique model was trained on research-only SemEval data, a licensing question for a public MIT repository.</li>
+</ul>
+
+<h2>11. Next steps</h2>
+<ol>
+  <li><b>Phase 2 of persuasion analysis.</b> Re-run the 284 articles with the rater, run the 99 memes, refit with <span class="mono">rhetoric</span>, publish <span class="mono">weights.json</span> and <span class="mono">metrics.json</span> together with the per-set false-positive check and the symmetry check (#53).</li>
+  <li><b>Coordinated without the list.</b> Feeds of the Pravda and topwar.ru editions in retrieve; graph memory as context (“an earlier article of a tied outlet”), fitted with its ablation; report the AUC without <span class="mono">known_networks</span>.</li>
+  <li><b>Graph verification.</b> Hand-check the 22 strong ties between different operators, then fit the layer weights on verified pairs.</li>
+  <li><b>A held-out evaluation set</b> and a larger labelled set beyond pro-Kremlin operations.</li>
+  <li><b>Scale.</b> The detector works on any set of sites: a host could run it across hosted domains to surface networks like Portal Kombat.</li>
+</ol>
+
+<h2 class="pb">12. Appendix</h2>
+<h3>Key decisions</h3>
+<table>
+  <tr><th>ID</th><th>Decision</th></tr>
+  <tr><td>D1</td><td>Input order: pasted text, then article URL, then image</td></tr>
+  <tr><td>D2</td><td>Any language, with support tiers “evaluated / supported, not evaluated / unsupported” shown to the user</td></tr>
+  <tr><td>D3</td><td>Both dimensions, scored separately</td></tr>
+  <tr><td>D4</td><td>No “propaganda / not” label: a confidence per dimension plus the evidence; “Not enough evidence” when abstaining</td></tr>
+  <tr><td>D5</td><td>Pretrained models for the signals; only the combiner is trained. Amended Sun 01:00: a multimodal LLM rates persuasion techniques, quotes verbatim</td></tr>
+  <tr><td>D7, D8</td><td>Free sources first plus Oxylabs; fact-checks from Google Fact Check Tools plus site search</td></tr>
+  <tr><td>D9</td><td>Our own measurable outlet types; no political-bias ratings</td></tr>
+  <tr><td>D11–D13</td><td>SQLite on the VPS; LLM through Hostinger AI Router; no GPU, no fine-tuning</td></tr>
+  <tr><td>D14</td><td>English UI; analysis in any language; explanation in the reader's language on request</td></tr>
+  <tr><td>Backend</td><td>Rust API owns jobs, storage, progress and contract validation; one Python worker per stage; Rust types are the contract</td></tr>
+  <tr><td>Graph</td><td>A tie is evidence of a relationship, never a label; topic overlap is never a tie; no track record</td></tr>
+</table>
+
+<h3>Demo analyses on the live site</h3>
+<table>
+  <tr><th>Item</th><th>Analysis ID</th><th>Result</th></tr>
+  <tr><td>Pravda edition (de), “Yuri Kotenok: Leidenschaften nach Konstantinovka”</td><td class="mono">01a1dae7-401d-731c-af9d-b08a42306086</td><td>coordinated 0.622 from the VIGINUM list; single abstains</td></tr>
+  <tr><td>achgut.com (de), “Sind die Klimadaten manipuliert?”</td><td class="mono">01a1db57-b2d1-75b2-a829-61bb61a365d9</td><td>single 0.832: Climate Feedback rated the claim “Inaccurate” (matched across languages), persuasion techniques</td></tr>
+  <tr><td>cdm.press (en), “Christians being crucified in Syria”</td><td class="mono">01a1dae8-3d1f-7648-b402-a830ed249618</td><td>single abstains (1 report); coordinated 0.153 from one copied passage</td></tr>
+  <tr><td>BR24 #Faktenfuchs (de), debunk of the climate claim</td><td class="mono">01a1db57-b426-76d0-8eaa-2ca77c6e86d6</td><td>both abstain (no related reports)</td></tr>
+</table>
+<p class="small">Play back with GET /api/analyses/{id}/events?replay=true, or open https://the4thlover.tech/analyses/{id}.</p>
+
+<h3>Reproducing the numbers</h3>
+<p class="mono" style="white-space:pre-wrap;font-size:8.2pt;background:#f3f3f0;padding:3mm">mise run setup &amp;&amp; bash evals/download_data.sh
+mise run eval -- validate                     # 284 items (+99 memes when downloaded)
+mise run dev                                  # local API, limits off for the run
+mise run eval -- run                          # → evals/results/{predictions,fit}.jsonl
+uv run python -m pipeline.score.fit evals/results/fit.jsonl
+mise run eval -- eval evals/results/predictions.jsonl --json evals/metrics.json
+mise run eval -- symmetry --api &lt;API&gt;
+mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl</p>
+<p class="small">Sources for this report: SPEC.md, DECISIONS.md, docs/ai-core.md, plans/persuasion-analysis.md, plans/source-graph.md, evals/metrics.json (df75a3a), pipeline/score/weights.json, and the live /api/stats, /api/graph and /api/health on Sun 15 Nov 2026.</p>
+
+</body>
+</html>
