@@ -65,6 +65,17 @@ def main() -> None:
     sym_p.add_argument("--out", default=str(EVALS / "results" / "symmetry.json"))
     sym_p.add_argument("--concurrency", type=int, default=2)
     sym_p.add_argument("--timeout", type=float, default=420.0, help="Seconds per analysis")
+    sym_p.add_argument(
+        "--previous", help="Earlier symmetry.json: reuse its analyses instead of submitting"
+    )
+    sym_p.add_argument(
+        "--rerun-from", help="With --previous: re-run the analyses from this stage on the API"
+    )
+    sym_p.add_argument(
+        "--local-score",
+        action="store_true",
+        help="Score the evidence with this checkout's pipeline.score instead of the API's",
+    )
 
     memes_p = sub.add_parser("fetch-memes", help="Download the SemEval-2021 Task 6 meme set")
     memes_p.add_argument("--positives", type=int, default=64)
@@ -97,8 +108,21 @@ def main() -> None:
 def _cmd_symmetry(args: argparse.Namespace) -> None:
     from .symmetry import format_report, load_pairs, run
 
+    previous = (
+        json.loads(Path(args.previous).read_text(encoding="utf-8")) if args.previous else None
+    )
+    if args.rerun_from and previous is None:
+        sys.exit("--rerun-from needs --previous")
     summary = asyncio.run(
-        run(load_pairs(Path(args.pairs)), args.api, args.concurrency, args.timeout)
+        run(
+            load_pairs(Path(args.pairs)),
+            args.api,
+            args.concurrency,
+            args.timeout,
+            previous=previous,
+            rerun_from=args.rerun_from,
+            local_score=args.local_score,
+        )
     )
     print(format_report(summary))
     out = Path(args.out)
