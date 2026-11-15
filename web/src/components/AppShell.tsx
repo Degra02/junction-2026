@@ -152,6 +152,19 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
               >
                 Benchmarks
               </NavLink>
+              <NavLink
+                to="/sources"
+                className={({ isActive }) =>
+                  cn(
+                    NAV_LINK,
+                    isActive
+                      ? "text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
+                  )
+                }
+              >
+                Sources
+              </NavLink>
               <HowItWorks triggerClassName={cn(NAV_LINK, "text-[var(--fg-muted)] hover:text-[var(--fg-primary)] cursor-pointer")} />
               <button
                 type="button"
