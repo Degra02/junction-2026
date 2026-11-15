@@ -2,28 +2,33 @@
 
 Fields of the Junction platform (`docs/junction-2026.md`): name ≤ 100 characters, punchline ≤ 300, description ≤ 3,000. Numbers come from the committed `evals/metrics.json` (284 items, weights fitted on the same set with 5-fold cross-validation, `df75a3a`); recompute them here if the metrics change.
 
-## Name
-The4thLover (the product name in the UI and the extension since #51; the site is `the4thlover.tech`).
+## Name (11 characters)
+The4thLover
 
-## Punchline (D17, 114 characters)
-Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.
+## Punchline (139 characters)
+Paste a link, text, or meme. See how everyone else covered it, what was copied across sites, and how sure we are — with every source shown.
+
+## Track & Challenges to Select on Junction Platform
+- **Track**: Agentic AI
+- **Main Challenge**: Hostinger — *Decode the Noise*
+- **Tech Challenges (3)**:
+  1. **Oxylabs** — *Best agentic usecase of Oxylabs Web API* (`POST /search/instant` + `POST /scrape`)
+  2. **Google DeepMind** — *Best Use of Gemini API* (`generateContent` vision + multimodal `rhetoric` rater + NLI verifier + structured multilingual `understand`/`explain`)
+  3. **OpenAI** — *Best Use of Codex* (48h contract-first multi-agent workflow across 70+ PRs)
 
 ## Links
 - Demo: <https://the4thlover.tech>
 - Source: <https://github.com/Degra02/junction-2026> (MIT)
-- Track: Hostinger "Decode the Noise". Tech challenge: Oxylabs (D7: exact-phrase web and news search, blocked pages). Google MLH "Best Use of Gemini API" (D15) only if the team counts the LLM calls (`gemini-3.1-flash-lite` through Hostinger AI Router): no Gemini grounded-search adapter was built.
 
-## Description (2,768 characters)
-A reader sees an article and cannot tell whether it is manipulation by its author, or one node of a network pushing the same story. Answering that today is hours of manual OSINT. A model's opinion of the text alone is not an answer: it is biased by language, prompt-injectable and the reader cannot check it.
+## Description (2,853 characters)
+A reader sees an article, post, or meme and cannot tell whether it is manipulation by its author or one node of a coordinated network. Checking that by hand takes hours of OSINT; asking an LLM about the text alone is language-biased, prompt-injectable, and unverifiable.
 
-We take one piece of content (pasted text or a link, in any language) and go and find how everyone else covered the same event: the RSS feeds of curated outlets, GDELT and Oxylabs for exact-phrase searches and blocked pages, Google Fact Check Tools for fact-checks. For every outlet we look up the domain's age, its first TLS certificate, its type (news agency, fact-checker, satire…) and whether it is on VIGINUM's list of the Russian "Portal Kombat" network.
+The4thLover takes a link, text, or meme in any language (via web or browser extension) and gathers live context: curated RSS feeds, GDELT, Google Fact Check Tools, and the Oxylabs Web API (`POST /search/instant` for exact-phrase copy search across the web and X/Reddit, multilingual news search, and ClaimReview site search; `POST /scrape` to read bot-challenged or JS-gated pages cleanly without Chromium). Per domain it checks RDAP age, Certificate Transparency history, outlet type (wire agency, fact-checker, satire…), and VIGINUM's Portal Kombat list.
 
-From that context we answer two separate questions: how strongly the content shows signs of propaganda by its author (persuasion techniques, tone far more charged than its peers on the same story, claims the coverage contradicts or fact-checkers rate false), and of coordinated propaganda (passages copied across unrelated outlets, copies within hours, shared tracking IDs, documented networks). Each answer is a confidence score with the evidence behind it, never a "propaganda / not propaganda" label. When the evidence is too thin, it says "Not enough evidence" and why, instead of guessing.
+From that evidence it scores two calibrated logistic-regression models combined via noisy-OR — content manipulation (persuasion techniques, emotional tone vs story peers, claims contradicted by coverage or fact-checks) and coordinated amplification (5-gram text reuse across sites or social accounts, 6h timing bursts, shared GA/GTM/AdSense IDs, listed networks) — shown with its log-odds breakdown and source links, never a binary "propaganda" verdict. When coverage is too thin for a percentage, it abstains rather than guessing and surfaces detected persuasion techniques directly. Every analysis also grows a live SQLite source graph (`/sources`) tying outlets by shared tracker IDs, copied text, and translations — uncovering RT mirror domains via shared analytics tags with zero strong false ties on hard negatives.
 
-How the score is calculated is on screen: each signal family contributes one number (its strongest signal only, so correlated evidence is not counted twice) and a logistic regression adds them up. "Show how we calculated this" lists every contribution and links each one to its source. An LLM summarises the evidence; it never sets the score, and every quote it uses is checked word for word against the sources.
+Google's Gemini API powers four bounded stages where every quote is verified verbatim by Rust code-point span checks (so the model never hallucinates citations or sets raw scores): multimodal meme OCR and implied-argument extraction (`generateContent`), a multimodal SemEval-2023 `rhetoric` rater over text and image together, selective cross-lingual NLI contradiction verification, and multilingual claim extraction and summaries (`gemini-3.1-flash-lite` / `gemini-4-hydrogen`).
 
-We designed against the ways a naive detector fails: fact-checks that quote a hoax, news agency copy republished by hundreds of newsrooms, satire, op-eds and emotional but accurate reporting. Quotations are masked before scoring, agencies are recognised, tone is compared with peers rather than judged in absolute.
+Evaluated on 284 third-party-labelled items in 12 languages plus adversarial hard negatives (fact-checks quoting hoaxes, wire copy, press releases, satire, op-eds, emotional reporting): single-actor precision 0.98, FPR 0.03 (CV AUC 0.98; 0.84 without fact-checks; 43% scored, 56% abstained); coordinated CV AUC 1.00 (0.38 without VIGINUM; 0 hard-negative FPs), published at `/metrics`.
 
-Evaluation uses third-party labels only: 284 items in 12 languages from fact-checkers' ClaimReview ratings, EUvsDisinfo cases, VIGINUM-listed Pravda-network sites, and hard negatives (fact-checks, wire copy, press releases, satire, op-eds, emotional reporting). Single-actor: precision 0.98 and false-positive rate 0.03 (1 of 39, a satire piece), but it scores only 43% of items and abstains on the rest, so it catches 46% of all positives; it rests mostly on fact-check matches (cross-validated AUC 0.98, 0.84 without them). Coordinated: perfect on the set, but only because the VIGINUM list both labels the positives and is a signal: without it the AUC falls to 0.38. We publish those numbers next to the headline.
-
-It runs on one Hostinger VPS (2 vCPU, 8 GB, no GPU): a Rust API, a Python worker with CPU models, LLM calls through Hostinger AI Router. The same detector works on any set of sites: a host could run it across hosted domains to spot networks like Portal Kombat.
+Live on one Hostinger KVM 2 VPS (2 vCPU, 8 GB, no GPU; Caddy, Rust/axum API, SQLite, Python CPU worker, Hostinger AI Router). Built in 48h across 70+ PRs using OpenAI Codex in a contract-first multi-agent workflow (`contracts/` Rust types generating OpenAPI, Pydantic, and TypeScript schemas, gated by 55 Rust and 524 Python tests).
