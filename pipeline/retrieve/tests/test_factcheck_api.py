@@ -208,3 +208,74 @@ def test_a_fact_check_item_takes_its_language_from_its_text():
     assert item("en", italian).language == "it"
     assert item("it-IT", None).language == "it"  # claim and rating alone: the tag, bare
     assert item(None, None, claim="12 345").language is None
+
+
+def test_implied_claims_search_fact_check_api_and_fact_checker_sites(with_key, monkeypatch):
+    """P-C4: a meme with no verbatim claims or topic queries still searches `claims:search` and
+    listed fact-checker sites using `topic.implied_claims`."""
+    from pipeline.common.contracts import Topic
+    from pipeline.extract import scraper
+
+    monkeypatch.setenv(scraper.TOKEN_ENV, KEY)
+    monkeypatch.setattr(scraper, "enabled", lambda: True)
+    implied = "Politicians prioritized investigations over grocery prices"
+    site_review = "https://checker.example/2026/11/grocery-prices-meme"
+    oxy_route = "api-aistudio.oxylabs.io/search/instant"
+
+    with_key.pages[REVIEW_URL] = (
+        200,
+        article_page("Fact check", "Review of the grocery prices meme claim."),
+    )
+    claim_ld = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "ClaimReview",
+            "claimReviewed": implied,
+            "reviewRating": {"@type": "Rating", "alternateName": "Misleading"},
+            "author": {"@type": "Organization", "name": "Checker"},
+        }
+    )
+    with_key.pages[site_review] = (
+        200,
+        article_page(
+            "Grocery prices meme check",
+            "Politicians did not cancel affordability hearings over investigations.",
+            head=f'<script type="application/ld+json">{claim_ld}</script>',
+        ),
+    )
+    with_key.routes[oxy_route] = lambda request: httpx.Response(
+        200,
+        content=json.dumps(
+            {
+                "run_id": "r1",
+                "status": "completed",
+                "data": [
+                    {
+                        "url": site_review,
+                        "title": "Fact check: politicians investigations grocery prices",
+                        "description": implied,
+                    }
+                ],
+            }
+        ).encode(),
+    )
+
+    a = analysis()
+    a.claims = []
+    a.queries = []
+    a.document.title = None
+    a.document.paragraphs = ["I THOUGHT THIS WAS ABOUT MY GROCERY BILL"]
+    a.topic = Topic(summary="Grocery meme", entities=[], implied_claims=[implied])
+
+    patch = run(a)
+    api_reqs = [r for r in with_key.requests if r.url.host == "factchecktools.googleapis.com"]
+    assert [(r.url.params["query"], r.url.params.get("languageCode")) for r in api_reqs] == [
+        (implied, "en")
+    ]
+    oxy_reqs = [r for r in with_key.requests if r.url.host == "api-aistudio.oxylabs.io"]
+    oxy_queries = [json.loads(r.content)["query"] for r in oxy_reqs]
+    assert f"{implied} (site:checker.example)" in oxy_queries
+
+    checked_urls = {c.url: c.fact_check.rating for c in patch.context if c.fact_check is not None}
+    assert checked_urls[REVIEW_URL] == "Falso"
+    assert checked_urls[site_review] == "Misleading"

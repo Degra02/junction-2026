@@ -77,6 +77,9 @@ class Registry:
     def feeds(self) -> list[tuple[Outlet, Feed]]:
         return [(outlet, feed) for outlet in self._by_domain.values() for feed in outlet.feeds]
 
+    def domains(self, outlet_type: OutletType) -> list[str]:
+        return [o.domain for o in self._by_domain.values() if o.outlet_type == outlet_type]
+
 
 def parse(data: dict) -> Registry:
     outlets = []
