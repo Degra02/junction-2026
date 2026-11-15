@@ -48,13 +48,15 @@ MIN_SHARED_SHINGLES = 8
 WINDOW = timedelta(hours=6)
 YOUNG_DAYS = 180
 TRANSLATED_COPY_SIMILARITY = 0.93
-_NOT_COPIERS = {
-    OutletType.wire_service,
-    OutletType.fact_checker,
-    OutletType.satire,
-    OutletType.national,
-    OutletType.local,
-}
+NOT_COPIERS = frozenset(
+    {
+        OutletType.wire_service,
+        OutletType.fact_checker,
+        OutletType.satire,
+        OutletType.national,
+        OutletType.local,
+    }
+)
 _MAX_REFS = 4
 
 
@@ -97,7 +99,7 @@ def find_copies(analysis: Analysis) -> list[ContextItem]:
             or not domain
             or domain == own
             or (account and account == own_account)
-            or _type(profiles, item.outlet) in _NOT_COPIERS
+            or _type(profiles, item.outlet) in NOT_COPIERS
         ):
             continue
         shared = len(mine & _shingles(item.text))
