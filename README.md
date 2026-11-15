@@ -98,5 +98,15 @@ Going deeper: [`SPEC.md`](SPEC.md) · [`docs/ai-core.md`](docs/ai-core.md) · [`
 ## Team
 Degra02 (integration, server, deploy) · Lyreplus (signals, scoring, explanations) · ck-lithium (extraction, search, website) · mosearc (evaluation, spec, pitch)
 
+## Star History
+
+<a href="https://www.star-history.com/#Degra02/junction-2026&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Degra02/junction-2026&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Degra02/junction-2026&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Degra02/junction-2026&type=Date" />
+  </picture>
+</a>
+
 ## License
 MIT, see [`LICENSE`](LICENSE).
