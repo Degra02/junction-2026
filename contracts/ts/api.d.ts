@@ -100,11 +100,28 @@ export interface paths {
         };
         /**
          * The source graph: outlets tied by shared analytics IDs, copied text, translations and links.
-         * @description Built offline from stored analyses (`mise run graph:build`). The shape is owned by
-         *     `pipeline/graph/build.py`; the API serves the file unchanged. A tie is evidence of a
+         * @description Assembled live from SQLite (`0003_graph.sql`), merged idempotently with any baseline
+         *     `evals/graph.json`. Keeps the exact shape of `pipeline/graph/build.py`. A tie is evidence of a
          *     relationship between two sites, not a judgement of either.
          */
         get: operations["graph"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/graph/outlets/{domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One outlet's profile, cluster and ties in the source graph. */
+        get: operations["outlet"];
         put?: never;
         post?: never;
         delete?: never;
@@ -393,6 +410,46 @@ export interface components {
          * @enum {string}
          */
         Family: "techniques" | "rhetoric" | "tone" | "claim_support" | "fact_checks" | "source_profile" | "text_reuse" | "timing" | "infrastructure" | "known_networks";
+        GraphObservation: {
+            /** @description Ordered pair `a < b`. */
+            a: string;
+            b: string;
+            /** @description Layer kind: `analytics_id`, `ad_account`, `copy`, `translation` or `link`. */
+            kind: string;
+            /** @description Distinct witness keys on side `a` (article URLs or tracking IDs). */
+            keys_a: string[];
+            /** @description Distinct witness keys on side `b`. */
+            keys_b: string[];
+            /** @description Evidence items matching `evals/graph.json`. */
+            evidence: unknown[];
+        };
+        /** @description Response of `POST /stages/graph`: outlets, articles, tracking IDs and within-record ties. */
+        GraphPatch: {
+            outlets: components["schemas"]["GraphPatchOutlet"][];
+            articles: components["schemas"]["GraphPatchArticle"][];
+            ties: components["schemas"]["GraphObservation"][];
+        };
+        GraphPatchArticle: {
+            url: string;
+            outlet: string;
+            title?: string | null;
+            /** Format: date-time */
+            published_at?: string | null;
+            language?: string | null;
+            analysed?: boolean;
+            fact_check?: boolean;
+            tracking_ids?: string[];
+            outbound_domains?: string[];
+            /** @description Unit-length 384-d `story_text` embedding (`multilingual-e5-small`). */
+            embedding?: number[];
+        };
+        GraphPatchOutlet: {
+            domain: string;
+            operator: string;
+            outlet_type?: components["schemas"]["OutletType"] | null;
+            country?: string | null;
+            known_network?: string | null;
+        };
         /** @description Response of `GET /api/health`. */
         Health: {
             /** @description `ok` when the API and its database work. */
@@ -551,7 +608,7 @@ export interface components {
          * @description Pipeline stage. The worker serves each one at `POST /stages/{name}`.
          * @enum {string}
          */
-        StageName: "extract" | "understand" | "retrieve" | "story" | "signals_single" | "signals_coordinated" | "score" | "explain";
+        StageName: "extract" | "understand" | "retrieve" | "story" | "signals_single" | "signals_coordinated" | "score" | "explain" | "graph";
         /**
          * @description Counts of one stage over the stored analyses. A re-run keeps the steps before its first
          *     stage, so those count once per record that carries them.
@@ -839,6 +896,38 @@ export interface operations {
                 };
             };
             /** @description No source graph published yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    outlet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outlet domain, e.g. `kxan.com` */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Outlet profile, cluster and ties */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Outlet not present in the source graph */
             404: {
                 headers: {
                     [name: string]: unknown;

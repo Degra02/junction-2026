@@ -64,6 +64,9 @@ run = "uv run --frozen python -m propaganda_eval.cli"
 description = "Source graph from stored analyses: `mise run graph:build -- evals/results/fit.jsonl --labelled evals/labelled.jsonl` writes evals/graph.json (plans/source-graph.md)"
 run = "uv run --frozen python -m pipeline.graph.build"
 
+[tasks."graph:replay"]
+description = "Replay stored SQLite analyses through POST /stages/graph into the live graph tables"
+run = "cargo run -p junction-api -- replay-graph"
 [tasks.dev]
 description = "Run worker and API together (Ctrl-C stops both)"
 depends = ["worker:dev", "api:dev"]

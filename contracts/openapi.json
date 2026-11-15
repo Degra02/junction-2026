@@ -250,7 +250,7 @@
           "sources"
         ],
         "summary": "The source graph: outlets tied by shared analytics IDs, copied text, translations and links.",
-        "description": "Built offline from stored analyses (`mise run graph:build`). The shape is owned by\n`pipeline/graph/build.py`; the API serves the file unchanged. A tie is evidence of a\nrelationship between two sites, not a judgement of either.",
+        "description": "Assembled live from SQLite (`0003_graph.sql`), merged idempotently with any baseline\n`evals/graph.json`. Keeps the exact shape of `pipeline/graph/build.py`. A tie is evidence of a\nrelationship between two sites, not a judgement of either.",
         "operationId": "graph",
         "responses": {
           "200": {
@@ -265,6 +265,48 @@
           },
           "404": {
             "description": "No source graph published yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/outlets/{domain}": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "One outlet's profile, cluster and ties in the source graph.",
+        "operationId": "outlet",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Outlet domain, e.g. `kxan.com`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outlet profile, cluster and ties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Outlet not present in the source graph",
             "content": {
               "application/json": {
                 "schema": {
@@ -999,6 +1041,179 @@
           "known_networks"
         ]
       },
+      "GraphObservation": {
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "kind",
+          "keys_a",
+          "keys_b",
+          "evidence"
+        ],
+        "properties": {
+          "a": {
+            "type": "string",
+            "description": "Ordered pair `a < b`."
+          },
+          "b": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Layer kind: `analytics_id`, `ad_account`, `copy`, `translation` or `link`."
+          },
+          "keys_a": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Distinct witness keys on side `a` (article URLs or tracking IDs)."
+          },
+          "keys_b": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Distinct witness keys on side `b`."
+          },
+          "evidence": {
+            "type": "array",
+            "items": {},
+            "description": "Evidence items matching `evals/graph.json`."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphPatch": {
+        "type": "object",
+        "description": "Response of `POST /stages/graph`: outlets, articles, tracking IDs and within-record ties.",
+        "required": [
+          "outlets",
+          "articles",
+          "ties"
+        ],
+        "properties": {
+          "outlets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphPatchOutlet"
+            }
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphPatchArticle"
+            }
+          },
+          "ties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphObservation"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphPatchArticle": {
+        "type": "object",
+        "required": [
+          "url",
+          "outlet"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "outlet": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "analysed": {
+            "type": "boolean"
+          },
+          "fact_check": {
+            "type": "boolean"
+          },
+          "tracking_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outbound_domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "embedding": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "description": "Unit-length 384-d `story_text` embedding (`multilingual-e5-small`)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphPatchOutlet": {
+        "type": "object",
+        "required": [
+          "domain",
+          "operator"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "outlet_type": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OutletType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "known_network": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "Health": {
         "type": "object",
         "description": "Response of `GET /api/health`.",
@@ -1455,7 +1670,8 @@
           "signals_single",
           "signals_coordinated",
           "score",
-          "explain"
+          "explain",
+          "graph"
         ]
       },
       "StageStats": {

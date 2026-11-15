@@ -9,7 +9,9 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use futures_util::future::join_all;
-use junction_contracts::{Analysis, AnalysisEvent, AnalysisStatus, StageName, Step, StepState};
+use junction_contracts::{
+    Analysis, AnalysisEvent, AnalysisStatus, StageName, StagePatch, Step, StepState,
+};
 use tokio::{
     sync::Semaphore,
     time::{Instant, MissedTickBehavior},
@@ -32,7 +34,7 @@ const SCHEDULE: &[&[StageName]] = &[
     &[StageName::Story],
     &[StageName::SignalsSingle, StageName::SignalsCoordinated],
     &[StageName::Score],
-    &[StageName::Explain],
+    &[StageName::Explain, StageName::Graph],
 ];
 
 /// How often the worker is asked for the progress notes of the running stages.
@@ -166,25 +168,7 @@ impl Pipeline {
                 let ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
                 // Before set_step, so the broadcast step carries its duration.
                 a.step_mut(stage).duration_ms = Some(ms);
-                match outcome {
-                    StageOutcome::Patch(patch) => match a.apply(patch) {
-                        Ok(report) => {
-                            self.set_step(&mut a, stage, StepState::Done, report.summary(), None);
-                        }
-                        Err(e) => {
-                            let error = format!("rejected by the contract: {e}");
-                            self.set_step(&mut a, stage, StepState::Failed, None, Some(error));
-                        }
-                    },
-                    StageOutcome::NotImplemented => {
-                        let error = "not implemented yet".to_owned();
-                        self.set_step(&mut a, stage, StepState::Skipped, None, Some(error));
-                    }
-                    StageOutcome::Failed(error) => {
-                        tracing::warn!(%id, %stage, %error, "stage failed");
-                        self.set_step(&mut a, stage, StepState::Failed, None, Some(error));
-                    }
-                }
+                self.apply_outcome(&mut a, stage, outcome).await;
             }
             self.persist(&a).await;
         }
@@ -198,6 +182,52 @@ impl Pipeline {
                 analysis: Box::new(a),
             },
         );
+    }
+
+    async fn apply_outcome(&self, a: &mut Analysis, stage: StageName, outcome: StageOutcome) {
+        let id = a.id;
+        match outcome {
+            StageOutcome::Patch(patch) => {
+                let graph_patch = match &patch {
+                    StagePatch::Graph(gp) => Some(gp.clone()),
+                    _ => None,
+                };
+                match a.apply(patch) {
+                    Ok(report) => {
+                        if let Some(gp) = graph_patch
+                            && let Err(err) = self.db.ingest_graph(a, &gp).await
+                        {
+                            tracing::error!(%id, error = %err, "failed to persist graph patch");
+                            self.set_step(
+                                a,
+                                stage,
+                                Self::failed_state(),
+                                None,
+                                Some("could not store graph observations".into()),
+                            );
+                        } else {
+                            self.set_step(a, stage, StepState::Done, report.summary(), None);
+                        }
+                    }
+                    Err(e) => {
+                        let error = format!("rejected by the contract: {e}");
+                        self.set_step(a, stage, Self::failed_state(), None, Some(error));
+                    }
+                }
+            }
+            StageOutcome::NotImplemented => {
+                let error = "not implemented yet".to_owned();
+                self.set_step(a, stage, StepState::Skipped, None, Some(error));
+            }
+            StageOutcome::Failed(error) => {
+                tracing::warn!(%id, %stage, %error, "stage failed");
+                self.set_step(a, stage, Self::failed_state(), None, Some(error));
+            }
+        }
+    }
+
+    const fn failed_state() -> StepState {
+        StepState::Failed
     }
 
     /// Calls the worker for one stage; the time a model stage waits for its turn is not part
@@ -336,7 +366,10 @@ pub fn rerun_record(
 const fn is_model_stage(stage: StageName) -> bool {
     matches!(
         stage,
-        StageName::Story | StageName::SignalsSingle | StageName::SignalsCoordinated
+        StageName::Story
+            | StageName::SignalsSingle
+            | StageName::SignalsCoordinated
+            | StageName::Graph
     )
 }
 
