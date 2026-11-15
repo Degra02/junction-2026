@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
 import { motion } from "motion/react";
-import { ArrowLeft, Check, ExternalLink, Link2, Play, RotateCw } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Link2, Network, Play, RotateCw } from "lucide-react";
 import { CoverageView } from "../components/CoverageView";
 import { DimensionScoreCard } from "../components/DimensionScoreCard";
 import { DocumentReader } from "../components/DocumentReader";
@@ -10,6 +10,7 @@ import { ExplanationPanel } from "../components/ExplanationPanel";
 import { RerunControl, RunLedger, RunProgress } from "../components/RunProgress";
 import { ScoreBreakdown } from "../components/ScoreBreakdown";
 import { SocialSwarm } from "../components/SocialSwarm";
+import { AnalysisSubgraphPanel } from "../components/sources/AnalysisSubgraphPanel";
 import { TechniquesPanel } from "../components/TechniquesPanel";
 import { Favicon } from "../components/ui/Favicon";
 import { useAnalysisStream } from "../hooks/useAnalysisStream";
@@ -62,7 +63,11 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
   const [copied, setCopied] = useState(false);
   const [forcingRun, setForcingRun] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showNetwork, setShowNetwork] = useState(false);
 
+  useEffect(() => {
+    setShowNetwork(false);
+  }, [id]);
   // Finished analyses this browser opened show up under "Recent" on the home page.
   useEffect(() => {
     if (!analysis || replay || (analysis.status !== "done" && analysis.status !== "failed")) return;
@@ -431,6 +436,18 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
                   {languageName(analysis.language.code)} · {langSupport.badge.toLowerCase()}
                 </span>
               )}
+              {(shownOutlet || analysis.sources.length > 0) && (
+                <button
+                  type="button"
+                  aria-expanded={showNetwork}
+                  aria-controls="analysis-source-network"
+                  onClick={() => setShowNetwork((v) => !v)}
+                  className={buttonClass(showNetwork ? "primary" : "secondary", "sm", "ml-auto")}
+                >
+                  <Network className="h-3.5 w-3.5" aria-hidden="true" />
+                  {showNetwork ? "Hide source network" : "Show source network"}
+                </button>
+              )}
             </div>
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
               {analysis.input.kind === "image" && (
@@ -451,6 +468,14 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
               </h1>
             </div>
           </header>
+
+          {showNetwork && (
+            <AnalysisSubgraphPanel
+              analysis={analysis}
+              primaryDomain={shownOutlet}
+              onClose={() => setShowNetwork(false)}
+            />
+          )}
 
           {!analysis.document ? (
             // Nothing was read, so there is nothing to score: show where the run stopped.

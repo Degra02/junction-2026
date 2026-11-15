@@ -475,13 +475,13 @@ export function onScreen(node: MapNode, view: View, margin = 0): boolean {
   return sx + sr >= 0 && sx - sr <= view.width && sy + sr >= 0 && sy - sr <= view.height;
 }
 
-export function computeCut(map: GraphMap, view: View): Cut {
+export function computeCut(map: GraphMap, view: View, expandPx: number = EXPAND_PX): Cut {
   const isOpen = new Uint8Array(map.nodes.length);
   const open: MapNode[] = [];
   const shown: MapNode[] = [];
   const walk = (node: MapNode) => {
     const opens =
-      node.children.length > 0 && (node === map.root || (node.r * view.k > EXPAND_PX && onScreen(node, view)));
+      node.children.length > 0 && (node === map.root || (node.r * view.k > expandPx && onScreen(node, view)));
     if (!opens) {
       shown.push(node);
       return;
