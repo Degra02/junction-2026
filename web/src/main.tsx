@@ -7,6 +7,7 @@ import { AnalysisPage } from "./pages/AnalysisPage";
 import { ExtensionPage } from "./pages/ExtensionPage";
 import { HomePage } from "./pages/HomePage";
 import { MetricsPage } from "./pages/MetricsPage";
+import { SourcesPage } from "./pages/SourcesPage";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
@@ -22,6 +23,7 @@ createRoot(rootElement).render(
           <Route path="/analyses/:id" element={<AnalysisPage />} />
           <Route path="/extension" element={<ExtensionPage />} />
           <Route path="/metrics" element={<MetricsPage />} />
+          <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>
