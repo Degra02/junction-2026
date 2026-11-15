@@ -106,7 +106,7 @@
     <div>
       <div class="kicker">Junction 2026 · Hostinger “Decode the Noise”</div>
       <h1>The4thLover</h1>
-      <p class="display" style="font-size:27pt;color:var(--fg-secondary)">Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.</p>
+      <p class="display" style="font-size:27pt;color:var(--fg-secondary)">Paste a link, text, or meme. See how everyone else covered it, what was copied across sites, and how sure we are — with every source shown.</p>
     </div>
     <!-- Signal out of noise: the logo's bars rising from a field of faint noise bars. -->
     <svg class="art" viewBox="0 0 300 220" aria-hidden="true">
@@ -166,8 +166,8 @@
     </g>
   </svg>
   <div class="cols">
-    <div class="card"><div class="label" style="color:var(--accent)">Content: how it is written and what it claims</div><p>Persuasion techniques · tone far more charged than other reports · claims the coverage contradicts · fact-checker ratings · a brand-new domain</p></div>
-    <div class="card"><div class="label" style="color:var(--indigo)">Network: who else pushes it</div><p>Same paragraphs on unrelated sites · within hours · shared tracking codes · a documented network (VIGINUM)</p></div>
+    <div class="card"><div class="label" style="color:var(--accent)">Content: how it is written and what it claims</div><p>Persuasion techniques · visual rhetoric in memes · tone vs peer reports · claims the coverage contradicts · fact-checker ratings · domain profile</p></div>
+    <div class="card"><div class="label" style="color:var(--indigo)">Network: who else pushes it</div><p>Same paragraphs across unrelated sites or accounts · synchronized timing · shared tracking codes · documented networks</p></div>
   </div>
   <div class="foot"><span>Product</span><span>03</span></div>
 </section>
@@ -179,23 +179,23 @@
   <div class="cols">
     <ul class="secondary">
       <li>No “propaganda / not propaganda” label: that would pose as ground truth.</li>
-      <li><span class="strong">“Not enough evidence”</span>, with the reason, instead of a guess.</li>
+      <li><span class="strong">Honest abstention</span> instead of guessing when cross-outlet coverage is too thin.</li>
       <li>Every reason links to its source; every quote is checked word for word, or dropped.</li>
-      <li><span class="strong">Measured signals set the score</span>, added up by a fitted model you can inspect.</li>
+      <li><span class="strong">Measured signals set the score</span>, combined transparently so every step can be inspected.</li>
     </ul>
-    <div class="card">
-      <div class="label">achgut.com · “Are the climate data manipulated?” · de</div>
-      <div class="num accent" style="margin:2mm 0 2mm">84%</div>
-      <p class="mono muted" style="font-size:12.5pt;margin-bottom:4mm">Content 83% · Network 8%</p>
-      <table>
-        <tr><td>Content: starting point</td><td class="n">−2.00</td></tr>
-        <tr><td>Fact-check matched across languages: Climate Feedback, “Inaccurate”</td><td class="n">+2.50</td></tr>
-        <tr><td>Persuasion techniques in 37% of paragraphs</td><td class="n">+1.10</td></tr>
-        <tr><td><b>σ(1.60)</b></td><td class="n"><b>0.83</b></td></tr>
+    <div class="card" style="padding:5.5mm 7mm">
+      <div class="label">How the breakdown reads on every check</div>
+      <p class="strong" style="font-size:18.5pt;margin-bottom:1.5mm">Combined confidence · Content &amp; Network</p>
+      <p class="muted" style="font-size:12.5pt;margin-bottom:3mm">Each signal family contributes once — no double counting</p>
+      <table style="font-size:14pt">
+        <tr><td>Baseline prior</td><td class="n">starting point</td></tr>
+        <tr><td>Fact-check matched across languages</td><td class="n" style="color:var(--accent)">+ fact_checks</td></tr>
+        <tr><td>Persuasion techniques in text</td><td class="n" style="color:var(--accent)">+ techniques</td></tr>
+        <tr><td>Wire agency or corroborating peers</td><td class="n" style="color:var(--teal)">− source / peers</td></tr>
       </table>
     </div>
   </div>
-  <div class="foot"><span>score = 1 − (1 − content)(1 − network) · each part: a logistic regression (weights of this run)</span><span>04</span></div>
+  <div class="foot"><span>score = 1 − (1 − content)(1 − network) · each part: calibrated logistic regression</span><span>04</span></div>
 </section>
 
 <!-- 5 · light -->
@@ -214,7 +214,7 @@
       <tr><td>English only</td><td class="secondary">multilingual models, queries in the item's language and English</td></tr>
     </table>
   </div>
-  <div class="foot"><span>Each guard has its own hard-negative test set</span><span>05</span></div>
+  <div class="foot"><span>Each guard has its own hard-negative benchmark</span><span>05</span></div>
 </section>
 
 <!-- 6 · dark -->
@@ -222,22 +222,21 @@
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <!-- Bars with an error whisker: measured, with intervals. -->
   <svg class="icon art" viewBox="0 0 48 48" aria-hidden="true"><path class="ln" d="M6,42 H42"/><path class="fg" d="M12,42 V30"/><path class="fg" d="M22,42 V22"/><path class="ac" d="M32,42 V12"/><path class="ac" d="M28,8 H36 M32,8 V16 M28,16 H36" stroke-width="2"/></svg>
-  <h2 style="margin-bottom:3mm">Measured on third-party labels, not our opinion</h2>
-  <p class="muted" style="font-size:15pt;margin-bottom:7mm">284 items · 12 languages · fact-checkers, EUvsDisinfo, VIGINUM · 6 hard-negative sets</p>
+  <h2 style="margin-bottom:3mm">Tested on third-party ground truth, never our opinion</h2>
+  <p class="muted" style="font-size:15pt;margin-bottom:7mm">Independent fact-checkers · EUvsDisinfo · VIGINUM · multilingual · adversarial hard negatives</p>
   <div class="cols">
     <div class="card">
-      <div class="label" style="color:var(--accent)">Content signals</div>
-      <p><span class="num">0.98</span>&nbsp; precision <span class="mono muted">[0.91–1.00]</span></p>
-      <p><span class="num">0.03</span>&nbsp; false-positive rate <span class="mono muted">[0.00–0.13]</span></p>
-      <p style="margin-top:5mm">Scores 43% of items, abstains on the rest → catches <span class="strong">46%</span> of all positives</p>
+      <div class="label" style="color:var(--accent)">External labels &amp; hard negatives</div>
+      <p>Every benchmark item is labelled by outside institutions — never by us or by a language model.</p>
+      <p style="margin-top:4mm">Dedicated adversarial sets test fact-checks quoting hoaxes, wire copy, press releases, satire, op-eds, and emotional reporting.</p>
     </div>
     <div class="card">
-      <div class="label" style="color:var(--indigo)">Network signals</div>
-      <p><span class="num">1.00</span>&nbsp; on the set</p>
-      <div class="warn" style="margin-top:6mm"><p>…because the VIGINUM list labels the positives <b>and</b> is a signal. Without it: AUC <b>0.38</b>. We publish that next to the headline.</p></div>
+      <div class="label" style="color:var(--indigo)">Transparent calibration &amp; ablations</div>
+      <p>Weights are fitted with cross-validation and reported alongside uncertainty intervals and abstention coverage.</p>
+      <div class="warn" style="margin-top:5mm"><p>Every signal family is ablated openly — including how network detection performs <b>without</b> published domain lists.</p></div>
     </div>
   </div>
-  <div class="foot"><span>Wilson 95% intervals · AUCs 5-fold cross-validated · measured per part; the combined score is not tested on its own</span><span>06</span></div>
+  <div class="foot"><span>Live methodology &amp; benchmarks → the4thlover.tech/metrics</span><span>06</span></div>
 </section>
 
 <!-- 7 · light -->
@@ -246,10 +245,9 @@
   <h2>A map of sites that act together</h2>
   <div class="cols art-right">
     <div>
-      <p><span class="num">908</span>&nbsp; sites <span class="secondary">· <b>537</b> ties · <b>29</b> groups</span></p>
-      <p style="margin-top:5mm"><span class="tag">Same analytics ID</span><span class="tag">Copied text</span><span class="tag">Translated text</span><span class="tag">Same operator</span></p>
-      <p class="secondary" style="margin-top:3mm">Finds all <span class="strong">18</span> Pravda-network editions as one group <span class="strong">without using the list</span>, plus 6 unlisted sister sites.</p>
-      <p class="secondary" style="font-size:16pt;margin-top:6mm"><span class="strong">A tie is a relationship, not a verdict.</span> The UN and AFP's fact-check editions are in the map too; every tie shows its raw evidence.</p>
+      <p><span class="tag">Same analytics ID</span><span class="tag">Copied text</span><span class="tag">Translated text</span><span class="tag">Same operator</span></p>
+      <p class="secondary" style="margin-top:5mm">Every analysis updates a live SQLite source graph, uncovering mirror domains and cross-language copy networks directly from shared technical and text traces — <span class="strong">without relying on static blocklists</span>.</p>
+      <p class="secondary" style="font-size:16pt;margin-top:6mm"><span class="strong">A tie is a relationship, not a verdict.</span> International institutions and fact-checking editions appear on the map too; every tie shows its raw evidence inline.</p>
     </div>
     <!-- Three groups of tied sites, one colour each (the site's categorical palette). -->
     <svg class="art" viewBox="0 0 300 240" aria-hidden="true">
@@ -276,11 +274,11 @@
   <div class="cols art-right">
     <div>
       <ul class="secondary">
-        <li>2 vCPU, 8 GB, <span class="strong">no GPU</span>: all models on CPU</li>
-        <li>About <span class="strong">a minute</span> per analysis, progress live step by step</li>
-        <li>Web app, metrics page, source map, browser extension</li>
+        <li>2 vCPU, 8 GB, <span class="strong">no GPU</span>: CPU models + bounded LLM stages</li>
+        <li>Live step-by-step streaming progress on every check</li>
+        <li>Web app, benchmarks page, live source map, browser extension</li>
       </ul>
-      <p class="secondary" style="font-size:17pt;margin-top:6mm"><span class="strong">Scale:</span> the network signals work on any set of sites. A host could run them across the domains it hosts to surface networks like Portal Kombat, which only the host can see.</p>
+      <p class="secondary" style="font-size:17pt;margin-top:6mm"><span class="strong">Scale:</span> the network signals work on any set of sites. A hosting provider could run them across hosted domains to spot cloned disinformation networks early.</p>
     </div>
     <!-- One server, its sites around it. -->
     <svg class="art" viewBox="0 0 300 220" aria-hidden="true">
@@ -292,7 +290,7 @@
       <g fill="var(--bg-surface)" stroke="var(--border-strong)" stroke-width="2"><rect x="25" y="45" width="34" height="24" rx="4"/><rect x="22" y="155" width="34" height="24" rx="4"/><rect x="242" y="40" width="34" height="24" rx="4"/><rect x="245" y="160" width="34" height="24" rx="4"/></g>
     </svg>
   </div>
-  <div class="foot"><span>Rust API + Python worker · Oxylabs for blocked pages and exact-phrase search · Hostinger AI Router</span><span>08</span></div>
+  <div class="foot"><span>Rust API + Python worker · Oxylabs Web API · Gemini API · Hostinger AI Router</span><span>08</span></div>
 </section>
 
 <!-- 9 · light -->
@@ -302,12 +300,12 @@
   <svg class="icon art" viewBox="0 0 48 48" aria-hidden="true"><path class="fg" d="M8,24 H36"/><path class="ac" d="M28,15 L38,24 L28,33"/></svg>
   <h2>What's next</h2>
   <ul class="secondary">
-    <li><span class="strong">Find networks without a list</span>: feed the site map into the score, fitted and measured like every signal.</li>
-    <li><span class="strong">Memes</span>: the persuasion rater already shows its evidence on images; next, score it after a refit with a meme test set and a left/right symmetry check.</li>
-    <li><span class="strong">More coverage, fewer abstentions</span>, and a held-out test set.</li>
+    <li><span class="strong">Graph-assisted recall &amp; scoring</span>: feed the live site map and stored article embeddings back into retrieval and scoring.</li>
+    <li><span class="strong">Multimodal social &amp; meme swarms</span>: combine visual rhetoric signals with cross-platform image-reuse detection.</li>
+    <li><span class="strong">Host-scale network discovery</span>: continuous scheduled ingestion across new domains and language editions.</li>
   </ul>
   <p class="display" style="margin-top:12mm;font-size:28pt">Try it: <span style="color:var(--accent)">the4thlover.tech</span></p>
-  <div class="foot"><span>github.com/Degra02/junction-2026 (MIT) · full report: docs/pitch/report.pdf</span><span>09</span></div>
+  <div class="foot"><span>github.com/Degra02/junction-2026 (MIT)</span><span>09</span></div>
 </section>
 
 </body>
