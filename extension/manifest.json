@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Decode the Noise",
-  "short_name": "DecodeNoise",
+  "name": "The4thLover",
+  "short_name": "The4thLover",
   "version": "0.1.0",
   "description": "Cross-check any article, link, or highlighted claim against multilingual news coverage, ClaimReview fact-checks, and network registries.",
   "permissions": [
@@ -21,7 +21,7 @@
     "http://*/*"
   ],
   "action": {
-    "default_title": "Decode the Noise — Check this page",
+    "default_title": "The4thLover — Check this page",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

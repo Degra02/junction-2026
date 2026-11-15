@@ -9,7 +9,7 @@ import { GENTLE_SPRING } from "../lib/motion";
 
 export type HomePageProps = Record<string, never>;
 
-const HEADLINE = "Check any story against the rest of the news.";
+const HEADLINE = "Read between the lines, and across the web.";
 
 export function HomePage(_props: Readonly<HomePageProps>) {
   const [searchParams] = useSearchParams();
@@ -97,7 +97,7 @@ export function HomePage(_props: Readonly<HomePageProps>) {
             to="/extension"
             className="text-xs text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors"
           >
-            Check stories from any page with the browser extension →
+            Check any page, post, or meme with the browser extension →
           </Link>
         </p>
       </motion.div>
