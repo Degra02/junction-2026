@@ -19,12 +19,14 @@ capped at SUPPORTED_CAP (D2).
 
 import json
 import math
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from pipeline.common.contracts import (
     Analysis,
+    ContextItem,
     Contribution,
     Family,
     LanguageSupport,
@@ -33,7 +35,13 @@ from pipeline.common.contracts import (
     ScorePatch,
     Scores,
 )
-from pipeline.score.families import COORDINATED, SINGLE, FamilyValue, family_values
+from pipeline.score.families import (
+    COORDINATED,
+    INTRINSIC_SINGLE,
+    SINGLE,
+    FamilyValue,
+    family_values,
+)
 
 WEIGHTS_FILE = Path(__file__).with_name("weights.json")
 MIN_RELATED = 3
@@ -130,6 +138,24 @@ def _is_satire(analysis: Analysis) -> bool:
     )
 
 
+def _related_reports(analysis: Analysis) -> list[ContextItem]:
+    satire_domains = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
+    return [
+        c
+        for c in analysis.context
+        if c.in_story is not False and c.fact_check is None and c.outlet not in satire_domains
+    ]
+
+
+def has_comparison_coverage(
+    analysis: Analysis, values: Sequence[FamilyValue] | None = None
+) -> bool:
+    """Whether `single` has enough related reports or a fact-check match to compare against."""
+    single_values = values if values is not None else family_values(analysis.evidence, SINGLE)
+    fact_checked = any(v.family == Family.fact_checks and v.value != 0 for v in single_values)
+    return fact_checked or len(_related_reports(analysis)) >= MIN_RELATED
+
+
 def _single_abstention(analysis: Analysis, values: list[FamilyValue]) -> str | None:
     if reason := _common_abstention(analysis):
         return reason
@@ -139,18 +165,13 @@ def _single_abstention(analysis: Analysis, values: list[FamilyValue]) -> str | N
         p.startswith("[Satire/humour meme] ") for p in analysis.document.paragraphs
     ):
         return "This image appears to be humour or satire without checkable factual claims."
-    fact_checked = any(v.family == Family.fact_checks and v.value != 0 for v in values)
-    satire_domains = {s.domain for s in analysis.sources if s.outlet_type == OutletType.satire}
-    related = [
-        c
-        for c in analysis.context
-        if c.in_story is not False and c.fact_check is None and c.outlet not in satire_domains
-    ]
-    if not fact_checked and len(related) < MIN_RELATED:
+    intrinsic = any(v.family in INTRINSIC_SINGLE and v.value != 0 for v in values)
+    related = _related_reports(analysis)
+    if not has_comparison_coverage(analysis, values) and not intrinsic:
         return (
             f"Only {len(related)} other report{'s' if len(related) != 1 else ''} on the same "
-            f"event {'was' if len(related) == 1 else 'were'} found; at least {MIN_RELATED} are "
-            "needed to compare."
+            f"event {'was' if len(related) == 1 else 'were'} found, and no persuasion "
+            "techniques or source signals were detected."
         )
     return None
 

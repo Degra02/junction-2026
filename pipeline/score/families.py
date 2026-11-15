@@ -20,10 +20,14 @@ log = logging.getLogger(__name__)
 
 SINGLE: tuple[Family, ...] = (
     Family.techniques,
+    Family.rhetoric,
     Family.tone,
     Family.claim_support,
     Family.fact_checks,
     Family.source_profile,
+)
+INTRINSIC_SINGLE: frozenset[Family] = frozenset(
+    {Family.techniques, Family.rhetoric, Family.source_profile}
 )
 COORDINATED: tuple[Family, ...] = (
     Family.text_reuse,
@@ -64,23 +68,18 @@ STRENGTH: dict[tuple[Family, str], Callable[[float], float]] = {
             "manipulative_wording",
         )
     },
-    # rhetoric (plans/persuasion-analysis.md): 1.0 clear, 0.5 weak. Registered in STRENGTH for
-    # explain/UI in phase 1, intentionally kept out of SINGLE until the phase 2 refit (P-L5).
-    **(
-        {
-            (rhetoric_fam, category): _clip(0.0, 1.0)
-            for category in (
-                "attack_on_reputation",
-                "justification",
-                "simplification",
-                "distraction",
-                "call",
-                "manipulative_wording",
-            )
-        }
-        if (rhetoric_fam := getattr(Family, "rhetoric", None)) is not None
-        else {}
-    ),
+    # rhetoric (plans/persuasion-analysis.md): 1.0 clear, 0.5 weak.
+    **{
+        (Family.rhetoric, category): _clip(0.0, 1.0)
+        for category in (
+            "attack_on_reputation",
+            "justification",
+            "simplification",
+            "distraction",
+            "call",
+            "manipulative_wording",
+        )
+    },
     # tone: z-score vs peers, z = 3 saturates. Calmer than the peers points away, but at most
     # -0.5: being calm is weaker evidence than being charged.
     (Family.tone, "tone_vs_peers"): _clip(-0.5, 1.0, 1 / 3),

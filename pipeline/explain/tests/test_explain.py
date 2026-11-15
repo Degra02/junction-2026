@@ -64,6 +64,20 @@ def test_digest_carries_scores_and_strongest_evidence_first() -> None:
     assert ranked == sorted(ranked, reverse=True) and ranked[0] == 1.0
     assert set(ids) == set(by_id)
     assert payload["claims"][0] == "The government will ban private wells by January"
+    assert payload["scores"]["single"]["coverage_compared"] is True
+    assert "coverage_compared" not in payload["scores"]["coordinated"]
+
+    # When single is scored on intrinsic evidence without 3 related reports or a fact-check,
+    # the digest flags `coverage_compared: False` and SYSTEM instructs stating it.
+    no_coverage = example_analysis()
+    no_coverage.context = []
+    no_coverage.evidence = [e for e in no_coverage.evidence if e.family.value == "techniques"]
+    assert no_coverage.scores is not None
+    no_coverage.scores.single.abstained = False
+    no_coverage.scores.single.confidence = 0.42
+    no_cov_payload = json.loads(digest(no_coverage))
+    assert no_cov_payload["scores"]["single"]["coverage_compared"] is False
+    assert '"coverage_compared": false' in explain.SYSTEM
 
 
 def test_run_sends_evidence_as_user_content(monkeypatch: pytest.MonkeyPatch) -> None:

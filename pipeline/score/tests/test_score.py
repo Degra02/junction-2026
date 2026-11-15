@@ -54,14 +54,34 @@ def test_only_the_strongest_signal_of_a_family_counts() -> None:
     assert values[Family.tone].value == 0.0
 
 
-def test_few_related_reports_abstain_single_unless_fact_checked() -> None:
-    analysis = example_analysis()
-    analysis.context = [c for c in analysis.context if c.id in {"ctx1", "ctx4"}]
-    analysis.evidence = [e for e in analysis.evidence if e.family != Family.fact_checks]
-    single = run(analysis).scores.single
-    assert single.abstained and single.confidence is None
-    assert single.reason is not None and "Only 1 other report" in single.reason
-    assert single.breakdown  # still shown behind "how we calculated this"
+def test_few_related_reports_score_intrinsic_evidence_and_abstain_without_it() -> None:
+    # With intrinsic single-actor evidence (`techniques`, `rhetoric`, or non-zero `source_profile`),
+    # fewer than 3 related reports no longer abstains (`plans/persuasion-analysis.md` P-L4).
+    with_intrinsic = example_analysis()
+    with_intrinsic.context = [c for c in with_intrinsic.context if c.id in {"ctx1", "ctx4"}]
+    with_intrinsic.evidence = [e for e in with_intrinsic.evidence if e.family != Family.fact_checks]
+    scored = run(with_intrinsic).scores.single
+    assert not scored.abstained and scored.confidence is not None
+
+    # Rhetoric evidence alone on a claimless meme with zero coverage is also scored.
+    meme = example_analysis()
+    meme.context = []
+    meme.evidence = [evidence("s1", Family.rhetoric, "simplification", 1.0)]
+    meme_single = run(meme).scores.single
+    assert not meme_single.abstained and meme_single.confidence is not None
+    assert any(
+        b.family == Family.rhetoric and b.evidence_ids == ["s1"] for b in meme_single.breakdown
+    )
+
+    # Without related coverage, fact-check match, or non-zero intrinsic evidence (e.g. a 20-year-old
+    # domain whose `domain_age_days` maps to 0.0), single still abstains.
+    without_intrinsic = example_analysis()
+    without_intrinsic.context = [c for c in without_intrinsic.context if c.id == "ctx1"]
+    without_intrinsic.evidence = [evidence("s1", Family.source_profile, "domain_age_days", 7300.0)]
+    abstained = run(without_intrinsic).scores.single
+    assert abstained.abstained and abstained.confidence is None
+    assert abstained.reason is not None and "Only 1 other report" in abstained.reason
+    assert abstained.breakdown  # still shown behind "how we calculated this"
 
 
 def test_coordinated_abstains_without_copies_and_little_context() -> None:
@@ -201,9 +221,20 @@ def test_satire_outlet_abstains_single_and_maps_negative_strength() -> None:
     assert scores.single.abstained and scores.single.confidence is None
     assert scores.single.reason is not None and "satire" in scores.single.reason
 
-    # Satire items in context do not count toward the 3 related news reports needed to compare.
+    # Satire items in context do not count toward the 3 related news reports needed to compare;
+    # without intrinsic single-actor evidence or a fact-check, single abstains.
     non_satire = example_analysis()
-    non_satire.evidence = [e for e in non_satire.evidence if e.family != Family.fact_checks]
+    non_satire.evidence = [
+        e for e in non_satire.evidence if e.family in (Family.tone, Family.claim_support)
+    ]
     for domain in ("patriot-voice.example", "free-nation-news.example"):
         next(s for s in non_satire.sources if s.domain == domain).outlet_type = OutletType.satire
     assert run(non_satire).scores.single.abstained
+
+    # A `[Satire/humour meme]` paragraph still abstains even when intrinsic evidence is present.
+    satire_meme = example_analysis()
+    assert satire_meme.document is not None
+    satire_meme.document.paragraphs.append("[Satire/humour meme] A joke cat picture.")
+    satire_meme.context = []
+    satire_meme.evidence = [evidence("s1", Family.rhetoric, "simplification", 1.0)]
+    assert run(satire_meme).scores.single.abstained

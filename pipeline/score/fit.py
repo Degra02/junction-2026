@@ -52,7 +52,7 @@ BINS = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 SEPARATES_ALONE = 0.98
 # Domain priors (intercept, *family coefficients): fixed here so re-running `fit` is idempotent.
 PRIORS: dict[tuple[Family, ...], np.ndarray] = {
-    SINGLE: np.array([-2.0, 1.5, 1.0, 1.5, 2.5, 1.0]),
+    SINGLE: np.array([-2.0, 1.5, 1.5, 1.0, 1.5, 2.5, 1.0]),
     COORDINATED: np.array([-2.5, 2.0, 1.0, 2.0, 3.0]),
 }
 
