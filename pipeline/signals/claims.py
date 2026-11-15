@@ -288,8 +288,9 @@ def fact_check_evidence(
     """Fact-checks from the document's own outlet are skipped: when the document is a
     fact-check, its own review of the claim it debunks is not evidence against it.
 
-    Matches verbatim `claims` first and falls back to `implied_claims` (`plans/persuasion-analysis.md`
-    P-L3); an implied claim has no span in the document, so its evidence cites only `check`.
+    Matches verbatim `claims` first and falls back to `implied_claims`
+    (`plans/persuasion-analysis.md` P-L3); an implied claim has no span in the document, so its
+    evidence cites only `check`.
     """
     checks = [
         c
