@@ -43,6 +43,7 @@ const MAX_BODY_BYTES: usize = 512 * 1024;
         c::SignalsPatch,
         c::ScorePatch,
         c::ExplainPatch,
+        c::GraphPatch,
     )),
     tags(
         (name = "analyses", description = "Create and read analyses"),
@@ -63,6 +64,7 @@ fn documented() -> OpenApiRouter<AppState> {
         .routes(routes!(stats::stats))
         .routes(routes!(metrics::metrics))
         .routes(routes!(graph::graph))
+        .routes(routes!(graph::outlet))
 }
 
 /// A JSON file built offline and shipped with the API, served unchanged; 404 with `missing`

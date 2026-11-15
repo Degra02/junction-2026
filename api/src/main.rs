@@ -1,14 +1,19 @@
-//! `junction-api [serve|openapi|healthcheck]`
+//! `junction-api [serve|openapi|healthcheck|replay-graph]`
 //!
 //! - `serve` (default): run the HTTP server.
 //! - `openapi`: print the OpenAPI document (`mise run contracts` writes it to `contracts/`).
 //! - `healthcheck`: exit 0 when the local server answers `/api/health`; used by Docker, whose
 //!   distroless image has no curl.
+//! - `replay-graph`: replay every finished stored analysis through `POST /stages/graph` and
+//!   ingest its observations into SQLite.
 
 use std::process::ExitCode;
 
 use anyhow::Context as _;
-use junction_api::{AppState, config::Config, routes, serve};
+use junction_api::{
+    AppState, config::Config, db::Db, routes, serve, worker::StageOutcome, worker::WorkerClient,
+};
+use junction_contracts::{StageName, StagePatch};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -21,8 +26,11 @@ async fn main() -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some("healthcheck") => Ok(healthcheck().await),
+        Some("replay-graph") => replay_graph().await.map(|()| ExitCode::SUCCESS),
         Some(other) => {
-            eprintln!("unknown command {other:?}; expected serve, openapi or healthcheck");
+            eprintln!(
+                "unknown command {other:?}; expected serve, openapi, healthcheck or replay-graph"
+            );
             Ok(ExitCode::from(2))
         }
     }
@@ -84,4 +92,40 @@ async fn healthcheck() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+async fn replay_graph() -> anyhow::Result<()> {
+    let config = Config::from_env()?;
+    let db = Db::open(&config.database_path).await?;
+    let worker = WorkerClient::new(config.worker_url.clone(), config.worker_connect_wait)?;
+    let analyses = db.finished_analyses().await?;
+    let total = analyses.len();
+    let mut ingested = 0usize;
+    for mut analysis in analyses {
+        match worker
+            .run_stage(StageName::Graph, &analysis, config.stage_timeout)
+            .await
+        {
+            StageOutcome::Patch(patch) => {
+                let gp = match &patch {
+                    StagePatch::Graph(gp) => gp.clone(),
+                    _ => continue,
+                };
+                if let Err(e) = analysis.apply(patch) {
+                    eprintln!("skipping {}: rejected by contract ({e})", analysis.id);
+                    continue;
+                }
+                db.ingest_graph(&analysis, &gp).await?;
+                ingested += 1;
+            }
+            StageOutcome::NotImplemented => {
+                anyhow::bail!("worker does not implement the `graph` stage yet");
+            }
+            StageOutcome::Failed(err) => {
+                eprintln!("skipping {}: worker failed ({err})", analysis.id);
+            }
+        }
+    }
+    println!("replayed {ingested} of {total} finished analyses into SQLite graph tables");
+    Ok(())
 }

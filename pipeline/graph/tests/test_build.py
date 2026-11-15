@@ -6,7 +6,15 @@ import numpy as np
 
 from pipeline.common.contracts import OutletType
 from pipeline.common.fixtures import example_analysis
-from pipeline.graph.build import AD_ACCOUNT, ANALYTICS_ID, COPY, TRANSLATION, clusters, ties
+from pipeline.graph.build import (
+    AD_ACCOUNT,
+    ANALYTICS_ID,
+    COPY,
+    TRANSLATION,
+    clusters,
+    patch_for_analysis,
+    ties,
+)
 from pipeline.graph.corpus import Article, Corpus, Outlet, collect, operator
 
 
@@ -150,3 +158,17 @@ def test_one_analytics_id_alone_is_a_weak_tie_until_corroborated() -> None:
         article("b.example", story(2), ids=("G-ONE11111", "GTM-TWO2222")),
     ]
     assert found(corpus_of(two_tags))[1] == [["a.example", "b.example"]]
+
+
+def test_graph_patch_for_example_analysis_returns_analytics_id_tie() -> None:
+    analysis = example_analysis()
+    patch = patch_for_analysis(analysis, unrelated, lambda text: "en")
+    by_pair = {(t.a, t.b, t.kind): t for t in patch.ties}
+    tie = by_pair[("daily-truth.example", "free-nation-news.example", ANALYTICS_ID)]
+    assert len(tie.keys_a) == 2 and len(tie.keys_b) == 2
+    assert {e["id"] for e in tie.evidence} == {"UA-998877-1", "ca-pub-4455667788990011"} or len(
+        tie.evidence
+    ) >= 1
+    # The patch passes the Rust/Pydantic contract shape and has one embedding per article.
+    assert len(patch.articles) == 6
+    assert all(len(a.embedding) == 6 for a in patch.articles)

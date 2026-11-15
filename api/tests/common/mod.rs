@@ -319,6 +319,11 @@ pub fn valid_patch(stage: StageName) -> Value {
                 }],
             },
         }),
+        StageName::Graph => serde_json::to_value(GraphPatch {
+            outlets: vec![],
+            articles: vec![],
+            ties: vec![],
+        }),
     };
     value.expect("serializable patch")
 }

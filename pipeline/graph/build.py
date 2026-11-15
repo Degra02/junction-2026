@@ -49,8 +49,15 @@ from pathlib import Path
 
 import numpy as np
 
-from pipeline.common.contracts import Analysis, OutletType
-from pipeline.graph.corpus import Article, Corpus, collect, hosted, official, operator
+from pipeline.common.contracts import (
+    Analysis,
+    GraphObservation,
+    GraphPatch,
+    GraphPatchArticle,
+    GraphPatchOutlet,
+    OutletType,
+)
+from pipeline.graph.corpus import Article, Corpus, collect, hosted, official, operator, social
 from pipeline.signals.coordinated import (
     COPY_CONTAINMENT,
     MIN_SHARED_SHINGLES,
@@ -58,7 +65,7 @@ from pipeline.signals.coordinated import (
     SHINGLE,
     TRANSLATED_COPY_SIMILARITY,
 )
-from pipeline.signals.text import mask_quotations, tokens
+from pipeline.signals.text import mask_quotations, normalize_domain, tokens
 from pipeline.story.assign import story_text
 
 TRANSLATION_SIMILARITY = TRANSLATED_COPY_SIMILARITY
@@ -432,6 +439,78 @@ def graph(corpus: Corpus, edges: Edges) -> dict[str, object]:
             for n, group in enumerate(groups, 1)
         ],
     }
+
+
+def patch_for_analysis(analysis: Analysis, embed: Embed, detect: Detect) -> GraphPatch:
+    """Observations of a single `Analysis` for live SQLite ingestion (`POST /stages/graph`, `L2`).
+
+    Reuses `collect` and `ties` directly so live ingestion obeys the exact same rules as the
+    offline build.
+    """
+    corpus = collect([analysis])
+    if not corpus.articles:
+        return GraphPatch(outlets=[], articles=[], ties=[])
+
+    texts = [story_text(a.title, a.text) for a in corpus.articles]
+    vectors = embed(texts)
+    languages = [detect(t) for t in texts]
+    lang_by_text = dict(zip(texts, languages, strict=True))
+
+    edges = ties(corpus, lambda _ts: vectors, lambda t: lang_by_text.get(t))
+
+    doc_outbound: list[str] = []
+    if analysis.document and analysis.document.outbound_links:
+        own_op = operator(normalize_domain(analysis.document.outlet) or "")
+        seen_links: set[str] = set()
+        for raw_link in analysis.document.outbound_links:
+            target = normalize_domain(raw_link)
+            if (
+                target
+                and not social(target)
+                and operator(target) != own_op
+                and target not in seen_links
+            ):
+                seen_links.add(target)
+                doc_outbound.append(target)
+
+    outlets = [
+        GraphPatchOutlet(
+            domain=domain,
+            operator=operator(domain),
+            outlet_type=outlet.outlet_type,
+            country=outlet.country,
+            known_network=outlet.known_network,
+        )
+        for domain, outlet in sorted(corpus.outlets.items())
+    ]
+    articles = [
+        GraphPatchArticle(
+            url=article.url,
+            outlet=article.outlet,
+            title=article.title,
+            published_at=article.published_at,
+            language=lang,
+            analysed=article.analysed,
+            fact_check=article.fact_check,
+            tracking_ids=sorted(article.tracking_ids),
+            outbound_domains=doc_outbound if article.analysed else [],
+            embedding=[round(float(v), 6) for v in vec.tolist()],
+        )
+        for article, vec, lang in zip(corpus.articles, vectors, languages, strict=True)
+    ]
+    observations = [
+        GraphObservation(
+            a=a,
+            b=b,
+            kind=kind,
+            keys_a=sorted(tie.a),
+            keys_b=sorted(tie.b),
+            evidence=_strongest(tie.evidence),
+        )
+        for (a, b), layers in sorted(edges.items())
+        for kind, tie in sorted(layers.items())
+    ]
+    return GraphPatch(outlets=outlets, articles=articles, ties=observations)
 
 
 def _records(path: Path) -> Iterator[tuple[Analysis, str | None]]:
