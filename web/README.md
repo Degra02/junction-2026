@@ -36,8 +36,6 @@ web/
     │   ├── labels.ts               # Plain-English labels for StageName, Family, Signal, OutletType, LanguageSupport, datasets
     │   ├── format.ts               # Percentages, Wilson 95% CIs, signed log-odds, domain age, URL/text auto-detection
     │   └── ui.ts                   # buttonClass / tagClass: the only button and tag styles
-    ├── data/
-    │   └── presets.ts              # Documented live VPS demo items (`replayAnalysisId` + input URL/text)
     ├── hooks/
     │   ├── useAnalysisStream.ts    # Named SSE listener (`snapshot`, `queue`, `step`, `done`) + `?replay=true`; per-stage live notes and timings
     │   ├── usePointerEffects.ts    # One pointer listener: `[data-spotlight]` highlights and the backdrop glow
@@ -48,7 +46,6 @@ web/
     │   ├── ui/AnimatedNumber.tsx   # Count-up number
     │   ├── AppShell.tsx            # Header, footer, grain/glow backdrop
     │   ├── AnalysisInputForm.tsx   # Link/text composer, summary language, skip-cache
-    │   ├── DemoPresets.tsx         # Example chips: fill the input or replay the stored run
     │   ├── RunProgress.tsx         # Live run: step ledger with live notes, sites being read, sources rail; the same ledger is the Run log tab + re-run control
     │   ├── DimensionScoreCard.tsx  # Separate single/coordinated cards (D3/D4) + "Not enough evidence" abstention
     │   ├── ExplanationPanel.tsx    # Summary + evidence-linked reasons + summary-language switch
@@ -73,7 +70,7 @@ Live progress: `retrieve` names the outlets it is reading in its progress note (
 1. **Contract drift**: `web/tsconfig.json` typechecks directly against `../contracts/ts/api.d.ts`, and `deploy.yml` builds the caddy image (`bun install --frozen-lockfile && bun run build`) on every PR touching `web/**` or `contracts/**`: a breaking Rust schema change fails that PR.
 
 ### Product (`ck-lithium`)
-1. **Continuing `web/` work**: branch off `main`; keep all static copy/demo items in `web/src/data/presets.ts` and label mappings in `web/src/lib/labels.ts`.
+1. **Continuing `web/` work**: branch off `main`; keep label mappings in `web/src/lib/labels.ts`.
 2. **Lockfile rule**: whenever adding or updating a JS dependency (`cd web && bun add <pkg>`), commit the updated `web/bun.lock` — `deploy/caddy.Dockerfile` enforces `--frozen-lockfile` on `oven/bun:1.4.4-alpine`.
 3. **Satire & outlet types**: `OutletType::Satire` (`satire`) and `outlet_satire` are already mapped in `web/src/lib/labels.ts` (`OUTLET_TYPE_LABELS` and `SIGNAL_LABELS`) and badged in both `AnalysisPage` and `CoverageView`.
 4. **Span highlights & SSE invariants — do not break**:
@@ -87,6 +84,5 @@ Live progress: `retrieve` names the outlets it is reading in its progress note (
    - `ScoreBreakdown` (Score tab) renders `scores.<dim>.breakdown` even when `abstained == true`. The Run log tab has a "Re-run from" selector (`POST /api/analyses/{id}/rerun?from=<stage>`) to test `signals_single`, `score` or `explain` iterations in the UI.
 
 ### Problem / Evals / Pitch (`mosearc`)
-1. **Updating demo replay IDs**: `web/src/data/presets.ts` holds the 5 documented preset cards on `/` (the post-#27 IDs from `docs/pitch/demo-script.md` plus the ANSA wire-copy run from `docs/next-steps.md`). After `GOOGLE_FACTCHECK_API_KEY` and the final deploy land and you re-submit the demo items (`POST /api/analyses?force=true`), update `replayAnalysisId` in `web/src/data/presets.ts` alongside `docs/pitch/demo-script.md`.
-2. **Live demo playback**: every example chip has a replay button (`/analyses/{id}?replay=true`), and every finished `/analyses/{id}` page has **Replay** in the header, so any stored run plays back live during the pitch without network wait.
-3. **Publishing `evals/metrics.json`**: `/metrics` fetches `/api/metrics` and `/api/stats`. While `/api/metrics` returns `404`, `/metrics` says the results are not published yet and shows the live runtime stats. Once `evals/metrics.json` is committed, `/metrics` renders `headline` (with & without `fact_checks` / `known_networks` / `source_profile`), `fit` CV AUCs, per-set hard-negative FPRs with Wilson 95% CIs + `coverage` (`null` → `n/a`), the calibration curve, and per-language tables.
+1. **Live demo playback**: every finished `/analyses/{id}` page has **Replay** in the header (`/analyses/{id}?replay=true`), so any stored run plays back live during the pitch without network wait.
+2. **Publishing `evals/metrics.json`**: `/metrics` fetches `/api/metrics` and `/api/stats`. While `/api/metrics` returns `404`, `/metrics` says the results are not published yet and shows the live runtime stats. Once `evals/metrics.json` is committed, `/metrics` renders `headline` (with & without `fact_checks` / `known_networks` / `source_profile`), `fit` CV AUCs, per-set hard-negative FPRs with Wilson 95% CIs + `coverage` (`null` → `n/a`), the calibration curve, and per-language tables.
