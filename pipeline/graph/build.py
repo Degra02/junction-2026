@@ -52,9 +52,9 @@ import numpy as np
 from pipeline.common.contracts import Analysis, OutletType
 from pipeline.graph.corpus import Article, Corpus, collect, hosted, official, operator
 from pipeline.signals.coordinated import (
-    _NOT_COPIERS,
     COPY_CONTAINMENT,
     MIN_SHARED_SHINGLES,
+    NOT_COPIERS,
     SHINGLE,
     TRANSLATED_COPY_SIMILARITY,
 )
@@ -134,7 +134,7 @@ def republishes(article: Article, corpus: Corpus) -> bool:
     established newsroom running agency copy, an official statement."""
     return (
         article.fact_check
-        or corpus.outlets[article.outlet].outlet_type in _NOT_COPIERS
+        or corpus.outlets[article.outlet].outlet_type in NOT_COPIERS
         or official(article.outlet)
     )
 
