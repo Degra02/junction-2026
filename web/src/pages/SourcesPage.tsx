@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronDown, ExternalLink, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, Network, Search } from "lucide-react";
 import { OutletInspector } from "../components/sources/OutletInspector";
 import { OutletButton, Tie } from "../components/sources/TieEvidence";
 import { describeError, getGraph } from "../lib/api";
@@ -14,6 +14,9 @@ import { cn } from "../lib/utils";
 const CORRECTIONS_URL = "https://github.com/Degra02/junction-2026/issues/new?title=Source%20graph%20correction";
 const OUTLET_PAGE = 50;
 
+// The map's code and layout load only when a reader asks for it.
+const GraphMapView = lazy(() => import("../components/sources/GraphMapView"));
+
 export type SourcesPageProps = Record<string, never>;
 
 export function SourcesPage(_props: Readonly<SourcesPageProps>) {
@@ -23,6 +26,7 @@ export function SourcesPage(_props: Readonly<SourcesPageProps>) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(OUTLET_PAGE);
+  const [showMap, setShowMap] = useState(false);
   const [params, setParams] = useSearchParams();
   const openDomain = params.get("outlet");
 
@@ -124,6 +128,31 @@ export function SourcesPage(_props: Readonly<SourcesPageProps>) {
               className="h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-3 text-[13px] outline-none focus:border-[var(--accent)]"
             />
           </label>
+
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-medium">Map</h2>
+                <p className="text-[13px] text-[var(--fg-secondary)]">
+                  The same ties, drawn. Groups of sites are one circle until you zoom in.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-expanded={showMap}
+                onClick={() => setShowMap((v) => !v)}
+                className={buttonClass("secondary", "md")}
+              >
+                <Network className="h-3.5 w-3.5" aria-hidden="true" />
+                {showMap ? "Hide the map" : "Show the map"}
+              </button>
+            </div>
+            {showMap && (
+              <Suspense fallback={<div className="h-[min(70vh,640px)] rounded-xl bg-[var(--bg-subtle)] animate-pulse" />}>
+                <GraphMapView graph={graph} index={index} needle={needle} onOpenOutlet={openOutlet} />
+              </Suspense>
+            )}
+          </section>
 
           <section className="space-y-3">
             <h2 className="text-sm font-medium">
