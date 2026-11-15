@@ -38,7 +38,7 @@ from pipeline.common.contracts import (
     Score,
 )
 from pipeline.common.errors import StageError
-from pipeline.score import WEIGHTS, DimensionWeights
+from pipeline.score import WEIGHTS, DimensionWeights, has_comparison_coverage
 from pipeline.score.families import strength
 
 MAX_REASONS = 3
@@ -69,6 +69,8 @@ Write:
 - summary: one or two short sentences on what the evidence shows, giving each dimension's \
 confidence as a percentage or saying that it abstained. When a dimension has "evidence_count": \
 0, say that its low percentage means no signals of that dimension were found in the coverage. \
+When single has "coverage_compared": false, say that no related coverage was found to compare \
+with, so its percentage rests on the content and source alone. \
 Never call the content "propaganda" or "not propaganda" as a verdict; describe what was found.
 - reasons: up to {MAX_REASONS}, most important first, each one plain sentence a non-expert \
 understands, with "evidence_ids": the IDs of the evidence items it is based on (at least one, \
@@ -202,7 +204,15 @@ def digest(analysis: Analysis) -> str:
     scores = analysis.scores
     payload = {
         "scores": {
-            "single": _score(scores.single, WEIGHTS.single) if scores else None,
+            "single": (
+                _score(
+                    scores.single,
+                    WEIGHTS.single,
+                    coverage_compared=has_comparison_coverage(analysis),
+                )
+                if scores
+                else None
+            ),
             "coordinated": _score(scores.coordinated, WEIGHTS.coordinated) if scores else None,
         },
         "evidence": [_evidence(e) for e in ranked],
@@ -265,10 +275,12 @@ def quotable(analysis: Analysis) -> list[str]:
     return texts + [e.detail for e in analysis.evidence]
 
 
-def _score(score: Score, weights: DimensionWeights) -> dict[str, object]:
+def _score(
+    score: Score, weights: DimensionWeights, *, coverage_compared: bool | None = None
+) -> dict[str, object]:
     if score.abstained:
         return {"abstained": True, "reason": score.reason}
-    return {
+    out: dict[str, object] = {
         "confidence": score.confidence,
         "calibrated": weights.calibrated,
         "evidence_count": sum(len(b.evidence_ids) for b in score.breakdown),
@@ -276,6 +288,9 @@ def _score(score: Score, weights: DimensionWeights) -> dict[str, object]:
             b.family.value: b.contribution for b in score.breakdown if b.contribution
         },
     }
+    if coverage_compared is not None:
+        out["coverage_compared"] = coverage_compared
+    return out
 
 
 def _evidence(item: Evidence) -> dict[str, object]:
