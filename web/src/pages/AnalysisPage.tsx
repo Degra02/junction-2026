@@ -484,24 +484,14 @@ export function AnalysisPage(_props: Readonly<AnalysisPageProps>) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DimensionScoreCard
-                  dimension="single"
-                  score={analysis.scores?.single}
-                  evidence={analysis.evidence}
-                  isPreliminaryEstimate={isPreliminaryEstimate}
-                  cappedAt85={cappedAt85}
-                  onInspectCalculation={handleInspectCalculation}
-                />
-                <DimensionScoreCard
-                  dimension="coordinated"
-                  score={analysis.scores?.coordinated}
-                  evidence={analysis.evidence}
-                  isPreliminaryEstimate={isPreliminaryEstimate}
-                  cappedAt85={cappedAt85}
-                  onInspectCalculation={handleInspectCalculation}
-                />
-              </div>
+              <DimensionScoreCard
+                scores={analysis.scores}
+                evidence={analysis.evidence}
+                isPreliminaryEstimate={isPreliminaryEstimate}
+                cappedAt85={cappedAt85}
+                onInspectCalculation={handleInspectCalculation}
+                onInspectEvidence={handleInspectEvidenceOrClaim}
+              />
 
               <ExplanationPanel
                 explanation={analysis.explanation}
