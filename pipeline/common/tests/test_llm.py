@@ -103,3 +103,56 @@ def test_missing_configuration_is_a_plain_stage_error(monkeypatch: pytest.Monkey
     monkeypatch.setenv("LLM_MODEL", "test-model")
     with pytest.raises(StageError, match="not configured"):
         llm.ask_text(system="s", user="u")
+
+
+def test_ask_json_supports_per_call_model_and_data_uri_image(
+    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_RATER_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_RATER_API_KEY", raising=False)
+    endpoint.reply = '{"label": "straw man", "confidence": 0.9}'
+    data_uri = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )
+    verdict = asyncio.run(
+        llm.ask_json_async(
+            Verdict,
+            system="Rate rhetoric.",
+            user="AFFORDABILITY",
+            model="custom-rater-v1",
+            image=data_uri,
+        )
+    )
+    assert verdict == Verdict(label="straw man", confidence=0.9)
+    request = endpoint.requests[-1]
+    assert request["model"] == "custom-rater-v1"
+    assert request["messages"][1] == {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "AFFORDABILITY"},
+            {"type": "image_url", "image_url": {"url": data_uri}},
+        ],
+    }
+
+    # Remote URLs are rejected so signal stages never trigger implicit network fetches.
+    with pytest.raises(StageError, match="Unsupported image input"):
+        llm.ask_json(Verdict, system="s", user="u", image="https://example.com/meme.png")
+
+
+def test_gemini_override_routes_to_gemini_openai_endpoint_when_key_set(
+    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gemini_server = Endpoint()
+    try:
+        gemini_server.reply = '{"label": "distraction", "confidence": 1.0}'
+        monkeypatch.setattr(llm, "GEMINI_OPENAI_BASE_URL", gemini_server.url)
+        monkeypatch.setenv("GEMINI_API_KEY", "gk-test")
+        verdict = llm.ask_json(Verdict, system="Rate.", user="Caption", model="gemini-4-hydrogen")
+        assert verdict == Verdict(label="distraction", confidence=1.0)
+        assert gemini_server.requests[0]["model"] == "gemini-4-hydrogen"
+        assert gemini_server.authorization == ["Bearer gk-test"]
+        assert endpoint.requests == []
+    finally:
+        gemini_server.server.shutdown()

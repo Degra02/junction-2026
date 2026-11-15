@@ -4,6 +4,7 @@ import type {
   ErrorBody,
   Health,
   Input,
+  GraphPayload,
   MetricsPayload,
   StageName,
   Stats,
@@ -122,6 +123,21 @@ export async function getMetrics(signal?: AbortSignal): Promise<MetricsPayload |
     throw await parseError(res);
   }
   return (await res.json()) as MetricsPayload;
+}
+
+/** The source graph; null while no graph is published (404). */
+export async function getGraph(signal?: AbortSignal): Promise<GraphPayload | null> {
+  const res = await fetch("/api/graph", {
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw await parseError(res);
+  }
+  return (await res.json()) as GraphPayload;
 }
 
 export async function getStats(signal?: AbortSignal): Promise<Stats> {

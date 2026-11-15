@@ -71,18 +71,18 @@ export function ExtensionPage(_props: Readonly<ExtensionPageProps>) {
         </div>
 
         <h1 className="display text-3xl sm:text-[42px] leading-[1.08] text-[var(--fg-primary)]">
-          Check any story where you read it.
+          Check any post, meme, or story where you see it.
         </h1>
 
         <p className="text-[15px] text-[var(--fg-secondary)] max-w-[62ch] leading-relaxed">
-          Connect your browser directly to this Decode the Noise workspace. Cross-check open articles,
+          Connect your browser directly to this The4thLover workspace. Cross-check open articles,
           highlighted claims, or logged-in social feeds without switching tabs or copying links by hand.
         </p>
 
         <div className="pt-1 flex flex-wrap items-center gap-3">
           <a
-            href="/decode-the-noise-extension.zip"
-            download="decode-the-noise-extension.zip"
+            href="/the4thlover-extension.zip"
+            download="the4thlover-extension.zip"
             className={buttonClass("primary", "lg")}
           >
             <Download className="h-4 w-4" aria-hidden="true" />
@@ -160,7 +160,7 @@ export function ExtensionPage(_props: Readonly<ExtensionPageProps>) {
             <li>
               Download and unzip{" "}
               <code className="font-mono-num text-xs text-[var(--fg-primary)]">
-                decode-the-noise-extension.zip
+                the4thlover-extension.zip
               </code>
               .
             </li>
@@ -204,7 +204,7 @@ export function ExtensionPage(_props: Readonly<ExtensionPageProps>) {
               title="Drag me to your browser bookmarks bar"
             >
               <Bookmark className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-              Check with Decode the Noise
+              Check with The4thLover
             </a>
             <span className="text-xs text-[var(--fg-muted)]">← drag to bookmarks bar</span>
           </div>

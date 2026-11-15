@@ -18,6 +18,7 @@ from pipeline.common.contracts import (
     Analysis,
     ExplainPatch,
     ExtractPatch,
+    GraphPatch,
     RetrievePatch,
     ScorePatch,
     SignalsPatch,
@@ -59,6 +60,7 @@ STAGES: dict[StageName, StageSpec] = {
     StageName.signals_coordinated: StageSpec("pipeline.signals", "run_coordinated", SignalsPatch),
     StageName.score: StageSpec("pipeline.score", "run", ScorePatch),
     StageName.explain: StageSpec("pipeline.explain", "run", ExplainPatch),
+    StageName.graph: StageSpec("pipeline.graph", "run", GraphPatch),
 }
 
 _loaded: dict[StageSpec, Loaded] = {}

@@ -15,10 +15,17 @@ Rules for the list:
   is not a mirror.
 - `fact_checker`: organisations that publish fact-checks (IFCN signatories and similar).
 - `national`: established mainstream newsrooms, including public-service broadcasters.
+- `local`: regional and city newsrooms (WTOP, Il Resto del Carlino, Ouest-France...).
+- `satire`: sites whose genre is invented news or parody (The Onion, Il Fatto Quotidaino, Der
+  Postillon, Le Gorafi, El Mundo Today, De Speld, Babylon Bee...): an invented claim there is the
+  joke, not manipulation. Outlets that mix satire with real reporting (Le Canard enchaîné,
+  Charlie Hebdo) are not listed as satire. A satire site republishing a story is not copying
+  either; whether `signals/coordinated.py` treats it so is the signals owner's call.
 - No `partisan` entries: D9 rules out political-bias ratings.
 
 A host matches the longest listed domain it ends with: `bologna.repubblica.it` is
-`repubblica.it`, while `factcheck.afp.com` is the fact-checker and not the AFP wire.
+`repubblica.it`, while `factcheck.afp.com` is the fact-checker and not the AFP wire, and
+`inimigo.publico.pt` (Público's satire supplement) is satire, not the national newspaper.
 """
 
 import json
@@ -69,6 +76,9 @@ class Registry:
 
     def feeds(self) -> list[tuple[Outlet, Feed]]:
         return [(outlet, feed) for outlet in self._by_domain.values() for feed in outlet.feeds]
+
+    def domains(self, outlet_type: OutletType) -> list[str]:
+        return [o.domain for o in self._by_domain.values() if o.outlet_type == outlet_type]
 
 
 def parse(data: dict) -> Registry:

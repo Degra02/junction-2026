@@ -15,6 +15,7 @@ export const ALL_STAGES: readonly StageName[] = [
   "signals_coordinated",
   "score",
   "explain",
+  "graph",
 ];
 
 /** `label`: a finished or waiting step; `active`: the same step while it runs; `help`: what it does. */
@@ -60,6 +61,11 @@ export const STAGE_LABELS: Readonly<
     label: "Wrote the explanation",
     active: "Writing the explanation",
     help: "Writes the summary and reasons; every quotation is checked against the sources.",
+  },
+  graph: {
+    label: "Updated the source graph",
+    active: "Updating the source graph",
+    help: "Records outlets, shared tracker IDs and text reuse in the live source map.",
   },
 };
 

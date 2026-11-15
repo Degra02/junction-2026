@@ -58,7 +58,7 @@ Ground truth. Labels come from third parties (fact-checkers via ClaimReview, EUv
 | `hard_emotional` | both false | Emotional but accurate reporting |
 | `hard_wire_copy` | both false | Agency copy (AP, Reuters, AFP, dpa, EFE, ANSA) republished by many outlets |
 | `hard_press_releases` | both false | Government/corporate releases and their republications |
-| `semeval_memes` | single = the annotators' label, coordinated null | SemEval-2024 Task 4 subtask 2b (propagandistic / not); downloaded, never committed (below) |
+| `semeval_memes` | single = at least one persuasion technique marked by the annotators, coordinated null | SemEval-2021 Task 6 memes; downloaded, never committed (below) |
 
 Positives cover pro-Kremlin operations (EUvsDisinfo, VIGINUM) plus domestic misinformation (fact-checkers). The `known_networks` family reads the same VIGINUM list that labels `viginum_pravda`: read the coordinated metrics next to the ablation row "without known_networks".
 
@@ -101,9 +101,11 @@ Per dimension: precision, recall, F1, FPR with Wilson 95% intervals; FPR per har
 
 ## Memes (`semeval_memes`)
 
-About 100 English memes of SemEval-2024 Task 4 subtask 2b, balanced between the annotators' "propagandistic" and "non_propagandistic". `bash evals/download_data.sh` downloads them into `evals/data/semeval2024/` and writes their items to `evals/data/semeval2024/labelled.jsonl` (gitignored, like the images): nothing from the dataset is committed, not even its labels. `validate`, `stats`, `run` and `eval` load that file next to `labelled.jsonl` when it exists (not when `--labelled` points elsewhere).
+99 English memes of the SemEval-2021 Task 6 corpus (Dimitrov et al., "Detecting Propaganda Techniques in Memes", ACL 2021): 950 memes from US political and COVID Facebook groups, each annotated with the persuasion techniques it uses (22 techniques, text and image). Terms: "These datasets are free for general research use." ([README, Licensing](https://github.com/di-dimitrov/SEMEVAL-2021-task6-corpus#licensing)). SemEval-2024 Task 4 was the first choice and is not used: its terms limit the data to that shared task.
 
-- Items carry `image` (a path under `evals/data/`); the runner submits it as a `kind: image` data URI. An image over the API's 450,000-character data-URI limit fails that item, not the run.
+- **Label mapping is ours**: the annotators list techniques and never say "propagandistic", so at least one technique → `single: true`, none → `single: false`. Only 36 memes have none: the set is every one of them that fits (35) plus 64 positives chosen by a hash of the ID, so it is **imbalanced (64/35)** and its negatives are hard ones (political memes from the same groups).
+- `mise run eval -- fetch-memes` (run by `download_data.sh`) writes the images to `evals/data/semeval2021/images/` and the items to `evals/data/semeval2021/labelled.jsonl` (gitignored): nothing from the dataset is committed, not even its labels. `validate`, `stats`, `run` and `eval` load that file next to `labelled.jsonl` when it exists (not when `--labelled` points elsewhere).
+- Items carry `image` (a path under `evals/data/`); the runner submits it as a `kind: image` data URI, typed from the file's bytes (the corpus saves JPEGs as `.png`). Images over the API's 450,000-character data-URI limit are skipped when the set is built (4 today).
 - A meme positive means "uses persuasion techniques", an article positive mostly "debunked by a fact-checker": the meme set is reported in its own rows ("Memes" in the report, `per_set.semeval_memes` in the JSON) and never counted in the headline, the per-language rows or the calibration (`MIXED_SETS`).
 
 ## Symmetry check (`symmetry`)
@@ -120,7 +122,7 @@ About 100 English memes of SemEval-2024 Task 4 subtask 2b, balanced between the 
 bash evals/download_data.sh
 ```
 
-Downloads into `evals/data/` (gitignored): SemEval-2020 Task 11 PTC v2 (technique eval, research-only), the VIGINUM Portal Kombat domain CSV (domains defanged: `pravda-de[.]com`) and the Data Commons ClaimReview feed (~190 MB).
+Downloads into `evals/data/` (gitignored): SemEval-2020 Task 11 PTC v2 (technique eval, research-only), the VIGINUM Portal Kombat domain CSV (domains defanged: `pravda-de[.]com`), the Data Commons ClaimReview feed (~190 MB) and the SemEval-2021 Task 6 meme set (~8 MB, see "Memes").
 
 ## File layout
 

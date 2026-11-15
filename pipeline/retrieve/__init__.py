@@ -18,7 +18,7 @@ Phases run under fixed budgets that sum below the worker's 120 s stage timeout.
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 
 from pipeline.common import progress
@@ -57,6 +57,7 @@ FACTCHECK_TIMEOUT_S = 15.0  # likewise
 PHRASES_TIMEOUT_S = 25.0
 GDELT_PHRASES = 2  # 5.5 s apart: two fit in the budget
 NEWS_QUERIES = 4  # Google News searches per analysis (each costs Oxylabs credit)
+FACTCHECK_CLAIMS = 2  # listed fact-checker `site:` searches per analysis
 MAX_HITS = 30  # pages fetched per analysis
 PER_OUTLET = 3  # hits per outlet, so one prolific site does not fill the context
 WIRE_BONUS = 0.1  # agency originals let the signals tell syndication from copying
@@ -66,11 +67,20 @@ _REGISTRY = load_registry()
 _LISTING = load_listing()
 
 
+def _claim_queries(analysis: Analysis) -> list[tuple[str, str | None]]:
+    """Verbatim claims (in the document's language), then implied claims (in English)."""
+    own = analysis.language.code if analysis.language else None
+    implied = (analysis.topic.implied_claims or []) if analysis.topic else []
+    claims = [(c.text.strip(), own) for c in analysis.claims]
+    claims += [(c.strip(), "en") for c in implied]
+    return [q for q in dict.fromkeys(claims) if q[0]]
+
+
 def search_queries(analysis: Analysis) -> list[Query]:
-    """`understand`'s queries, plus the claims and the title (in the document's language)."""
+    """`understand`'s queries, plus claims, implied claims and the title."""
     own = analysis.language.code if analysis.language else None
     queries = [Query(q.text.strip(), q.language or None) for q in analysis.queries]
-    queries += [Query(c.text.strip(), own) for c in analysis.claims]
+    queries += [Query(text, lang) for text, lang in _claim_queries(analysis)]
     if analysis.document and analysis.document.title:
         queries.append(Query(analysis.document.title.strip(), own))
     return [q for q in dict.fromkeys(queries) if q.text]
@@ -212,13 +222,18 @@ def _with_fact_checks(
 
 
 async def _search_hits(
-    client, cache, phrases: list[str], queries: list[Query]
+    client,
+    cache,
+    phrases: list[str],
+    queries: list[Query],
+    claim_queries: Sequence[tuple[str, str | None]] = (),
+    factcheck_sites: Sequence[str] = (),
 ) -> tuple[list[Hit], list[FeedItem]]:
     """Searches beyond the feeds, run together under PHRASES_TIMEOUT_S:
     - hits that repeat one of the document's phrases verbatim (GDELT, Oxylabs), which skip the
       word matching: an exact phrase is relevant by construction;
-    - web results for understand's topic queries (Oxylabs), returned for the same word matching
-      as feed items."""
+    - web results for understand's topic queries and fact-checker site searches (Oxylabs),
+      returned for the same word matching as feed items."""
     searches, names = [], []
     for phrase in phrases[:GDELT_PHRASES]:
         searches.append(gdelt.search(client, cache, phrase))
@@ -229,6 +244,9 @@ async def _search_hits(
             names.append(oxylabs.NAME)
         for query in queries[:NEWS_QUERIES]:
             searches.append(oxylabs.news_search(client, cache, query.text, query.language))
+            names.append(oxylabs.NEWS_NAME)
+        for text, lang in claim_queries[:FACTCHECK_CLAIMS]:
+            searches.append(oxylabs.factcheck_search(client, cache, text, factcheck_sites, lang))
             names.append(oxylabs.NEWS_NAME)
     if not searches:
         return [], []
@@ -263,9 +281,8 @@ def _merge(phrase_hits: list[Hit], feed_hits: list[Hit]) -> list[Hit]:
 
 
 def _fact_check_queries(analysis: Analysis) -> list[tuple[str, str | None]]:
-    """The claims first (most specific), then understand's queries."""
-    own = analysis.language.code if analysis.language else None
-    queries = [(c.text.strip(), own) for c in analysis.claims]
+    """The claims and implied claims first (most specific), then understand's queries."""
+    queries = _claim_queries(analysis)
     queries += [(q.text.strip(), q.language or None) for q in analysis.queries]
     return [q for q in dict.fromkeys(queries) if q[0]]
 
@@ -316,7 +333,16 @@ async def run(analysis: Analysis) -> RetrievePatch:
         listing = asyncio.create_task(_listing(web, cache))
         reviews_task = asyncio.create_task(_reviews(client, cache, analysis))
         phrases = distinctive_phrases(analysis.document)
-        search_task = asyncio.create_task(_search_hits(client, cache, phrases, user_queries))
+        search_task = asyncio.create_task(
+            _search_hits(
+                client,
+                cache,
+                phrases,
+                user_queries,
+                _claim_queries(analysis),
+                _REGISTRY.domains(OutletType.fact_checker),
+            )
+        )
         # Runs beside the feeds and the article reads, under its own budget (see `social`).
         own_url = analysis.document.url if analysis.document else None
         posts_task = asyncio.create_task(social.find_posts(web, cache, phrases, own_url))

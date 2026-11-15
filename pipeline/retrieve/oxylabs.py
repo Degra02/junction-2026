@@ -15,6 +15,7 @@ it both adapters are off. Answers are cached for a day: each search costs credit
 import asyncio
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import timedelta
 
@@ -32,7 +33,9 @@ log = logging.getLogger(__name__)
 
 NAME = "oxylabs"
 NEWS_NAME = "oxylabs_news"
+FACTCHECK_NAME = "oxylabs_factcheck"
 RESULTS = 10  # the instant endpoint's maximum
+MAX_FACTCHECK_SITES = 10  # keeps `site:` OR clauses well under search engines' 32-word cap
 TIMEOUT_S = 25.0
 CACHE_MAX_AGE = timedelta(days=1)
 # Search engines' own pages, reference works and social networks: not news coverage.
@@ -115,3 +118,20 @@ async def news_search(
 ) -> list[FeedItem]:
     """Pages about a topic query, tagged with its language for retrieve's word matching."""
     return await _instant(client, cache, NEWS_NAME, query, language or "")
+
+
+async def factcheck_search(
+    client: httpx.AsyncClient,
+    cache: Cache | NoCache,
+    claim: str,
+    sites: Sequence[str],
+    language: str | None = None,
+) -> list[FeedItem]:
+    """Pages on listed fact-checker domains that address `claim`."""
+    selected = [s for s in sites[:MAX_FACTCHECK_SITES] if s]
+    if not selected or not claim.strip():
+        return []
+    clause = " OR ".join(f"site:{s}" for s in selected)
+    return await _instant(
+        client, cache, FACTCHECK_NAME, f"{claim.strip()} ({clause})", language or ""
+    )

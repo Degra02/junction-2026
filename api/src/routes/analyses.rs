@@ -245,7 +245,9 @@ fn replay(analysis: Analysis) -> impl Stream<Item = AnalysisEvent> + Send {
     blank.error = None;
     for stage in StageName::ALL {
         blank.clear_output(stage);
-        *blank.step_mut(stage) = Step::pending(stage);
+    }
+    for step in &mut blank.steps {
+        *step = Step::pending(step.name);
     }
     let mut timeline = vec![(
         Duration::ZERO,

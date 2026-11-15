@@ -11,22 +11,22 @@ function installContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_IDS.image,
-      title: "Check image / meme with Decode the Noise",
+      title: "Check image / meme with The4thLover",
       contexts: ["image"],
     });
     chrome.contextMenus.create({
       id: MENU_IDS.selection,
-      title: "Check selected text with Decode the Noise",
+      title: "Check selected text with The4thLover",
       contexts: ["selection"],
     });
     chrome.contextMenus.create({
       id: MENU_IDS.link,
-      title: "Check link coverage with Decode the Noise",
+      title: "Check link coverage with The4thLover",
       contexts: ["link"],
     });
     chrome.contextMenus.create({
       id: MENU_IDS.page,
-      title: "Check this page with Decode the Noise",
+      title: "Check this page with The4thLover",
       contexts: ["page"],
     });
   });

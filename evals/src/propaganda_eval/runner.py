@@ -29,8 +29,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import mimetypes
 import time
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,13 +66,27 @@ def payload(item: LabelledItem) -> dict[str, str]:
 
 
 def image_data_uri(path: Path) -> str:
-    mime = mimetypes.guess_type(path.name)[0] or ""
-    if not mime.startswith("image/"):
-        raise ValueError(f"{path.name}: not an image file")
-    uri = f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+    data = path.read_bytes()
+    mime = image_mime(data)
+    if mime is None:
+        raise ValueError(f"{path.name}: not a JPEG, PNG, GIF or WebP image")
+    uri = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
     if len(uri) > MAX_IMAGE_DATA_URI_CHARS:
         raise ValueError(f"{path.name}: {len(uri)} characters as a data URI, over the API's limit")
     return uri
+
+
+def image_mime(data: bytes) -> str | None:
+    """From the file's first bytes, not its name: datasets save JPEGs as `.png`."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def failure(analysis: Analysis) -> str | None:
@@ -139,8 +153,35 @@ async def submit(
 ) -> tuple[Analysis | None, str | None]:
     """Submit one input with `force=true` and poll it: the finished analysis and why it does
     not count as a pipeline result (None when it does)."""
+    return await _start_and_wait(
+        client, client.post("/api/analyses", params={"force": "true"}, json=body), timeout
+    )
+
+
+async def rerun(
+    client: httpx.AsyncClient, analysis_id: str, stage: str, timeout: float
+) -> tuple[Analysis | None, str | None]:
+    """`POST /api/analyses/{id}/rerun?from=<stage>` on a stored analysis, polled like `submit`."""
+    return await _start_and_wait(
+        client, client.post(f"/api/analyses/{analysis_id}/rerun", params={"from": stage}), timeout
+    )
+
+
+async def fetch(client: httpx.AsyncClient, analysis_id: str) -> tuple[Analysis | None, str | None]:
     try:
-        created = await client.post("/api/analyses", params={"force": "true"}, json=body)
+        response = await client.get(f"/api/analyses/{analysis_id}")
+        response.raise_for_status()
+        analysis = Analysis.model_validate(response.json())
+        return analysis, failure(analysis)
+    except (httpx.HTTPError, ValueError) as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
+async def _start_and_wait(
+    client: httpx.AsyncClient, request: Awaitable[httpx.Response], timeout: float
+) -> tuple[Analysis | None, str | None]:
+    try:
+        created = await request
         if created.status_code != 202:
             return None, f"submit: HTTP {created.status_code} {created.text[:200]}"
         analysis_id = created.json()["id"]

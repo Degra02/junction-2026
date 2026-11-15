@@ -233,6 +233,8 @@ async fn replay_plays_a_finished_analysis_back_from_an_empty_snapshot() {
         expected.push((*stage, StepState::Done));
     }
     expected.push((StageName::Explain, StepState::Skipped));
+    expected.push((StageName::Graph, StepState::Running));
+    expected.push((StageName::Graph, StepState::Done));
     assert_eq!(states, expected);
     assert_eq!(
         events.last(),

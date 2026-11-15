@@ -77,7 +77,7 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                 className="inline-flex items-center gap-2 text-[var(--fg-primary)] hover:opacity-80 transition-opacity"
               >
                 <LogoMark />
-                <span className="font-serif text-[17px] font-medium tracking-tight whitespace-nowrap">Decode the Noise</span>
+                <span className="font-serif text-[17px] font-medium tracking-tight whitespace-nowrap">The4thLover</span>
               </Link>
 
               {health && (
@@ -151,6 +151,19 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
                 }
               >
                 Benchmarks
+              </NavLink>
+              <NavLink
+                to="/sources"
+                className={({ isActive }) =>
+                  cn(
+                    NAV_LINK,
+                    isActive
+                      ? "text-[var(--fg-primary)]"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg-primary)]",
+                  )
+                }
+              >
+                Sources
               </NavLink>
               <HowItWorks triggerClassName={cn(NAV_LINK, "text-[var(--fg-muted)] hover:text-[var(--fg-primary)] cursor-pointer")} />
               <button

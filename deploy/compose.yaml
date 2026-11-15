@@ -65,6 +65,7 @@ services:
       # 2 vCPU: one inference at a time (the API's MAX_CONCURRENT_INFERENCE), using both cores.
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
+      LLM_RATER_MODEL: ${LLM_RATER_MODEL:-gemini-4-hydrogen}
     volumes:
       - hf-cache:/models
     # An OOM kills the worker (restarted; the API marks the step failed), not the API or Caddy.

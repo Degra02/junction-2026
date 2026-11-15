@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use chrono::Utc;
-use junction_contracts::{Analysis, AnalysisStatus, Step};
+use junction_contracts::{Analysis, AnalysisStatus, GraphPatch, Step};
 use sqlx::{
     SqlitePool,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
@@ -52,9 +52,16 @@ impl Db {
         MIGRATOR.run(&pool).await.context("running migrations")?;
         Ok(Self { pool })
     }
+    pub const fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
 
     pub async fn ping(&self) -> sqlx::Result<()> {
         sqlx::query("SELECT 1").execute(&self.pool).await.map(drop)
+    }
+
+    pub async fn ingest_graph(&self, analysis: &Analysis, patch: &GraphPatch) -> sqlx::Result<()> {
+        crate::graph::ingest_patch(&self.pool, analysis, patch).await
     }
 
     pub async fn insert(&self, analysis: &Analysis, input_hash: &str) -> sqlx::Result<()> {
@@ -101,7 +108,8 @@ impl Db {
             "SELECT id FROM analyses WHERE input_hash = ? AND status <> 'failed' \
              AND NOT EXISTS ( \
                  SELECT 1 FROM json_each(analyses.record, '$.steps') AS step \
-                 WHERE json_extract(step.value, '$.state') = 'failed') \
+                 WHERE json_extract(step.value, '$.state') = 'failed' \
+                   AND json_extract(step.value, '$.name') <> 'graph') \
              ORDER BY created_at DESC LIMIT 1",
         )
         .bind(input_hash)
@@ -116,6 +124,16 @@ impl Db {
             sqlx::query_as("SELECT record FROM analyses WHERE status IN ('queued', 'running')")
                 .fetch_all(&self.pool)
                 .await?;
+        Ok(rows.into_iter().map(|(record,)| record.0).collect())
+    }
+
+    /// Finished analyses in chronological order, for replaying the graph stage.
+    pub async fn finished_analyses(&self) -> sqlx::Result<Vec<Analysis>> {
+        let rows: Vec<(Json<Analysis>,)> = sqlx::query_as(
+            "SELECT record FROM analyses WHERE status = 'done' ORDER BY created_at ASC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows.into_iter().map(|(record,)| record.0).collect())
     }
 

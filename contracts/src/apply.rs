@@ -8,8 +8,10 @@
 
 use std::collections::HashSet;
 
-use crate::analysis::{Analysis, Claim, Dimension, Document, Evidence, Score, SourceRef, Span};
-use crate::stage::{StageName, StagePatch};
+use crate::analysis::{
+    Analysis, Claim, Dimension, Document, Evidence, Explanation, InputKind, Score, SourceRef, Span,
+};
+use crate::stage::{GraphPatch, StageName, StagePatch};
 
 /// Shortest quoted passage checked as a quotation; shorter ones are terms or scare quotes.
 const MIN_QUOTE_CHARS: usize = 12;
@@ -57,6 +59,8 @@ pub enum ApplyError {
         dimension: Dimension,
         problem: String,
     },
+    #[error("invalid graph patch: {0}")]
+    InvalidGraph(String),
 }
 
 impl Analysis {
@@ -125,42 +129,8 @@ impl Analysis {
                 self.check_score(Dimension::Coordinated, &p.scores.coordinated)?;
                 self.scores = Some(p.scores);
             }
-            StagePatch::Explain(p) => {
-                let mut explanation = p.explanation;
-                let known: HashSet<&str> = self.evidence.iter().map(|e| e.id.as_str()).collect();
-                let sources = self.quotable();
-                let verbatim = |text: &str| {
-                    quotations(text)
-                        .iter()
-                        .all(|q| sources.iter().any(|s| s.contains(q)))
-                };
-
-                let before = explanation.reasons.len();
-                explanation.reasons.retain(|r| {
-                    !r.evidence_ids.is_empty()
-                        && r.evidence_ids.iter().all(|id| known.contains(id.as_str()))
-                });
-                let uncited = before - explanation.reasons.len();
-                explanation.reasons.retain(|r| verbatim(&r.text));
-                let misquoting = before - uncited - explanation.reasons.len();
-                if uncited > 0 {
-                    report
-                        .dropped
-                        .push(format!("{uncited} reasons without valid evidence"));
-                }
-                if misquoting > 0 {
-                    report.dropped.push(format!(
-                        "{misquoting} reasons with a quotation that is not verbatim"
-                    ));
-                }
-                if !verbatim(&explanation.summary) {
-                    explanation.summary.clear();
-                    report
-                        .dropped
-                        .push("the summary: it had a quotation that is not verbatim".into());
-                }
-                self.explanation = Some(explanation);
-            }
+            StagePatch::Explain(p) => self.apply_explain(p.explanation, &mut report),
+            StagePatch::Graph(p) => self.apply_graph(&p, &mut report)?,
         }
         Ok(report)
     }
@@ -196,7 +166,116 @@ impl Analysis {
                 .retain(|e| e.family.dimension() != Dimension::Coordinated),
             StageName::Score => self.scores = None,
             StageName::Explain => self.explanation = None,
+            StageName::Graph => {}
         }
+    }
+
+    fn apply_explain(&mut self, mut explanation: Explanation, report: &mut ApplyReport) {
+        let known: HashSet<&str> = self.evidence.iter().map(|e| e.id.as_str()).collect();
+        let sources = self.quotable();
+        let verbatim = |text: &str| {
+            quotations(text)
+                .iter()
+                .all(|q| sources.iter().any(|s| s.contains(q)))
+        };
+
+        let before = explanation.reasons.len();
+        explanation.reasons.retain(|r| {
+            !r.evidence_ids.is_empty()
+                && r.evidence_ids.iter().all(|id| known.contains(id.as_str()))
+        });
+        let uncited = before - explanation.reasons.len();
+        explanation.reasons.retain(|r| verbatim(&r.text));
+        let misquoting = before - uncited - explanation.reasons.len();
+        if uncited > 0 {
+            report
+                .dropped
+                .push(format!("{uncited} reasons without valid evidence"));
+        }
+        if misquoting > 0 {
+            report.dropped.push(format!(
+                "{misquoting} reasons with a quotation that is not verbatim"
+            ));
+        }
+        if !verbatim(&explanation.summary) {
+            explanation.summary.clear();
+            report
+                .dropped
+                .push("the summary: it had a quotation that is not verbatim".into());
+        }
+        self.explanation = Some(explanation);
+    }
+
+    fn apply_graph(&self, p: &GraphPatch, report: &mut ApplyReport) -> Result<(), ApplyError> {
+        self.check_graph_patch(p)?;
+        if !p.outlets.is_empty() {
+            report.detail = Some(format!(
+                "{} outlet{}, {} tie{}",
+                p.outlets.len(),
+                if p.outlets.len() == 1 { "" } else { "s" },
+                p.ties.len(),
+                if p.ties.len() == 1 { "" } else { "s" }
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_graph_patch(&self, p: &GraphPatch) -> Result<(), ApplyError> {
+        unique_ids(p.outlets.iter().map(|o| o.domain.as_str()))?;
+        unique_ids(p.articles.iter().map(|a| a.url.as_str()))?;
+
+        let outlets: HashSet<&str> = p.outlets.iter().map(|o| o.domain.as_str()).collect();
+        let mut record_urls: HashSet<&str> = self.context.iter().map(|c| c.url.as_str()).collect();
+        if let Some(doc) = &self.document
+            && let Some(u) = doc.url.as_deref()
+        {
+            record_urls.insert(u);
+        }
+        if self.input.kind == InputKind::Url {
+            record_urls.insert(self.input.value.as_str());
+        }
+        if let Some(ctx_u) = self.input.context_url.as_deref() {
+            record_urls.insert(ctx_u);
+        }
+
+        for article in &p.articles {
+            if !record_urls.contains(article.url.as_str()) {
+                return Err(ApplyError::InvalidGraph(format!(
+                    "article URL `{}` is not in the analysis record",
+                    article.url
+                )));
+            }
+            if !outlets.contains(article.outlet.as_str()) {
+                return Err(ApplyError::InvalidGraph(format!(
+                    "article outlet `{}` missing from outlets",
+                    article.outlet
+                )));
+            }
+        }
+        for tie in &p.ties {
+            if tie.a >= tie.b {
+                return Err(ApplyError::InvalidGraph(format!(
+                    "tie `{}` <-> `{}` must satisfy a < b",
+                    tie.a, tie.b
+                )));
+            }
+            if !outlets.contains(tie.a.as_str()) || !outlets.contains(tie.b.as_str()) {
+                return Err(ApplyError::InvalidGraph(format!(
+                    "tie `{}` <-> `{}` references an unknown outlet",
+                    tie.a, tie.b
+                )));
+            }
+            if !matches!(
+                tie.kind.as_str(),
+                "analytics_id" | "ad_account" | "copy" | "translation" | "link"
+            ) {
+                return Err(ApplyError::InvalidGraph(format!(
+                    "unknown tie kind `{}`",
+                    tie.kind
+                )));
+            }
+        }
+        Ok(())
     }
 
     fn append_evidence(

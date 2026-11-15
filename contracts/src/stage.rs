@@ -1,9 +1,10 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::analysis::{
-    Claim, ContextItem, Dimension, Document, Evidence, Explanation, Language, Scores, SearchQuery,
-    SourceProfile, Topic,
+    Claim, ContextItem, Dimension, Document, Evidence, Explanation, Language, OutletType, Scores,
+    SearchQuery, SourceProfile, Topic,
 };
 
 /// Pipeline stage. The worker serves each one at `POST /stages/{name}`.
@@ -18,11 +19,13 @@ pub enum StageName {
     SignalsCoordinated,
     Score,
     Explain,
+    Graph,
 }
 
 impl StageName {
-    /// Execution order; `signals_single` and `signals_coordinated` run in parallel.
-    pub const ALL: [Self; 8] = [
+    /// Execution order; `signals_single` and `signals_coordinated` run in parallel, as do
+    /// `explain` and `graph`.
+    pub const ALL: [Self; 9] = [
         Self::Extract,
         Self::Understand,
         Self::Retrieve,
@@ -31,6 +34,7 @@ impl StageName {
         Self::SignalsCoordinated,
         Self::Score,
         Self::Explain,
+        Self::Graph,
     ];
 
     #[must_use]
@@ -44,6 +48,7 @@ impl StageName {
             Self::SignalsCoordinated => "signals_coordinated",
             Self::Score => "score",
             Self::Explain => "explain",
+            Self::Graph => "graph",
         }
     }
 }
@@ -132,6 +137,68 @@ pub struct ExplainPatch {
     pub explanation: Explanation,
 }
 
+/// Response of `POST /stages/graph`: outlets, articles, tracking IDs and within-record ties.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GraphPatch {
+    pub outlets: Vec<GraphPatchOutlet>,
+    pub articles: Vec<GraphPatchArticle>,
+    pub ties: Vec<GraphObservation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GraphPatchOutlet {
+    pub domain: String,
+    pub operator: String,
+    #[serde(default)]
+    pub outlet_type: Option<OutletType>,
+    #[serde(default)]
+    pub country: Option<String>,
+    #[serde(default)]
+    pub known_network: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GraphPatchArticle {
+    pub url: String,
+    pub outlet: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub published_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub analysed: bool,
+    #[serde(default)]
+    pub fact_check: bool,
+    #[serde(default)]
+    pub tracking_ids: Vec<String>,
+    #[serde(default)]
+    pub outbound_domains: Vec<String>,
+    /// Unit-length 384-d `story_text` embedding (`multilingual-e5-small`).
+    #[serde(default)]
+    pub embedding: Vec<f32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GraphObservation {
+    /// Ordered pair `a < b`.
+    pub a: String,
+    pub b: String,
+    /// Layer kind: `analytics_id`, `ad_account`, `copy`, `translation` or `link`.
+    pub kind: String,
+    /// Distinct witness keys on side `a` (article URLs or tracking IDs).
+    pub keys_a: Vec<String>,
+    /// Distinct witness keys on side `b`.
+    pub keys_b: Vec<String>,
+    /// Evidence items matching `evals/graph.json`.
+    pub evidence: Vec<serde_json::Value>,
+}
+
 /// A stage result, typed by the stage that produced it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StagePatch {
@@ -142,6 +209,7 @@ pub enum StagePatch {
     Signals(Dimension, SignalsPatch),
     Score(ScorePatch),
     Explain(ExplainPatch),
+    Graph(GraphPatch),
 }
 
 impl StagePatch {
@@ -160,6 +228,7 @@ impl StagePatch {
             }
             StageName::Score => Self::Score(serde_json::from_slice(body)?),
             StageName::Explain => Self::Explain(serde_json::from_slice(body)?),
+            StageName::Graph => Self::Graph(serde_json::from_slice(body)?),
         })
     }
 }

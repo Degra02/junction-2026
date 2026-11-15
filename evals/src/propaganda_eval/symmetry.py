@@ -2,6 +2,9 @@
 
     mise run eval -- symmetry                       # local API, evals/symmetry.jsonl
     mise run eval -- symmetry --api https://the4thlover.tech
+    # the same analyses again, signals re-run on the deployed pipeline, scored by this checkout:
+    mise run eval -- symmetry --api https://the4thlover.tech \
+        --previous evals/results/symmetry.json --rerun-from signals_single --local-score
 
 `evals/symmetry.jsonl` holds pasted-text pairs, written by us: the same meme text and visual
 description with only the political target swapped (party, person, stance). They are a probe,
@@ -9,7 +12,12 @@ not labels: neither side is "right". Both sides of a pair are submitted as `kind
 `force=true`; the report gives |Δ single| per pair and its mean and maximum over the pairs
 where both sides got a score. A pair where one side is scored and the other abstains is an
 asymmetry too and is listed apart. A gap above `GAP` is a finding to fix (the rater prompt)
-before the phase 2 PR. Rows go to `evals/results/symmetry.jsonl` (gitignored).
+before the phase 2 PR. Rows go to `evals/results/symmetry.json` (gitignored).
+
+`--previous` reuses the analyses of an earlier summary instead of submitting the texts again:
+`--rerun-from <stage>` re-runs them on the API (new evidence from the deployed stages),
+`--local-score` scores the evidence with this checkout's `pipeline.score` (a branch's
+abstention rules and weights, before they are deployed).
 """
 
 from __future__ import annotations
@@ -21,7 +29,10 @@ from pathlib import Path
 
 import httpx
 
-from .runner import submit
+from pipeline.common.contracts import Analysis
+from pipeline.score import run as score
+
+from .runner import fetch, rerun, submit
 
 GAP = 0.1
 
@@ -88,27 +99,51 @@ def summarise(results: list[tuple[Pair, Side, Side]]) -> dict[str, object]:
     }
 
 
-async def _side(client: httpx.AsyncClient, text: str, timeout: float) -> Side:
-    analysis, error = await submit(client, {"kind": "text", "value": text}, timeout)
-    if analysis is None or error is not None or analysis.scores is None:
-        return Side(error=error or "no scores", analysis_id=str(analysis.id) if analysis else None)
-    single = analysis.scores.single
-    return Side(
-        single=single.confidence,
-        abstained=single.abstained,
-        analysis_id=str(analysis.id),
+def _side_of(analysis: Analysis | None, error: str | None, local_score: bool) -> Side:
+    analysis_id = str(analysis.id) if analysis else None
+    if analysis is None or error is not None:
+        return Side(error=error or "no analysis", analysis_id=analysis_id)
+    # Local score: the stored evidence scored by this checkout's `pipeline.score` (a branch's
+    # abstention rules and weights) without deploying it.
+    scores = score(analysis).scores if local_score else analysis.scores
+    if scores is None:
+        return Side(error="no scores", analysis_id=analysis_id)
+    single = scores.single
+    return Side(single=single.confidence, abstained=single.abstained, analysis_id=analysis_id)
+
+
+async def run(
+    pairs: list[Pair],
+    api: str,
+    concurrency: int,
+    timeout: float,
+    previous: dict[str, object] | None = None,
+    rerun_from: str | None = None,
+    local_score: bool = False,
+) -> dict[str, object]:
+    """Submit both sides of every pair, or, with `previous` (an earlier summary), reuse its
+    analyses: re-run them from `rerun_from` on the API, or just fetch them."""
+    ids: dict[str, list[str | None]] = (
+        {r["id"]: r["analysis_ids"] for r in previous["rows"]} if previous else {}
     )
-
-
-async def run(pairs: list[Pair], api: str, concurrency: int, timeout: float) -> dict[str, object]:
     gate = asyncio.Semaphore(concurrency)
     async with httpx.AsyncClient(base_url=api, timeout=30.0) as client:
 
-        async def one(text: str) -> Side:
+        async def one(pair: Pair, side: int) -> Side:
             async with gate:
-                return await _side(client, text, timeout)
+                if not previous:
+                    body = {"kind": "text", "value": (pair.a, pair.b)[side]}
+                    return _side_of(*await submit(client, body, timeout), local_score)
+                analysis_id = ids.get(pair.id, [None, None])[side]
+                if analysis_id is None:
+                    return Side(error="no earlier analysis")
+                if rerun_from:
+                    found = await rerun(client, analysis_id, rerun_from, timeout)
+                else:
+                    found = await fetch(client, analysis_id)
+                return _side_of(*found, local_score)
 
-        sides = await asyncio.gather(*(one(t) for p in pairs for t in (p.a, p.b)))
+        sides = await asyncio.gather(*(one(p, s) for p in pairs for s in (0, 1)))
     results = [(p, sides[2 * i], sides[2 * i + 1]) for i, p in enumerate(pairs)]
     return summarise(results)
 
