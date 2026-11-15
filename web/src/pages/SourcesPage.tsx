@@ -148,7 +148,7 @@ export function SourcesPage(_props: Readonly<SourcesPageProps>) {
               </button>
             </div>
             {showMap && (
-              <Suspense fallback={<div className="h-[min(70vh,640px)] rounded-xl bg-[var(--bg-subtle)] animate-pulse" />}>
+              <Suspense fallback={<div className="h-[min(78vh,760px)] rounded-xl bg-[var(--bg-subtle)] animate-pulse" />}>
                 <GraphMapView graph={graph} index={index} needle={needle} onOpenOutlet={openOutlet} />
               </Suspense>
             )}

@@ -13,16 +13,27 @@ import { LAYER_LABEL, sortKinds } from "./graph";
  * of circles on screen depends on the zoom, not on the size of the graph. Children are laid out only
  * when their parent first opens, inside the parent's circle, so opening a node never moves the rest.
  * Ties are drawn between the circles that stand for their two outlets in the current cut.
+ *
+ * Colour: every node carries the colour of its group (`hue`): the cluster it is in, or else the
+ * connected group of ties. The `GROUP_COLORS` groups with the most sites get their own colour, the
+ * others are drawn grey, so one colour always means one group.
  */
 
 const FANOUT = 64;
 /** How many of the largest siblings stay visible when a level is folded. */
 const KEEP = 40;
 /** A circle opens when its on-screen radius passes this many pixels. */
-const EXPAND_PX = 70;
+const EXPAND_PX = 90;
 const ROOT_RADIUS = 1000;
-/** Gap between sibling circles, in units of one outlet's radius. */
-const GAP = 0.45;
+/** Gap between sibling circles, in units of one outlet's radius, plus a share of the smaller circle. */
+const GAP = 1.4;
+const GAP_SHARE = 0.35;
+/** The top level is laid out this many times wider than tall, to fill a landscape view. */
+const ROOT_ASPECT = 1.6;
+/** Share of the parent's radius its children may fill. */
+const FILL = 0.8;
+/** Groups that get their own colour (`--group-1` to `--group-N` in index.css). */
+export const GROUP_COLORS = 10;
 const ITERATIONS = 200;
 
 export type MapNodeKind = "root" | "component" | "cluster" | "operator" | "bucket" | "outlet";
@@ -52,6 +63,10 @@ export interface MapNode {
   placed: boolean;
   /** Summed tie strength between two children, keyed `i * 65536 + j` with i < j. */
   links: Map<number, number>;
+  /** Id of the group node whose colour this node takes, or -1. */
+  group: number;
+  /** 0 to GROUP_COLORS - 1, or -1 for grey. */
+  hue: number;
 }
 
 export interface MapTie {
@@ -72,6 +87,8 @@ export interface GraphMap {
   readonly ties: readonly MapTie[];
   /** Outlets with no tie at all: not drawn. */
   readonly untied: number;
+  /** The groups with their own colour, by hue. */
+  readonly colored: readonly MapNode[];
 }
 
 function makeNode(kind: MapNodeKind, label: string, detail: string, children: MapNode[]): MapNode {
@@ -93,6 +110,8 @@ function makeNode(kind: MapNodeKind, label: string, detail: string, children: Ma
     r: 0,
     placed: false,
     links: new Map(),
+    group: -1,
+    hue: -1,
   };
 }
 
@@ -274,6 +293,7 @@ export function buildGraphMap(graph: GraphPayload): GraphMap {
     return node.leaves;
   };
   visit(root, null, 0, 0);
+  const colored = assignColors(nodes);
 
   // Tie strength between the two children of the lowest common ancestor, for the layout.
   const ties: MapTie[] = [];
@@ -298,7 +318,37 @@ export function buildGraphMap(graph: GraphPayload): GraphMap {
   root.r = ROOT_RADIUS;
   root.placed = true;
   placeChildren(root);
-  return { root, nodes, leafOf, paths, ties, untied: graph.outlets.length - leafOf.size };
+  return { root, nodes, leafOf, paths, ties, untied: graph.outlets.length - leafOf.size, colored };
+}
+
+/**
+ * Group of every node (parents come before children in `nodes`): a cluster starts its own group,
+ * a node right under the root (or under a root-level "smaller groups" node) starts one, and every
+ * other node takes its parent's. The groups holding the most sites directly get a colour.
+ */
+function assignColors(nodes: readonly MapNode[]): MapNode[] {
+  const own = new Map<number, number>();
+  for (const node of nodes) {
+    const p = node.parent;
+    if (!p) continue;
+    if (node.kind === "bucket") {
+      node.group = p.group;
+      continue;
+    }
+    node.group = node.kind === "cluster" || p.group < 0 ? node.id : p.group;
+    if (node.kind === "outlet") own.set(node.group, (own.get(node.group) ?? 0) + 1);
+  }
+  const ranked = [...own].sort((x, y) => y[1] - x[1] || x[0] - y[0]).slice(0, GROUP_COLORS).map(([id]) => nodes[id]);
+  const hueOf = new Map(ranked.map((n, i) => [n.id, i]));
+  for (const node of nodes) node.hue = hueOf.get(node.group) ?? -1;
+  return ranked;
+}
+
+/** Lay out every ancestor's children so the node has a position (for jumping to it from a list). */
+export function reveal(node: MapNode): void {
+  const chain: MapNode[] = [];
+  for (let n = node.parent; n; n = n.parent) chain.push(n);
+  for (let i = chain.length - 1; i >= 0; i--) placeChildren(chain[i]);
 }
 
 /**
@@ -309,16 +359,19 @@ export function placeChildren(node: MapNode): void {
   const kids = node.children;
   const n = kids.length;
   if (n === 0 || kids[0].placed) return;
+  // The top level is drawn on its own, not inside a circle: spread it wide.
+  const pullX = node.kind === "root" ? 0.02 / (ROOT_ASPECT * ROOT_ASPECT) : 0.02;
   const rad = kids.map((k) => Math.sqrt(k.leaves));
   const px = new Float64Array(n);
   const py = new Float64Array(n);
   let area = 0;
   for (let i = 0; i < n; i++) {
     area += rad[i] * rad[i];
-    const d = i === 0 ? 0 : Math.sqrt(area) * 1.2;
-    px[i] = d * Math.cos(i * 2.399963);
+    const d = i === 0 ? 0 : Math.sqrt(area) * 1.6;
+    px[i] = d * Math.cos(i * 2.399963) * (node.kind === "root" ? ROOT_ASPECT : 1);
     py[i] = d * Math.sin(i * 2.399963);
   }
+  const gap = (i: number, j: number) => GAP + GAP_SHARE * Math.min(rad[i], rad[j]);
   const links = [...node.links].map(([key, w]) => [Math.floor(key / 65536), key % 65536, w] as const);
 
   /** One pass pushing overlapping pairs apart; returns how many pairs overlapped. */
@@ -326,7 +379,7 @@ export function placeChildren(node: MapNode): void {
     let overlaps = 0;
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
-        const min = rad[i] + rad[j] + GAP;
+        const min = rad[i] + rad[j] + gap(i, j);
         let dx = px[j] - px[i];
         let dy = py[j] - py[i];
         let d2 = dx * dx + dy * dy;
@@ -358,14 +411,14 @@ export function placeChildren(node: MapNode): void {
       const dx = px[j] - px[i];
       const dy = py[j] - py[i];
       const dist = Math.hypot(dx, dy) || 1e-6;
-      const f = ((dist - (rad[i] + rad[j] + GAP)) / dist) * 0.08 * Math.min(1, w) * alpha;
+      const f = ((dist - (rad[i] + rad[j] + gap(i, j))) / dist) * 0.08 * Math.min(1, w) * alpha;
       px[i] += dx * f;
       py[i] += dy * f;
       px[j] -= dx * f;
       py[j] -= dy * f;
     }
     for (let i = 0; i < n; i++) {
-      px[i] *= 1 - 0.02 * alpha;
+      px[i] *= 1 - pullX * alpha;
       py[i] *= 1 - 0.02 * alpha;
     }
     collide(0.5);
@@ -387,7 +440,7 @@ export function placeChildren(node: MapNode): void {
   const cy = (minY + maxY) / 2;
   let enclosing = 0;
   for (let i = 0; i < n; i++) enclosing = Math.max(enclosing, Math.hypot(px[i] - cx, py[i] - cy) + rad[i]);
-  const scale = (node.r * (n === 1 ? 0.6 : 0.86)) / enclosing;
+  const scale = (node.r * (n === 1 ? 0.6 : FILL)) / enclosing;
   for (let i = 0; i < n; i++) {
     kids[i].x = node.x + (px[i] - cx) * scale;
     kids[i].y = node.y + (py[i] - cy) * scale;
@@ -500,8 +553,23 @@ export function matching(map: GraphMap, needle: string): Set<number> {
   return out;
 }
 
-/** The view that shows a node filling most of the viewport. */
+/** The view that shows a node filling most of the viewport; for the root, the box around its children. */
 export function viewFor(node: MapNode, width: number, height: number): View {
+  if (node.kind === "root" && node.children.length > 0 && node.children[0].placed) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const c of node.children) {
+      minX = Math.min(minX, c.x - c.r);
+      maxX = Math.max(maxX, c.x + c.r);
+      minY = Math.min(minY, c.y - c.r);
+      maxY = Math.max(maxY, c.y + c.r);
+    }
+    // Room around the edge for the labels under the circles.
+    const k = Math.min((width - 80) / (maxX - minX), (height - 90) / (maxY - minY));
+    return { k, tx: width / 2 - ((minX + maxX) / 2) * k, ty: height / 2 - ((minY + maxY) / 2) * k, width, height };
+  }
   const k = (Math.min(width, height) * 0.46) / node.r;
   return { k, tx: width / 2 - node.x * k, ty: height / 2 - node.y * k, width, height };
 }
