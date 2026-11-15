@@ -80,6 +80,12 @@ def main() -> None:
     memes_p = sub.add_parser("fetch-memes", help="Download the SemEval-2021 Task 6 meme set")
     memes_p.add_argument("--positives", type=int, default=64)
 
+    rescore_p = sub.add_parser(
+        "rescore", help="Predictions from stored fit.jsonl records, scored by this checkout"
+    )
+    rescore_p.add_argument("fit", nargs="+", help="fit.jsonl files written by `run`")
+    rescore_p.add_argument("--out", default=str(EVALS / "results" / "predictions_rescored.jsonl"))
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -101,6 +107,11 @@ def main() -> None:
             f"{counts['negatives']} without), {counts['skipped']} images over the API limit "
             "skipped"
         )
+    elif args.command == "rescore":
+        from .runner import rescore
+
+        n = rescore([Path(p) for p in args.fit], Path(args.out))
+        print(f"{n} predictions written to {args.out}")
     else:
         parser.print_help()
 

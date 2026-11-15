@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from propaganda_eval.labelled import LabelledItem
-from propaganda_eval.runner import Outcome, failure, prediction
+from propaganda_eval.runner import Outcome, failure, fit_row, prediction, rescore
 
 from pipeline.common.contracts import Analysis, AnalysisStatus, StepState
 from pipeline.score import run as score
@@ -45,3 +45,19 @@ def test_ablation_rescores_without_each_present_family():
             # Every family in the fixture points toward propaganda: removing one never raises it.
             if full is not None and confidence is not None:
                 assert confidence <= full, (dim, family)
+
+
+def test_rescore_replaces_the_stored_scores_with_this_checkouts(tmp_path: Path):
+    a = analysis()
+    stored = a.model_copy(update={"scores": None})  # what the run saw does not matter
+    fit = tmp_path / "fit.jsonl"
+    fit.write_text(json.dumps(fit_row(ITEM, stored)) + "\n", encoding="utf-8")
+    out = tmp_path / "predictions.jsonl"
+    assert rescore([fit], out) == 1
+    row = json.loads(out.read_text(encoding="utf-8"))
+    expected = score(a).scores
+    assert row["item_id"] == ITEM.id and row["failed"] is False
+    assert row["scores"] == {
+        "single": expected.single.confidence,
+        "coordinated": expected.coordinated.confidence,
+    }
