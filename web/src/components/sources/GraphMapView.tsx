@@ -16,7 +16,9 @@ import {
   linksOf,
   matching,
   onScreen,
+  reveal,
   viewFor,
+  GROUP_COLORS,
   type Cut,
   type MapLink,
   type MapNode,
@@ -53,12 +55,10 @@ interface Palette {
   readonly muted: string;
   readonly border: string;
   readonly subtle: string;
-  readonly accent: string;
-  readonly accentSoft: string;
-  readonly indigo: string;
-  readonly caution: string;
   readonly surface: string;
   readonly sans: string;
+  /** One colour per group, `--group-1` onwards. */
+  readonly groups: readonly string[];
 }
 
 interface Scene {
@@ -74,6 +74,11 @@ interface Hover {
   readonly flip: boolean;
 }
 
+/** A group's colour as a CSS value, for the tooltip and the legend. */
+function groupColor(hue: number): string {
+  return hue >= 0 ? `var(--group-${hue + 1})` : "var(--fg-muted)";
+}
+
 /** The theme tokens, read at draw time so a light/dark switch repaints with the right colours. */
 function palette(el: Element): Palette {
   const style = getComputedStyle(el);
@@ -84,12 +89,9 @@ function palette(el: Element): Palette {
     muted: token("--fg-muted"),
     border: token("--border-strong"),
     subtle: token("--bg-subtle"),
-    accent: token("--accent"),
-    accentSoft: token("--accent-soft"),
-    indigo: token("--indigo"),
-    caution: token("--caution"),
     surface: token("--bg-surface"),
     sans: token("--font-sans") || "sans-serif",
+    groups: Array.from({ length: GROUP_COLORS }, (_, i) => token(`--group-${i + 1}`) || token("--fg-muted")),
   };
 }
 
@@ -110,6 +112,31 @@ interface Label {
   readonly color: string;
   /** Higher first: a label that would overlap an already placed one is dropped. */
   readonly priority: number;
+  /** Also dropped when it would cover a circle (all but group titles and the hovered or found ones). */
+  readonly avoid?: boolean;
+}
+
+/** The group's colour, or grey for a group without one. */
+function hueOf(node: MapNode, colors: Palette): string {
+  return node.hue >= 0 ? colors.groups[node.hue] : colors.muted;
+}
+
+/** The hovered node and the nodes it is tied to in this cut; null when nothing is hovered. */
+function focusOf(scene: Scene, hovered: MapNode | null): Set<MapNode> | null {
+  if (!hovered || !scene.cut.shown.includes(hovered)) return null;
+  const out = new Set<MapNode>([hovered]);
+  for (const link of scene.links) {
+    if (link.a === hovered) out.add(link.b);
+    else if (link.b === hovered) out.add(link.a);
+  }
+  return out;
+}
+
+interface Box {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
 }
 
 function paint(
@@ -122,122 +149,169 @@ function paint(
 ) {
   const { k, tx, ty, width, height } = view;
   const labels: Label[] = [];
-  const small = `11px ${colors.sans}`;
+  const small = `500 11px ${colors.sans}`;
+  const focus = focusOf(scene, hovered);
+  const dimmed = (node: MapNode) => focus !== null && !focus.has(node);
 
-  // Open groups: a faint disc with its name along the top.
+  // Open groups: a disc tinted with the group's colour, its name along the top.
   for (const node of scene.cut.open) {
     if (node.kind === "root" || !onScreen(node, view)) continue;
     const x = node.x * k + tx;
     const y = node.y * k + ty;
     const r = node.r * k;
+    const hue = hueOf(node, colors);
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = colors.subtle;
+    if (node.hue >= 0) {
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = hue;
+    } else {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = colors.subtle;
+    }
     ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = matches.has(node.id) ? 2 : 1;
-    ctx.strokeStyle = matches.has(node.id) ? colors.caution : colors.border;
+    const match = matches.has(node.id);
+    ctx.globalAlpha = match ? 1 : node.hue >= 0 ? 0.4 : 1;
+    ctx.lineWidth = match ? 2 : 1;
+    ctx.strokeStyle = match ? colors.fg : node.hue >= 0 ? hue : colors.border;
+    ctx.setLineDash(node.kind === "bucket" ? [2, 4] : []);
     ctx.stroke();
-    const priority = (node === hovered ? 1e9 : 1e5) + (matches.has(node.id) ? 1e6 : 0) + node.leaves;
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    const priority = (node === hovered ? 1e9 : 1e5) + (match ? 1e6 : 0) + node.leaves;
     const font = `600 12px ${colors.sans}`;
     ctx.font = font;
     const text = fitText(ctx, node.label, Math.max(r * 1.3, 140));
-    labels.push({ text, x, y: y - r + 18, align: "center", font, color: colors.secondary, priority });
+    const color = node.hue >= 0 ? hue : colors.secondary;
+    labels.push({ text, x, y: y - r + 20, align: "center", font, color, priority });
     if (r > 150) {
       ctx.font = small;
       const detail = fitText(ctx, node.detail, r * 1.5);
-      labels.push({ text: detail, x, y: y - r + 33, align: "center", font: small, color: colors.muted, priority: priority - 1 });
+      labels.push({ text: detail, x, y: y - r + 36, align: "center", font: small, color: colors.muted, priority: priority - 1 });
     }
   }
 
-  // Ties, grouped between the circles that stand for their outlets.
+  // Ties, grouped between the circles that stand for their outlets: in the group's colour inside
+  // a group, grey between groups; solid for coordination, dashed for a link or operator only.
+  ctx.lineCap = "round";
   for (const link of scene.links) {
     const ax = link.a.x * k + tx;
     const ay = link.a.y * k + ty;
     const bx = link.b.x * k + tx;
     const by = link.b.y * k + ty;
     if (Math.max(ax, bx) < 0 || Math.min(ax, bx) > width || Math.max(ay, by) < 0 || Math.min(ay, by) > height) continue;
-    const ar = screenRadius(link.a, k);
-    const br = screenRadius(link.b, k);
+    const ar = screenRadius(link.a, k) + 1.5;
+    const br = screenRadius(link.b, k) + 1.5;
     const dx = bx - ax;
     const dy = by - ay;
     const d = Math.hypot(dx, dy);
     if (d <= ar + br) continue;
     const touches = hovered !== null && (link.a === hovered || link.b === hovered);
-    ctx.globalAlpha = hovered === null ? 0.75 : touches ? 1 : 0.15;
-    ctx.strokeStyle = link.coordination >= 0.5 ? colors.accent : link.coordination > 0 ? colors.indigo : colors.muted;
-    ctx.setLineDash(link.coordination > 0 ? [] : [4, 4]);
-    ctx.lineWidth = Math.min(1 + Math.log2(link.ties), 5) + (touches ? 0.75 : 0);
+    const inside = link.a.group === link.b.group && link.a.hue >= 0;
+    const strong = link.coordination >= 0.5;
+    const base = strong ? 0.85 : link.coordination > 0 ? 0.55 : 0.45;
+    ctx.globalAlpha = hovered === null ? base : touches ? 1 : 0.08;
+    ctx.strokeStyle = touches ? colors.fg : inside ? hueOf(link.a, colors) : colors.muted;
+    ctx.setLineDash(link.coordination > 0 ? [] : [3, 5]);
+    ctx.lineWidth = Math.min((strong ? 1.6 : 1.1) + Math.log2(link.ties), 5) + (touches ? 0.5 : 0);
+    // A slight bend keeps lines that meet at one circle apart; the same side for the same pair.
+    const sx = ax + (dx / d) * ar;
+    const sy = ay + (dy / d) * ar;
+    const ex = bx - (dx / d) * br;
+    const ey = by - (dy / d) * br;
+    const bend = Math.min(d * 0.12, 40);
     ctx.beginPath();
-    ctx.moveTo(ax + (dx / d) * ar, ay + (dy / d) * ar);
-    ctx.lineTo(bx - (dx / d) * br, by - (dy / d) * br);
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo((sx + ex) / 2 - (dy / d) * bend, (sy + ey) / 2 + (dx / d) * bend, ex, ey);
     ctx.stroke();
   }
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 
-  // Closed groups (one disc with its count) and single sites (a dot with its domain).
+  // Closed groups (a tinted disc with its count) and single sites (a dot with its domain).
+  const discs: Box[] = [];
   for (const node of scene.cut.shown) {
     if (!onScreen(node, view, 4)) continue;
     const x = node.x * k + tx;
     const y = node.y * k + ty;
+    const sr = screenRadius(node, k) + 1;
+    discs.push({ left: x - sr, right: x + sr, top: y - sr, bottom: y + sr });
     const isHovered = node === hovered;
-    const priority = (isHovered ? 1e9 : 0) + (matches.has(node.id) ? 1e6 : 0);
+    const match = matches.has(node.id);
+    const priority = (isHovered ? 1e9 : 0) + (match ? 1e6 : 0) + (focus?.has(node) ? 1e7 : 0);
+    const hue = hueOf(node, colors);
+    ctx.globalAlpha = dimmed(node) ? 0.25 : 1;
     if (node.kind === "outlet") {
-      const r = screenRadius(node, k);
+      const r = screenRadius(node, k) + (isHovered ? 1.5 : 0);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = isHovered ? colors.fg : colors.secondary;
+      ctx.fillStyle = hue;
       ctx.fill();
-      if (matches.has(node.id)) {
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = isHovered ? colors.fg : colors.surface;
+      ctx.stroke();
+      if (match) {
         ctx.beginPath();
-        ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+        ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
         ctx.lineWidth = 2;
-        ctx.strokeStyle = colors.caution;
+        ctx.strokeStyle = colors.fg;
         ctx.stroke();
       }
-      if (node.r * k >= 5 || priority > 0) {
-        labels.push({ text: node.label, x: x + r + 4, y: y + 4, align: "left", font: small, color: colors.fg, priority: priority + 10 + node.ties });
+      ctx.globalAlpha = 1;
+      if (!dimmed(node) && (node.r * k >= 6 || priority > 0)) {
+        labels.push({ text: node.label, x: x + r + 5, y: y + 4, align: "left", font: small, color: colors.fg, priority: priority + 10 + node.ties, avoid: priority === 0 });
       }
       continue;
     }
     const r = screenRadius(node, k);
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = colors.accentSoft;
+    ctx.fillStyle = node.hue >= 0 ? hue : colors.subtle;
+    const alpha = ctx.globalAlpha;
+    if (node.hue >= 0) ctx.globalAlpha = alpha * 0.16;
     ctx.fill();
-    ctx.lineWidth = matches.has(node.id) ? 2.5 : isHovered ? 2 : 1.25;
-    ctx.strokeStyle = matches.has(node.id) ? colors.caution : colors.accent;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = match ? 2.5 : isHovered ? 2.5 : 1.5;
+    ctx.strokeStyle = match ? colors.fg : hue;
     ctx.stroke();
+    // A large disc holds its name under the count; a smaller one has it underneath.
+    const inside = r >= 34;
     if (r >= 10) {
-      const size = Math.round(Math.min(15, Math.max(9, r * 0.55)));
+      const size = Math.round(Math.min(16, Math.max(9, r * 0.55)));
       ctx.textAlign = "center";
-      ctx.fillStyle = colors.accent;
-      ctx.font = `600 ${size}px ${colors.sans}`;
-      ctx.fillText(String(node.leaves), x, y + size * 0.36);
+      ctx.fillStyle = node.hue >= 0 ? hue : colors.secondary;
+      ctx.font = `650 ${size}px ${colors.sans}`;
+      ctx.fillText(String(node.leaves), x, y + size * 0.36 - (inside ? 7 : 0));
     }
-    if (r >= 14 || priority > 0) {
+    if (inside) {
+      ctx.font = small;
+      ctx.fillStyle = colors.secondary;
+      ctx.fillText(fitText(ctx, node.label, r * 1.6), x, y + 17);
+    }
+    ctx.globalAlpha = 1;
+    if (!inside && !dimmed(node) && (r >= 14 || priority > 0)) {
       ctx.font = small;
       const text = fitText(ctx, node.label, Math.max(r * 2.4, 120));
-      labels.push({ text, x, y: y + r + 14, align: "center", font: small, color: colors.secondary, priority: priority + 1e3 + node.leaves });
+      labels.push({ text, x, y: y + r + 15, align: "center", font: small, color: colors.secondary, priority: priority + 1e3 + node.leaves, avoid: priority === 0 });
     }
   }
 
   // Labels last, most important first, skipping any that would overlap one already drawn.
   labels.sort((a, b) => b.priority - a.priority);
-  const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+  const placed: Box[] = [];
+  const overlaps = (box: Box, boxes: readonly Box[]) =>
+    boxes.some((p) => box.left < p.right && box.right > p.left && box.top < p.bottom && box.bottom > p.top);
   ctx.lineJoin = "round";
   for (const label of labels) {
     ctx.font = label.font;
     const w = ctx.measureText(label.text).width;
     const left = label.align === "center" ? label.x - w / 2 : label.x;
-    const box = { left: left - 2, right: left + w + 2, top: label.y - 12, bottom: label.y + 4 };
+    const box = { left: left - 4, right: left + w + 4, top: label.y - 13, bottom: label.y + 5 };
     if (box.right < 0 || box.left > width || box.bottom < 0 || box.top > height) continue;
-    if (placed.some((p) => box.left < p.right && box.right > p.left && box.top < p.bottom && box.bottom > p.top)) continue;
+    if (overlaps(box, placed) || (label.avoid && overlaps(box, discs))) continue;
     placed.push(box);
     ctx.textAlign = label.align;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeStyle = colors.surface;
     ctx.strokeText(label.text, label.x, label.y);
     ctx.fillStyle = label.color;
@@ -247,7 +321,7 @@ function paint(
 
 /**
  * The source graph drawn on a canvas, with groups that open as you zoom in (`lib/graphMap.ts`).
- * Position, size and colour say nothing about a site: a disc's size is how many sites it holds.
+ * Colour is the group a site is in; position and size say nothing about a site: a disc's size is how many sites it holds.
  */
 export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Readonly<GraphMapViewProps>) {
   const map = useMemo(() => buildGraphMap(graph), [graph]);
@@ -350,13 +424,15 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
       const to = viewFor(node, from.width, from.height);
       const cx0 = (from.width / 2 - from.tx) / from.k;
       const cy0 = (from.height / 2 - from.ty) / from.k;
+      const cx1 = (to.width / 2 - to.tx) / to.k;
+      const cy1 = (to.height / 2 - to.ty) / to.k;
       const start = performance.now();
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / ANIMATION_MS);
         const e = 1 - (1 - t) ** 3;
         const k = Math.exp(Math.log(from.k) + (Math.log(to.k) - Math.log(from.k)) * e);
-        const cx = cx0 + (node.x - cx0) * e;
-        const cy = cy0 + (node.y - cy0) * e;
+        const cx = cx0 + (cx1 - cx0) * e;
+        const cy = cy0 + (cy1 - cy0) * e;
         const v = view.current;
         v.k = k;
         v.tx = v.width / 2 - cx * k;
@@ -465,7 +541,7 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
     <div className="space-y-3">
       <div
         ref={wrapRef}
-        className="editorial-card relative h-[min(70vh,640px)] overflow-hidden rounded-xl"
+        className="editorial-card relative h-[min(78vh,760px)] overflow-hidden rounded-xl"
         onPointerLeave={() => pointers.current.size === 0 && setHovered(null, 0, 0)}
       >
         <canvas
@@ -505,7 +581,15 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
         </div>
         {hover && <Tooltip hover={hover} index={index} />}
       </div>
-      <Legend untied={map.untied} searching={needle !== ""} />
+      <Legend
+        colored={map.colored}
+        untied={map.untied}
+        searching={needle !== ""}
+        onPick={(node) => {
+          reveal(node);
+          glideTo(node);
+        }}
+      />
     </div>
   );
 }
@@ -525,7 +609,10 @@ function Tooltip({ hover, index }: Readonly<{ hover: Hover; index: GraphIndex }>
     >
       {outlet ? (
         <>
-          <p className="font-mono-num text-[13px] text-[var(--fg-primary)]">{outlet.domain}</p>
+          <p className="flex items-center gap-1.5 font-mono-num text-[13px] text-[var(--fg-primary)]">
+            <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: groupColor(node.hue) }} />
+            {outlet.domain}
+          </p>
           <p className="text-[var(--fg-secondary)]">
             {ties === 1 ? "1 tie" : `${ties} ties`}
             {outlet.cluster !== null && ` · Group #${outlet.cluster}`}
@@ -535,7 +622,10 @@ function Tooltip({ hover, index }: Readonly<{ hover: Hover; index: GraphIndex }>
         </>
       ) : (
         <>
-          <p className="text-[13px] font-medium text-[var(--fg-primary)]">{node.label}</p>
+          <p className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--fg-primary)]">
+            <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: groupColor(node.hue) }} />
+            {node.label}
+          </p>
           <p className="text-[var(--fg-secondary)]">{node.detail}</p>
           <p className="mt-1 text-[var(--fg-muted)]">Zoom in or click to look inside.</p>
         </>
@@ -544,36 +634,60 @@ function Tooltip({ hover, index }: Readonly<{ hover: Hover; index: GraphIndex }>
   );
 }
 
-function Legend({ untied, searching }: Readonly<{ untied: number; searching: boolean }>) {
-  const line = (stroke: string, dash?: string) => (
+function Legend({
+  colored,
+  untied,
+  searching,
+  onPick,
+}: Readonly<{ colored: readonly MapNode[]; untied: number; searching: boolean; onPick: (node: MapNode) => void }>) {
+  const line = (dash?: string, width = 2) => (
     <svg width="28" height="8" aria-hidden="true" className="shrink-0">
-      <line x1="1" y1="4" x2="27" y2="4" stroke={stroke} strokeWidth="2" strokeDasharray={dash} />
+      <line x1="2" y1="4" x2="26" y2="4" stroke="var(--fg-secondary)" strokeWidth={width} strokeLinecap="round" strokeDasharray={dash} />
     </svg>
   );
   return (
-    <div className="space-y-2 text-[12px] text-[var(--fg-secondary)]">
+    <div className="space-y-3 text-[12px] text-[var(--fg-secondary)]">
+      {colored.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Groups with their own colour">
+          {colored.map((node) => (
+            <li key={node.id}>
+              <button
+                type="button"
+                onClick={() => onPick(node)}
+                className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: groupColor(node.hue) }} />
+                <span className="max-w-[220px] truncate text-[var(--fg-primary)]">{node.label}</span>
+                <span className="font-mono-num text-[var(--fg-muted)]">{node.leaves}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
-        <li className="flex items-center gap-2">{line("var(--accent)")} Coordination tie, strength 0.5 or more</li>
-        <li className="flex items-center gap-2">{line("var(--indigo)")} Weaker coordination tie</li>
-        <li className="flex items-center gap-2">{line("var(--fg-muted)", "4 4")} Link or same operator only: not coordination</li>
+        <li className="flex items-center gap-2">{line(undefined, 3)} Coordination tie, strength 0.5 or more</li>
+        <li className="flex items-center gap-2">{line(undefined, 1.5)} Weaker coordination tie</li>
+        <li className="flex items-center gap-2">{line("3 5", 1.5)} Link or same operator only: not coordination</li>
         <li className="flex items-center gap-2">
           <svg width="14" height="14" aria-hidden="true" className="shrink-0">
-            <circle cx="7" cy="7" r="6" fill="var(--accent-soft)" stroke="var(--accent)" />
+            <circle cx="7" cy="7" r="6" fill="var(--bg-subtle)" stroke="var(--fg-muted)" strokeWidth="1.5" />
           </svg>
           Several sites drawn as one, with their number: zoom in or click to open
         </li>
         {searching && (
           <li className="flex items-center gap-2">
             <svg width="14" height="14" aria-hidden="true" className="shrink-0">
-              <circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--caution)" strokeWidth="2" />
+              <circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--fg-primary)" strokeWidth="2" />
             </svg>
             Matches the search, or holds a site that does
           </li>
         )}
       </ul>
       <p className="text-[var(--fg-muted)]">
-        A thicker line stands for more ties. Position, size and colour say nothing about a site: a circle's size is how many
-        sites it holds. {untied} sites with no tie are not drawn.
+        Colour shows which group a site is in: the {colored.length} groups with the most sites have their own colour (click one
+        to go there), smaller groups are grey. A line takes its group's colour, and is grey between groups; a thicker line stands
+        for more ties. Colour, position and size say nothing about how a site behaves: a circle's size is how many sites it holds.
+        Point at a site to see only its ties. {untied} sites with no tie are not drawn.
       </p>
     </div>
   );
