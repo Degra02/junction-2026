@@ -25,6 +25,7 @@ import {
   type View,
 } from "../../lib/graphMap";
 import { buttonClass } from "../../lib/ui";
+import { cn } from "../../lib/utils";
 
 export interface GraphMapViewProps {
   readonly graph: GraphPayload;
@@ -32,6 +33,8 @@ export interface GraphMapViewProps {
   /** Lower-case search text from the page: matching sites and the groups holding them get a ring. */
   readonly needle: string;
   readonly onOpenOutlet: (domain: string) => void;
+  /** Shorter inline canvas without the outer card box, for embedding on `/analyses/:id`. */
+  readonly compact?: boolean;
 }
 
 /** Smallest pointer target around a dot, in pixels. */
@@ -323,7 +326,7 @@ function paint(
  * The source graph drawn on a canvas, with groups that open as you zoom in (`lib/graphMap.ts`).
  * Colour is the group a site is in; position and size say nothing about a site: a disc's size is how many sites it holds.
  */
-export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Readonly<GraphMapViewProps>) {
+export default function GraphMapView({ graph, index, needle, onOpenOutlet, compact = false }: Readonly<GraphMapViewProps>) {
   const map = useMemo(() => buildGraphMap(graph), [graph]);
   const matches = useMemo(() => matching(map, needle), [map, needle]);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -356,20 +359,20 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
       const dpr = window.devicePixelRatio || 1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, v.width, v.height);
-      const cut = computeCut(map, v);
+      const cut = computeCut(map, v, compact ? 32 : undefined);
       // Regrouping the ties walks every tie: only when the set of open groups changes.
       const links = scene.current?.cut.key === cut.key ? scene.current.links : linksOf(map, cut);
       scene.current = { cut, links };
       paint(ctx, v, palette(canvas), scene.current, matches, hovered.current);
     };
     schedule();
-  }, [map, matches, schedule]);
-
+  }, [map, matches, compact, schedule]);
   // Canvas size follows its box; the first size fits the whole graph.
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
+    view.current = { k: 1, tx: 0, ty: 0, width: 0, height: 0 };
     const resize = () => {
       const width = wrap.clientWidth;
       const height = wrap.clientHeight;
@@ -541,7 +544,12 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
     <div className="space-y-3">
       <div
         ref={wrapRef}
-        className="editorial-card relative h-[min(78vh,760px)] overflow-hidden rounded-xl"
+        className={cn(
+          "relative overflow-hidden rounded-xl",
+          compact
+            ? "h-[360px] sm:h-[420px] border border-[var(--border-subtle)] bg-[var(--bg-canvas)]"
+            : "editorial-card h-[min(78vh,760px)]",
+        )}
         onPointerLeave={() => pointers.current.size === 0 && setHovered(null, 0, 0)}
       >
         <canvas
@@ -585,6 +593,7 @@ export default function GraphMapView({ graph, index, needle, onOpenOutlet }: Rea
         colored={map.colored}
         untied={map.untied}
         searching={needle !== ""}
+        compact={compact}
         onPick={(node) => {
           reveal(node);
           glideTo(node);
@@ -638,8 +647,15 @@ function Legend({
   colored,
   untied,
   searching,
+  compact,
   onPick,
-}: Readonly<{ colored: readonly MapNode[]; untied: number; searching: boolean; onPick: (node: MapNode) => void }>) {
+}: Readonly<{
+  colored: readonly MapNode[];
+  untied: number;
+  searching: boolean;
+  compact: boolean;
+  onPick: (node: MapNode) => void;
+}>) {
   const line = (dash?: string, width = 2) => (
     <svg width="28" height="8" aria-hidden="true" className="shrink-0">
       <line x1="2" y1="4" x2="26" y2="4" stroke="var(--fg-secondary)" strokeWidth={width} strokeLinecap="round" strokeDasharray={dash} />
@@ -683,12 +699,14 @@ function Legend({
           </li>
         )}
       </ul>
-      <p className="text-[var(--fg-muted)]">
-        Colour shows which group a site is in: the {colored.length} groups with the most sites have their own colour (click one
-        to go there), smaller groups are grey. A line takes its group's colour, and is grey between groups; a thicker line stands
-        for more ties. Colour, position and size say nothing about how a site behaves: a circle's size is how many sites it holds.
-        Point at a site to see only its ties. {untied} sites with no tie are not drawn.
-      </p>
+      {!compact && (
+        <p className="text-[var(--fg-muted)]">
+          Colour shows which group a site is in: the {colored.length} groups with the most sites have their own colour (click one
+          to go there), smaller groups are grey. A line takes its group's colour, and is grey between groups; a thicker line stands
+          for more ties. Colour, position and size say nothing about how a site behaves: a circle's size is how many sites it holds.
+          Point at a site to see only its ties. {untied} sites with no tie are not drawn.
+        </p>
+      )}
     </div>
   );
 }
