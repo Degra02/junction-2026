@@ -50,11 +50,10 @@ export function AnalysisSubgraphPanel({
     return () => controller.abort();
   }, []);
 
-  const { focusDomain, subgraph, index, directTies, cluster } = useMemo(
+  const { focusDomain, subgraph, index, totalSites, totalClusterSites, directTies, cluster } = useMemo(
     () => extractAnalysisSubgraph(graph, analysis, primaryDomain),
     [graph, analysis, primaryDomain],
   );
-
   const visibleTies = showAllTies ? directTies : directTies.slice(0, INITIAL_TIES);
   const fullMapHref = focusDomain ? `/sources?outlet=${encodeURIComponent(focusDomain)}` : "/sources";
 
@@ -77,13 +76,18 @@ export function AnalysisSubgraphPanel({
             )}
             {!loading && subgraph.edges.length > 0 && (
               <span className="font-mono-num text-xs text-[var(--fg-muted)]">
-                {subgraph.outlets.length} {subgraph.outlets.length === 1 ? "site" : "sites"} ·{" "}
-                {subgraph.edges.length} {subgraph.edges.length === 1 ? "tie" : "ties"}
+                {totalSites > subgraph.outlets.length
+                  ? `top ${subgraph.outlets.length} of ${totalSites} sites`
+                  : `${subgraph.outlets.length} ${subgraph.outlets.length === 1 ? "site" : "sites"}`}{" "}
+                · {subgraph.edges.length} {subgraph.edges.length === 1 ? "tie" : "ties"}
               </span>
             )}
             {cluster && (
               <span className={tagClass("indigo", { mono: true })}>
-                Group #{cluster.id} · {cluster.outlets.length} sites
+                Group #{cluster.id} ·{" "}
+                {totalClusterSites && totalClusterSites > cluster.outlets.length
+                  ? `${cluster.outlets.length} of ${totalClusterSites} sites`
+                  : `${cluster.outlets.length} sites`}
               </span>
             )}
           </div>
