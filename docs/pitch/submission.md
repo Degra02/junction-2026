@@ -1,6 +1,9 @@
 # Submission text
 
-Fields of the Junction platform (`docs/junction-2026.md`): name ≤ 100 characters, punchline ≤ 300, description ≤ 3,000. The name is the one from the preliminary submission (Fri 23:59); it is not recorded in the repo. Numbers come from the committed `evals/metrics.json` (284 items, weights fitted on the same set with 5-fold cross-validation, `df75a3a`); recompute them here if the metrics change.
+Fields of the Junction platform (`docs/junction-2026.md`): name ≤ 100 characters, punchline ≤ 300, description ≤ 3,000. Numbers come from the committed `evals/metrics.json` (284 items, weights fitted on the same set with 5-fold cross-validation, `df75a3a`); recompute them here if the metrics change.
+
+## Name
+The4thLover (the product name in the UI and the extension since #51; the site is `the4thlover.tech`).
 
 ## Punchline (D17, 114 characters)
 Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.

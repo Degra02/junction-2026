@@ -30,6 +30,7 @@ import asyncio
 import base64
 import json
 import time
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -152,8 +153,35 @@ async def submit(
 ) -> tuple[Analysis | None, str | None]:
     """Submit one input with `force=true` and poll it: the finished analysis and why it does
     not count as a pipeline result (None when it does)."""
+    return await _start_and_wait(
+        client, client.post("/api/analyses", params={"force": "true"}, json=body), timeout
+    )
+
+
+async def rerun(
+    client: httpx.AsyncClient, analysis_id: str, stage: str, timeout: float
+) -> tuple[Analysis | None, str | None]:
+    """`POST /api/analyses/{id}/rerun?from=<stage>` on a stored analysis, polled like `submit`."""
+    return await _start_and_wait(
+        client, client.post(f"/api/analyses/{analysis_id}/rerun", params={"from": stage}), timeout
+    )
+
+
+async def fetch(client: httpx.AsyncClient, analysis_id: str) -> tuple[Analysis | None, str | None]:
     try:
-        created = await client.post("/api/analyses", params={"force": "true"}, json=body)
+        response = await client.get(f"/api/analyses/{analysis_id}")
+        response.raise_for_status()
+        analysis = Analysis.model_validate(response.json())
+        return analysis, failure(analysis)
+    except (httpx.HTTPError, ValueError) as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
+async def _start_and_wait(
+    client: httpx.AsyncClient, request: Awaitable[httpx.Response], timeout: float
+) -> tuple[Analysis | None, str | None]:
+    try:
+        created = await request
         if created.status_code != 202:
             return None, f"submit: HTTP {created.status_code} {created.text[:200]}"
         analysis_id = created.json()["id"]
