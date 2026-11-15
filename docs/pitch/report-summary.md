@@ -15,6 +15,8 @@ You paste a text, a link or an image. The system:
 
 It never says "propaganda" or "not propaganda": that would pretend to be the truth. When there is too little to go on, it says **"Not enough evidence"** and why, instead of guessing.
 
+The result page leads with one **combined** figure built from the two ("Content 83% · Network 8%"): roughly the chance that at least one of the two kinds of signal is present. Each question keeps its own score and evidence underneath, and the test results below are per question.
+
 ## Why you can trust the number
 - **An AI never sets the score.** Measured signals do, added up by a simple statistical model (logistic regression) whose weights were learned from labelled examples. "Show how we calculated this" lists what each signal added.
 - **Every piece of evidence links to its source**, and every quotation is checked word for word; anything that does not match is dropped.
@@ -34,7 +36,7 @@ Tested on 284 real items in 12 languages, labelled by outsiders (fact-checkers, 
 We publish the uncomfortable numbers next to the good ones.
 
 ## Beyond the original plan
-- **A map of sites that act together** (`/sources`): 902 sites from the analyses so far, linked when they share a tracking code, copied or translated text, or an owner. It groups all 18 listed Pravda sites together without using the list, and also finds 6 sister sites that are not on any list. It also groups the UN's sites or AFP's fact-check editions: a link means "related", never "bad".
+- **A map of sites that act together** (`/sources`): 908 sites from the analyses so far, linked when they share a tracking code, copied or translated text, or an owner. It groups all 18 listed Pravda sites together without using the list, and also finds 6 sister sites that are not on any list. It also groups the UN's sites or AFP's fact-check editions: a link means "related", never "bad".
 - **Memes**: the system can now read memes and point out persuasion tricks in the picture and the words. This is shown to the reader but does not change the score yet; it needs another round of testing first.
 
 ## Where it runs
@@ -45,3 +47,4 @@ One Hostinger server with 2 processor cores and no graphics card. An analysis ta
 - Old or niche items often get "not enough evidence".
 - The good numbers were measured on the same items the model learned from; only the ranking quality (AUC) is cross-checked.
 - The labelled examples lean towards pro-Kremlin operations.
+- The combined figure on the result page is not tested on its own; the results above are per question.

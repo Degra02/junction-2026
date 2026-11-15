@@ -52,7 +52,7 @@
     <table class="meta">
       <tr><td>Live system</td><td>https://the4thlover.tech (API docs: /api/docs)</td></tr>
       <tr><td>Source</td><td>https://github.com/Degra02/junction-2026 (MIT)</td></tr>
-      <tr><td>State described</td><td><span class="mono">main</span> at <span class="mono">6623a88</span>, live pipeline <span class="mono">sha-6623a88</span>, Sun 15 Nov 2026</td></tr>
+      <tr><td>State described</td><td><span class="mono">main</span> at <span class="mono">83492fb</span>, live pipeline <span class="mono">sha-83492fb</span>, Sun 15 Nov 2026</td></tr>
       <tr><td>Team</td><td>Degra02 (integrator) · Lyreplus (AI core) · ck-lithium (product, retrieval, web) · mosearc (evaluation, spec, pitch)</td></tr>
       <tr><td>Hosting</td><td>One Hostinger VPS KVM 2: 2 vCPU, 8 GB RAM, no GPU</td></tr>
     </table>
@@ -85,7 +85,7 @@
       <li>Coordinated: perfect on the set, but only because the VIGINUM list both labels the positives and is a signal. Without it the cross-validated AUC is <b>0.38</b>: today the coordinated score is the list, not copy detection. We publish that next to the headline.</li>
     </ul>
   </li>
-  <li><b>Beyond the plan.</b> A source graph of 902 outlets tied by shared analytics IDs, copied and translated text (live at <span class="mono">/sources</span>), and phase 1 of persuasion analysis for memes (a multimodal rater whose evidence is shown but not yet scored).</li>
+  <li><b>Beyond the plan.</b> A source graph of 908 outlets tied by shared analytics IDs, copied and translated text (live at <span class="mono">/sources</span>), and phase 1 of persuasion analysis for memes (a multimodal rater whose evidence is shown but not yet scored).</li>
   <li><b>Runs live</b> on one CPU-only Hostinger VPS; a full analysis takes about a minute (median 64 s).</li>
 </ul>
 
@@ -259,10 +259,10 @@
 <h2>7. Source graph</h2>
 <p>Every stored analysis also shows which outlets are tied to each other, and by what evidence. The graph is built from analyses and, since #64, ingested live after each analysis. It answers a measured weakness: without the VIGINUM list, the coordinated score cannot find a network.</p>
 <div class="grid">
-  <div class="stat"><b>902</b><span>outlets</span></div>
-  <div class="stat"><b>535</b><span>ties</span></div>
+  <div class="stat"><b>908</b><span>outlets</span></div>
+  <div class="stat"><b>537</b><span>ties</span></div>
   <div class="stat"><b>29</b><span>groups</span></div>
-  <div class="stat"><b>2,132</b><span>articles from 367 analyses</span></div>
+  <div class="stat"><b>2,146</b><span>articles from 369 analyses</span></div>
 </div>
 <table>
   <tr><th>Layer</th><th class="n">Ties</th><th>Meaning</th></tr>
@@ -270,7 +270,7 @@
   <tr><td>ad_account</td><td class="n">37</td><td>same AdSense publisher ID (weak: resellers reuse them)</td></tr>
   <tr><td>copy</td><td class="n">82</td><td>an article holds most of the other's wording after quotations, agency copy and boilerplate are removed</td></tr>
   <tr><td>translation</td><td class="n">28</td><td>articles in different languages with the same headline and lead, within a week</td></tr>
-  <tr><td>link</td><td class="n">114</td><td>one site's article links to the other (context, never coordination)</td></tr>
+  <tr><td>link</td><td class="n">116</td><td>one site's article links to the other (context, never coordination)</td></tr>
   <tr><td>same_operator</td><td class="n">284</td><td>one organisation owns both domains</td></tr>
 </table>
 <ul>
@@ -282,18 +282,18 @@
 <h2>8. The live system</h2>
 <p>Hostinger VPS KVM 2 (2 vCPU, 8 GB, no GPU, D13) at the4thlover.tech: Caddy (TLS and the static UI), the Rust API with SQLite, and the Python worker with the CPU models. Images are built in GitHub Actions and pulled from GHCR; every merge to <span class="mono">main</span> deploys UI, proxy and backend together under one tag.</p>
 <table>
-  <tr><th>Stage (live, <span class="mono">sha-6623a88</span>)</th><th class="n">Median</th><th class="n">95th percentile</th></tr>
+  <tr><th>Stage (live, <span class="mono">sha-83492fb</span>)</th><th class="n">Median</th><th class="n">95th percentile</th></tr>
   <tr><td>extract</td><td class="n">0.3 s</td><td class="n">8.4 s</td></tr>
   <tr><td>understand (LLM)</td><td class="n">1.6 s</td><td class="n">3.1 s</td></tr>
-  <tr><td>retrieve</td><td class="n">44.0 s</td><td class="n">76.0 s</td></tr>
-  <tr><td>story</td><td class="n">0.7 s</td><td class="n">2.3 s</td></tr>
-  <tr><td>signals_single</td><td class="n">6.2 s</td><td class="n">53.8 s</td></tr>
+  <tr><td>retrieve</td><td class="n">44.1 s</td><td class="n">78.3 s</td></tr>
+  <tr><td>story</td><td class="n">0.8 s</td><td class="n">2.4 s</td></tr>
+  <tr><td>signals_single</td><td class="n">6.2 s</td><td class="n">54.0 s</td></tr>
   <tr><td>signals_coordinated · score</td><td class="n">&lt; 0.01 s</td><td class="n">0.02 s</td></tr>
   <tr><td>explain (LLM)</td><td class="n">1.4 s</td><td class="n">2.0 s</td></tr>
   <tr><td>graph</td><td class="n">0.4 s</td><td class="n">1.3 s</td></tr>
   <tr><td><b>Whole analysis</b></td><td class="n"><b>64 s</b></td><td class="n"><b>212 s</b></td></tr>
 </table>
-<p class="small">From /api/stats over 231 analyses since the last restart (208 done, 23 failed), measured while evaluation runs were also loading the server.</p>
+<p class="small">From /api/stats over 234 analyses since the last restart (210 done, 24 failed), measured while evaluation runs were also loading the server.</p>
 <ul>
   <li><b>Models</b> (CPU, loaded once at worker start): <span class="mono">Mishtar4/persuasion-detector-xlm-roberta</span> (XLM-R large, techniques and tone), <span class="mono">mDeBERTa-v3-base-xnli-multilingual</span> (claim support, fact-check matching), multilingual e5 (story), lingua (language). LLM: <span class="mono">gemini-3.1-flash-lite</span> through Hostinger AI Router, about 0.15 credits per analysis.</li>
   <li><b>Limits:</b> 300 s per analysis, 120 s per stage, 4 analyses at once, 30 new analyses per minute per client and 600 per hour in total; cached results are free. <span class="mono">?force=true</span>, <span class="mono">rerun?from=&lt;stage&gt;</span> and <span class="mono">events?replay=true</span> for iteration and demos.</li>
@@ -304,7 +304,7 @@
 <table>
   <tr><th>Page</th><th>What it shows</th></tr>
   <tr><td><span class="mono">/</span></td><td>One input for text, a link or an image; recent analyses in this browser</td></tr>
-  <tr><td><span class="mono">/analyses/{id}</span></td><td>Live run ledger over SSE; a confidence per dimension with its evidence count or “Not enough evidence”; three reasons linked to evidence; the article with verbatim highlights; coverage view; “Show how we calculated this” (log-odds per family); the outlet's partial source network</td></tr>
+  <tr><td><span class="mono">/analyses/{id}</span></td><td>Live run ledger over SSE; a <b>combined confidence</b> at the top, 1 − (1 − p<sub>content</sub>)(1 − p<sub>network</sub>) over the two dimensions (“Content 83% · Network 8%”; a dimension that abstained is shown as unrated, the network one counts only with coordination evidence or a scored content dimension; capped at 85% for languages without labelled data), then each dimension with its evidence or “Not enough evidence”; three reasons linked to evidence; the article with verbatim highlights; coverage view; “Show how we calculated this” (log-odds per family); the outlet's partial source network</td></tr>
   <tr><td><span class="mono">/metrics</span></td><td>The evaluation above, with intervals, coverage, per-set false-positive rates and the headline without the label's own source</td></tr>
   <tr><td><span class="mono">/sources</span></td><td>The source graph: map, groups with what joins them, every tie's raw evidence (IDs, article pairs, links), a panel per outlet, and the notice “A tie is a relationship, not a verdict” with a correction link</td></tr>
   <tr><td><span class="mono">/extension</span></td><td>Browser extension (Manifest V3): check the current page or highlighted text, side panel with live progress, handoff to the full breakdown</td></tr>
@@ -317,6 +317,7 @@
   <li><b>Single-actor depends on fact-checks and fresh coverage.</b> Without a fact-check match the AUC is 0.84, and old or niche items abstain. Persuasion scoring without coverage (phase 2) is built but not fitted.</li>
   <li><b>In-sample rates.</b> Precision, recall and FPR are measured on the items the weights were fitted on; only AUCs are cross-validated. A held-out set does not exist yet.</li>
   <li><b>Coverage.</b> Single-actor gives a score on 43% of labelled items.</li>
+  <li><b>The combined number on the result page is not evaluated on its own.</b> It is computed from the two dimension confidences (noisy-OR); the metrics in section 5 are per dimension.</li>
   <li><b>Claim-level NLI</b> still produces false contradictions between two moments of one story; a batched LLM check filters the ambiguous ones.</li>
   <li><b>Same-language echo chambers.</b> Peers from a closed media ecosystem can corroborate a false claim (EUvsDisinfo false negatives).</li>
   <li><b>Label skew.</b> EUvsDisinfo and VIGINUM cover pro-Kremlin operations only.</li>
