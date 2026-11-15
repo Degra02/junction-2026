@@ -115,14 +115,17 @@ def ablation(analysis: Analysis) -> dict[str, dict[str, float | None]]:
 
 
 def prediction(item: LabelledItem, outcome: Outcome) -> dict[str, object]:
-    a = outcome.analysis
+    return _prediction_row(item.id, outcome.analysis, outcome.error)
+
+
+def _prediction_row(item_id: str, a: Analysis | None, error: str | None) -> dict[str, object]:
     row: dict[str, object] = {
-        "item_id": item.id,
+        "item_id": item_id,
         "analysis_id": str(a.id) if a else None,
         "pipeline_version": a.pipeline_version if a else "",
     }
-    if outcome.error is not None or a is None or a.scores is None:
-        return {**row, "failed": True, "error": outcome.error, "scores": {}}
+    if error is not None or a is None or a.scores is None:
+        return {**row, "failed": True, "error": error, "scores": {}}
     skipped = [s.name.value for s in a.steps if s.state == StepState.skipped]
     return {
         **row,
@@ -132,6 +135,25 @@ def prediction(item: LabelledItem, outcome: Outcome) -> dict[str, object]:
         "skipped_steps": skipped,
         "ablation": ablation(a),
     }
+
+
+def rescore(fit_paths: list[Path], out: Path) -> int:
+    """`predictions.jsonl` from stored records (`fit.jsonl` rows), every analysis scored again by
+    this checkout's `pipeline.score`: a branch's families, abstention rules and weights measured
+    on the evidence of a finished run, without re-running the pipeline. Failed runs are not in
+    `fit.jsonl`; take their rows from the run's own `predictions.jsonl`."""
+    rows = []
+    for path in fit_paths:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            a = Analysis.model_validate(d["analysis"])
+            rescored = a.model_copy(update={"scores": score(a).scores})
+            rows.append(_prediction_row(d["item_id"], rescored, None))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return len(rows)
 
 
 def fit_row(item: LabelledItem, analysis: Analysis) -> dict[str, object]:
