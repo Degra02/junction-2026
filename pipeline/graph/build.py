@@ -78,11 +78,15 @@ ANALYTICS_ID, AD_ACCOUNT, COPY, TRANSLATION, LINK, SAME_OPERATOR = (
     "same_operator",
 )
 # kind -> (tau: count at which the layer reaches 63% of its evidence, q: trust in the layer).
+# `analytics_id` q = 0.75 (down from 0.9 after M2 found 5 of 18 single-ID edges were shared CMS
+# or partner-syndication tags: 1 uncorroborated ID scores 0.474 < CLUSTER_STRENGTH, while 2 IDs
+# or 1 ID + copied text still cross 0.5). `translation` q = 0.8 matches `copy` so 2 translated
+# stories (0.506) reach CLUSTER_STRENGTH.
 LAYERS: dict[str, tuple[float, float]] = {
-    ANALYTICS_ID: (1.0, 0.9),
+    ANALYTICS_ID: (1.0, 0.75),
     AD_ACCOUNT: (1.0, 0.2),
     COPY: (2.0, 0.8),
-    TRANSLATION: (2.0, 0.7),
+    TRANSLATION: (2.0, 0.8),
     LINK: (3.0, 0.3),
 }
 COORDINATION = frozenset({ANALYTICS_ID, AD_ACCOUNT, COPY, TRANSLATION})

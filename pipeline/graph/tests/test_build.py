@@ -113,8 +113,16 @@ def test_agency_copy_and_newsrooms_are_not_copies() -> None:
 def test_a_translation_is_the_same_text_in_another_language() -> None:
     # The stand-in detector reads the language from the first two letters.
     german, english = article("a.example", "de " + story(1)), article("b.example", "en " + story(2))
-    edges, _ = found(corpus_of([german, english]), identical)
+    edges, groups = found(corpus_of([german, english]), identical)
     assert list(edges[("a.example", "b.example")]) == [TRANSLATION]
+    assert groups == []  # one translated story is a weak tie
+    second = [
+        article("a.example", "de " + story(3), n=2),
+        article("b.example", "en " + story(4), n=2),
+    ]
+    assert found(corpus_of([german, english, *second]), identical)[1] == [
+        ["a.example", "b.example"]
+    ]
     same_language = [german, article("b.example", "de " + story(2))]
     assert found(corpus_of(same_language), identical) == ({}, [])
 
@@ -126,3 +134,19 @@ def test_editions_of_one_operator_cluster_but_blogs_on_a_platform_do_not() -> No
         [article(d, story(n), n) for n, d in enumerate([*domains, "y.wordpress.com"])]
     )
     assert found(corpus)[1] == [["deutsch.news-pravda.com", "france.news-pravda.com"]]
+
+
+def test_one_analytics_id_alone_is_a_weak_tie_until_corroborated() -> None:
+    single_tag = [
+        article("a.example", story(1), ids=("G-CMSVENDOR1",)),
+        article("b.example", story(2), ids=("G-CMSVENDOR1",)),
+    ]
+    edges, groups = found(corpus_of(single_tag))
+    assert edges[("a.example", "b.example")][ANALYTICS_ID].count == 1
+    assert groups == []
+    # Corroborated by a second analytics ID or by copied text -> clusters.
+    two_tags = [
+        article("a.example", story(1), ids=("G-ONE11111", "GTM-TWO2222")),
+        article("b.example", story(2), ids=("G-ONE11111", "GTM-TWO2222")),
+    ]
+    assert found(corpus_of(two_tags))[1] == [["a.example", "b.example"]]
