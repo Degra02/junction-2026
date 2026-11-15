@@ -20,6 +20,7 @@
     --border-subtle: #e7e6e2; --border-strong: #d4d2cd;
     --accent: #3e63dd; --accent-soft: #eef2fe; --indigo: #6e56cf; --indigo-soft: #f4f0fe;
     --caution: #a35200; --caution-soft: #fff5e0; --caution-border: #f5d48f;
+    --teal: #0b7a6c; --g2: #0f8a74; --g3: #d1550f; --g4: #9b4dca;
     --glow-a: rgba(62, 99, 221, 0.10); --glow-b: rgba(110, 86, 207, 0.06);
     --shadow: 0 1px 2px rgba(17, 17, 16, 0.04);
   }
@@ -29,6 +30,7 @@
     --border-subtle: #232325; --border-strong: #323235;
     --accent: #8da4ef; --accent-soft: rgba(141, 164, 239, 0.12); --indigo: #b1a3f4; --indigo-soft: rgba(177, 163, 244, 0.12);
     --caution: #f1b04c; --caution-soft: rgba(241, 176, 76, 0.10); --caution-border: rgba(241, 176, 76, 0.30);
+    --teal: #4fd1bc; --g2: #4fd1bc; --g3: #f39a5c; --g4: #c79bf0;
     --glow-a: rgba(141, 164, 239, 0.10); --glow-b: rgba(177, 163, 244, 0.07);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
@@ -62,10 +64,12 @@
   b { font-weight: 600; }
   .muted { color: var(--fg-muted); }
   .secondary { color: var(--fg-secondary); }
+  .strong { color: var(--fg-primary); font-weight: 600; }
   .kicker { font-size: 13pt; color: var(--fg-muted); margin-bottom: 6mm; }
   .mono { font-family: "Geist Mono", monospace; font-variant-numeric: tabular-nums; }
 
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: start; }
+  .cols.art-right { grid-template-columns: 1.15fr 0.85fr; align-items: center; }
   .card { background: var(--bg-surface); border: 1px solid var(--border-subtle); box-shadow: var(--shadow); border-radius: 4mm; padding: 7mm 8mm; }
   .card .label { font-size: 13pt; font-weight: 500; color: var(--fg-muted); margin: 0 0 3mm; }
   .card p { font-size: 16pt; color: var(--fg-secondary); }
@@ -81,16 +85,43 @@
   th { color: var(--fg-muted); font-weight: 500; font-size: 13pt; border-top: none; }
   td.n { text-align: right; font-family: "Geist Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
   svg text { font-family: "Geist", sans-serif; }
+
+  /* Minimalist line illustrations: hairline strokes in the theme colours, one accent each. */
+  .art { display: block; width: 100%; height: auto; }
+  .art .ln { fill: none; stroke: var(--border-strong); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .art .fg { fill: none; stroke: var(--fg-muted); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .art .ac { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .art .dot { fill: var(--bg-surface); stroke: var(--fg-muted); stroke-width: 2.5; }
+  .art .dot.ac { fill: var(--accent-soft); stroke: var(--accent); }
+  .art .fill { fill: var(--bg-surface); stroke: var(--border-strong); stroke-width: 2; }
+  .icon { position: absolute; top: 22mm; right: 22mm; width: 22mm; height: 22mm; }
 </style>
 </head>
 <body>
 
 <!-- 1 · light -->
-<section class="s" style="display:flex;flex-direction:column;justify-content:center;padding-top:20mm">
+<section class="s" style="padding-top:20mm">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
-  <div class="kicker">Junction 2026 · Hostinger “Decode the Noise”</div>
-  <h1>The4thLover</h1>
-  <p class="display" style="font-size:27pt;max-width:235mm;color:var(--fg-secondary)">Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.</p>
+  <div class="cols art-right" style="height:130mm">
+    <div>
+      <div class="kicker">Junction 2026 · Hostinger “Decode the Noise”</div>
+      <h1>The4thLover</h1>
+      <p class="display" style="font-size:27pt;color:var(--fg-secondary)">Paste a link. See how everyone else covered it, what's been copied, and how sure we are — with every source shown.</p>
+    </div>
+    <!-- Signal out of noise: the logo's bars rising from a field of faint noise bars. -->
+    <svg class="art" viewBox="0 0 300 220" aria-hidden="true">
+      <g fill="var(--border-strong)">
+        <rect x="10" y="105" width="8" height="10" rx="4"/><rect x="28" y="100" width="8" height="20" rx="4"/><rect x="46" y="107" width="8" height="6" rx="3"/>
+        <rect x="64" y="96" width="8" height="28" rx="4"/><rect x="82" y="103" width="8" height="14" rx="4"/><rect x="100" y="99" width="8" height="22" rx="4"/>
+        <rect x="244" y="102" width="8" height="16" rx="4"/><rect x="262" y="106" width="8" height="8" rx="4"/><rect x="280" y="98" width="8" height="24" rx="4"/>
+      </g>
+      <rect x="128" y="100" width="12" height="20" rx="6" fill="var(--fg-muted)" opacity="0.5"/>
+      <rect x="152" y="80" width="12" height="60" rx="6" fill="var(--fg-muted)" opacity="0.7"/>
+      <rect x="176" y="35" width="12" height="150" rx="6" fill="var(--accent)"/>
+      <rect x="200" y="80" width="12" height="60" rx="6" fill="var(--fg-muted)" opacity="0.7"/>
+      <rect x="224" y="100" width="12" height="20" rx="6" fill="var(--fg-muted)" opacity="0.5"/>
+    </svg>
+  </div>
   <div class="foot"><span>the4thlover.tech</span><span>Degra02 · Lyreplus · ck-lithium · mosearc</span></div>
 </section>
 
@@ -98,12 +129,22 @@
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>Is this manipulation, or one voice in a network?</h2>
-  <div class="cols" style="margin-top:6mm">
-    <p class="secondary" style="font-size:21pt">Answering that today is <b style="color:var(--fg-primary)">hours of manual OSINT</b>: read for techniques, find other coverage, look for fact-checks, check the domain, search for copies, compare tracking codes.</p>
-    <div class="card">
-      <div class="label">Why not just ask an AI?</div>
-      <p>Its opinion of the text alone is not evidence: biased by language, prompt-injectable, and nobody can check it.</p>
-    </div>
+  <div class="cols art-right">
+    <p class="secondary" style="font-size:22pt">Answering that today is <span class="strong">hours of manual OSINT</span>: read for techniques, find other coverage, look for fact-checks, check the domain, search for copies, compare tracking codes.</p>
+    <!-- One article, faintly linked to others that may say the same thing. -->
+    <svg class="art" viewBox="0 0 300 200" aria-hidden="true">
+      <g class="ln" stroke-dasharray="4 7">
+        <path d="M150,100 L50,40"/><path d="M150,100 L40,150"/><path d="M150,100 L255,35"/><path d="M150,100 L265,155"/><path d="M150,100 L150,180"/>
+      </g>
+      <g>
+        <rect class="fill" x="30" y="25" width="40" height="30" rx="5"/><rect class="fill" x="20" y="135" width="40" height="30" rx="5"/>
+        <rect class="fill" x="235" y="20" width="40" height="30" rx="5"/><rect class="fill" x="245" y="140" width="40" height="30" rx="5"/>
+        <rect class="fill" x="130" y="165" width="40" height="28" rx="5"/>
+      </g>
+      <rect x="115" y="60" width="70" height="86" rx="8" fill="var(--bg-surface)" stroke="var(--accent)" stroke-width="3"/>
+      <g class="fg"><path d="M128,80 H172"/><path d="M128,94 H166"/><path d="M128,108 H172"/><path d="M128,122 H158"/></g>
+      <text x="150" y="52" text-anchor="middle" font-size="26" fill="var(--accent)" font-family="Newsreader, Georgia, serif">?</text>
+    </svg>
   </div>
   <div class="foot"><span>Problem</span><span>02</span></div>
 </section>
@@ -118,16 +159,15 @@
       <rect x="5" y="45" width="150" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="80" y="72">Text · link</text><text x="80" y="94">· image</text>
       <rect x="200" y="45" width="170" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="285" y="72">What does it</text><text x="285" y="94">claim?</text>
       <rect x="415" y="45" width="190" height="60" rx="10" fill="var(--bg-surface)" stroke="var(--border-strong)"/><text x="510" y="72">Other coverage,</text><text x="510" y="94">fact-checks, copies</text>
-      <rect x="650" y="10" width="240" height="56" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="770" y="44" fill="var(--accent)">Single-actor confidence</text>
-      <rect x="650" y="84" width="240" height="56" rx="10" fill="var(--indigo-soft)" stroke="var(--indigo)"/><text x="770" y="118" fill="var(--indigo)">Coordinated confidence</text>
+      <rect x="650" y="40" width="240" height="70" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="770" y="70" fill="var(--accent)">One confidence</text><text x="770" y="93" fill="var(--accent)" font-size="15">with its evidence</text>
     </g>
     <g stroke="var(--fg-muted)" stroke-width="2" fill="none" marker-end="url(#a)">
-      <path d="M155,75 L196,75"/><path d="M370,75 L411,75"/><path d="M605,70 L646,40"/><path d="M605,80 L646,110"/>
+      <path d="M155,75 L196,75"/><path d="M370,75 L411,75"/><path d="M605,75 L646,75"/>
     </g>
   </svg>
   <div class="cols">
-    <div class="card"><div class="label" style="color:var(--accent)">Single-actor: does the author manipulate?</div><p>Persuasion techniques · tone far more charged than other reports · claims the coverage contradicts · fact-checker ratings · a brand-new domain</p></div>
-    <div class="card"><div class="label" style="color:var(--indigo)">Coordinated: is it pushed by sites acting together?</div><p>Same paragraphs on unrelated sites · within hours · shared tracking codes · a documented network (VIGINUM)</p></div>
+    <div class="card"><div class="label" style="color:var(--accent)">Content: how it is written and what it claims</div><p>Persuasion techniques · tone far more charged than other reports · claims the coverage contradicts · fact-checker ratings · a brand-new domain</p></div>
+    <div class="card"><div class="label" style="color:var(--indigo)">Network: who else pushes it</div><p>Same paragraphs on unrelated sites · within hours · shared tracking codes · a documented network (VIGINUM)</p></div>
   </div>
   <div class="foot"><span>Product</span><span>03</span></div>
 </section>
@@ -135,18 +175,18 @@
 <!-- 4 · dark -->
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
-  <h2>A confidence and its evidence. Never a verdict.</h2>
+  <h2>One confidence and its evidence. Never a label.</h2>
   <div class="cols">
     <ul class="secondary">
       <li>No “propaganda / not propaganda” label: that would pose as ground truth.</li>
-      <li><b style="color:var(--fg-primary)">“Not enough evidence”</b>, with the reason, instead of a guess.</li>
+      <li><span class="strong">“Not enough evidence”</span>, with the reason, instead of a guess.</li>
       <li>Every reason links to its source; every quote is checked word for word, or dropped.</li>
-      <li><b style="color:var(--fg-primary)">An LLM never sets the score.</b></li>
+      <li><span class="strong">Measured signals set the score</span>, added up by a fitted model you can inspect.</li>
     </ul>
     <div class="card">
       <div class="label">achgut.com · “Are the climate data manipulated?” · de</div>
       <div class="num accent" style="margin:2mm 0 2mm">84%</div>
-      <p class="mono muted" style="font-size:12.5pt;margin-bottom:4mm">combined · Content 83% · Network 8%</p>
+      <p class="mono muted" style="font-size:12.5pt;margin-bottom:4mm">Content 83% · Network 8%</p>
       <table>
         <tr><td>Content: starting point</td><td class="n">−2.00</td></tr>
         <tr><td>Fact-check matched across languages: Climate Feedback, “Inaccurate”</td><td class="n">+2.50</td></tr>
@@ -155,12 +195,14 @@
       </table>
     </div>
   </div>
-  <div class="foot"><span>combined = 1 − (1 − content)(1 − network) · each score: a logistic regression (weights of this run)</span><span>04</span></div>
+  <div class="foot"><span>score = 1 − (1 − content)(1 − network) · each part: a logistic regression (weights of this run)</span><span>04</span></div>
 </section>
 
 <!-- 5 · light -->
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
+  <!-- Shield with a check: guards against false alarms. -->
+  <svg class="icon art" viewBox="0 0 48 48" aria-hidden="true"><path class="fg" d="M24,5 L40,11 V23 C40,33 33,40 24,43 C15,40 8,33 8,23 V11 Z"/><path class="ac" d="M17,24 L22,29 L31,19"/></svg>
   <h2>Built against the ways a naive detector fails</h2>
   <div class="card" style="padding:4mm 6mm">
     <table>
@@ -178,38 +220,51 @@
 <!-- 6 · dark -->
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
+  <!-- Bars with an error whisker: measured, with intervals. -->
+  <svg class="icon art" viewBox="0 0 48 48" aria-hidden="true"><path class="ln" d="M6,42 H42"/><path class="fg" d="M12,42 V30"/><path class="fg" d="M22,42 V22"/><path class="ac" d="M32,42 V12"/><path class="ac" d="M28,8 H36 M32,8 V16 M28,16 H36" stroke-width="2"/></svg>
   <h2 style="margin-bottom:3mm">Measured on third-party labels, not our opinion</h2>
   <p class="muted" style="font-size:15pt;margin-bottom:7mm">284 items · 12 languages · fact-checkers, EUvsDisinfo, VIGINUM · 6 hard-negative sets</p>
   <div class="cols">
     <div class="card">
-      <div class="label" style="color:var(--accent)">Single-actor</div>
+      <div class="label" style="color:var(--accent)">Content signals</div>
       <p><span class="num">0.98</span>&nbsp; precision <span class="mono muted">[0.91–1.00]</span></p>
       <p><span class="num">0.03</span>&nbsp; false-positive rate <span class="mono muted">[0.00–0.13]</span></p>
-      <p style="margin-top:5mm">Scores 43% of items, abstains on the rest → catches <b style="color:var(--fg-primary)">46%</b> of all positives</p>
+      <p style="margin-top:5mm">Scores 43% of items, abstains on the rest → catches <span class="strong">46%</span> of all positives</p>
     </div>
     <div class="card">
-      <div class="label" style="color:var(--indigo)">Coordinated</div>
+      <div class="label" style="color:var(--indigo)">Network signals</div>
       <p><span class="num">1.00</span>&nbsp; on the set</p>
       <div class="warn" style="margin-top:6mm"><p>…because the VIGINUM list labels the positives <b>and</b> is a signal. Without it: AUC <b>0.38</b>. We publish that next to the headline.</p></div>
     </div>
   </div>
-  <div class="foot"><span>Wilson 95% intervals · AUCs 5-fold cross-validated · single-actor AUC 0.98, 0.84 without fact-checks</span><span>06</span></div>
+  <div class="foot"><span>Wilson 95% intervals · AUCs 5-fold cross-validated · measured per part; the combined score is not tested on its own</span><span>06</span></div>
 </section>
 
 <!-- 7 · light -->
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>A map of sites that act together</h2>
-  <div class="cols">
+  <div class="cols art-right">
     <div>
-      <p><span class="num">908</span>&nbsp; sites <span class="secondary">· <b>537</b> ties · <b>29</b> groups, built from every analysis</span></p>
+      <p><span class="num">908</span>&nbsp; sites <span class="secondary">· <b>537</b> ties · <b>29</b> groups</span></p>
       <p style="margin-top:5mm"><span class="tag">Same analytics ID</span><span class="tag">Copied text</span><span class="tag">Translated text</span><span class="tag">Same operator</span></p>
-      <p class="secondary" style="margin-top:3mm">Finds all <b style="color:var(--fg-primary)">18</b> Pravda-network editions as one group <b style="color:var(--fg-primary)">without using the list</b>, plus 6 unlisted sister sites.</p>
+      <p class="secondary" style="margin-top:3mm">Finds all <span class="strong">18</span> Pravda-network editions as one group <span class="strong">without using the list</span>, plus 6 unlisted sister sites.</p>
+      <p class="secondary" style="font-size:16pt;margin-top:6mm"><span class="strong">A tie is a relationship, not a verdict.</span> The UN and AFP's fact-check editions are in the map too; every tie shows its raw evidence.</p>
     </div>
-    <div class="card">
-      <div class="label">A tie is a relationship, not a verdict.</div>
-      <p>The UN's sites, AFP's fact-check editions and Nexstar newsrooms are in the map too. Every tie shows its raw evidence (the exact tracker ID, the article pair), and anyone can ask for a correction.</p>
-    </div>
+    <!-- Three groups of tied sites, one colour each (the site's categorical palette). -->
+    <svg class="art" viewBox="0 0 300 240" aria-hidden="true">
+      <g fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.55">
+        <path d="M80,70 L120,40 L150,80 L110,110 Z"/><path d="M80,70 L150,80"/><path d="M120,40 L110,110"/><path d="M110,110 L60,120"/><path d="M80,70 L60,120"/>
+      </g>
+      <g fill="var(--bg-surface)" stroke="var(--accent)" stroke-width="2.5">
+        <circle cx="80" cy="70" r="9"/><circle cx="120" cy="40" r="9"/><circle cx="150" cy="80" r="9"/><circle cx="110" cy="110" r="9"/><circle cx="60" cy="120" r="9"/>
+      </g>
+      <g fill="none" stroke="var(--g2)" stroke-width="2" opacity="0.55"><path d="M210,60 L250,90 L215,120 Z"/></g>
+      <g fill="var(--bg-surface)" stroke="var(--g2)" stroke-width="2.5"><circle cx="210" cy="60" r="9"/><circle cx="250" cy="90" r="9"/><circle cx="215" cy="120" r="9"/></g>
+      <g fill="none" stroke="var(--g3)" stroke-width="2" opacity="0.55"><path d="M140,180 L190,195"/></g>
+      <g fill="var(--bg-surface)" stroke="var(--g3)" stroke-width="2.5"><circle cx="140" cy="180" r="9"/><circle cx="190" cy="195" r="9"/></g>
+      <g fill="var(--bg-surface)" stroke="var(--border-strong)" stroke-width="2"><circle cx="40" cy="200" r="6"/><circle cx="260" cy="190" r="6"/><circle cx="250" cy="30" r="6"/><circle cx="30" cy="30" r="6"/></g>
+    </svg>
   </div>
   <div class="foot"><span>the4thlover.tech/sources</span><span>07</span></div>
 </section>
@@ -218,29 +273,38 @@
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
   <h2>Live on one Hostinger VPS</h2>
-  <div class="cols">
-    <ul class="secondary">
-      <li>2 vCPU, 8 GB, <b style="color:var(--fg-primary)">no GPU</b>: all models on CPU</li>
-      <li>About <b style="color:var(--fg-primary)">a minute</b> per analysis, progress live step by step</li>
-      <li>Rust API + Python worker; every merge deploys</li>
-      <li>Web app, metrics page, source map, browser extension</li>
-    </ul>
-    <div class="card">
-      <div class="label">Scale and impact</div>
-      <p>The coordinated detector works on any set of sites. A host could run it across the domains it hosts to surface networks like Portal Kombat, which only the host can see across sites.</p>
+  <div class="cols art-right">
+    <div>
+      <ul class="secondary">
+        <li>2 vCPU, 8 GB, <span class="strong">no GPU</span>: all models on CPU</li>
+        <li>About <span class="strong">a minute</span> per analysis, progress live step by step</li>
+        <li>Web app, metrics page, source map, browser extension</li>
+      </ul>
+      <p class="secondary" style="font-size:17pt;margin-top:6mm"><span class="strong">Scale:</span> the network signals work on any set of sites. A host could run them across the domains it hosts to surface networks like Portal Kombat, which only the host can see.</p>
     </div>
+    <!-- One server, its sites around it. -->
+    <svg class="art" viewBox="0 0 300 220" aria-hidden="true">
+      <rect x="105" y="55" width="90" height="110" rx="10" fill="var(--bg-surface)" stroke="var(--fg-muted)" stroke-width="2.5"/>
+      <g class="ln"><path d="M105,92 H195"/><path d="M105,128 H195"/></g>
+      <g fill="var(--accent)"><circle cx="122" cy="74" r="4"/><circle cx="122" cy="110" r="4"/><circle cx="122" cy="146" r="4"/></g>
+      <g class="fg" stroke-width="2"><path d="M140,74 H178"/><path d="M140,110 H178"/><path d="M140,146 H178"/></g>
+      <g class="ln" stroke-dasharray="3 6"><path d="M105,110 L45,60"/><path d="M105,110 L40,165"/><path d="M195,110 L258,55"/><path d="M195,110 L262,170"/></g>
+      <g fill="var(--bg-surface)" stroke="var(--border-strong)" stroke-width="2"><rect x="25" y="45" width="34" height="24" rx="4"/><rect x="22" y="155" width="34" height="24" rx="4"/><rect x="242" y="40" width="34" height="24" rx="4"/><rect x="245" y="160" width="34" height="24" rx="4"/></g>
+    </svg>
   </div>
-  <div class="foot"><span>Oxylabs for blocked pages and exact-phrase search · Hostinger AI Router for the two LLM calls</span><span>08</span></div>
+  <div class="foot"><span>Rust API + Python worker · Oxylabs for blocked pages and exact-phrase search · Hostinger AI Router</span><span>08</span></div>
 </section>
 
 <!-- 9 · light -->
 <section class="s">
   <div class="brand"><svg viewBox="0 0 20 20"><rect x="2" y="9" width="2.2" height="2" rx="1.1" fill="currentColor" opacity="0.35"/><rect x="6" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/><rect x="10" y="4.5" width="2.2" height="11" rx="1.1" fill="currentColor"/><rect x="14" y="7.5" width="2.2" height="5" rx="1.1" fill="currentColor" opacity="0.5"/></svg>The4thLover</div>
+  <!-- Arrow forward. -->
+  <svg class="icon art" viewBox="0 0 48 48" aria-hidden="true"><path class="fg" d="M8,24 H36"/><path class="ac" d="M28,15 L38,24 L28,33"/></svg>
   <h2>What's next</h2>
   <ul class="secondary">
-    <li><b style="color:var(--fg-primary)">Find networks without a list</b>: feed the site map into the coordinated score, fitted and measured like every signal.</li>
-    <li><b style="color:var(--fg-primary)">Memes</b>: the persuasion rater already shows its evidence on images; next, score it after a refit with a meme test set and a left/right symmetry check.</li>
-    <li><b style="color:var(--fg-primary)">More coverage, fewer abstentions</b>, and a held-out test set.</li>
+    <li><span class="strong">Find networks without a list</span>: feed the site map into the score, fitted and measured like every signal.</li>
+    <li><span class="strong">Memes</span>: the persuasion rater already shows its evidence on images; next, score it after a refit with a meme test set and a left/right symmetry check.</li>
+    <li><span class="strong">More coverage, fewer abstentions</span>, and a held-out test set.</li>
   </ul>
   <p class="display" style="margin-top:12mm;font-size:28pt">Try it: <span style="color:var(--accent)">the4thlover.tech</span></p>
   <div class="foot"><span>github.com/Degra02/junction-2026 (MIT) · full report: docs/pitch/report.pdf</span><span>09</span></div>
