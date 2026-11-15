@@ -51,6 +51,12 @@ function stepOf(analysis: Analysis, name: StageName): Step {
   );
 }
 
+function stagesFor(analysis: Analysis): readonly StageName[] {
+  if (analysis.steps.length === 0) return ALL_STAGES;
+  const present = new Set(analysis.steps.map((s) => s.name));
+  return ALL_STAGES.filter((name) => present.has(name));
+}
+
 function formatElapsed(ms: number): string {
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   const s = Math.floor(ms / 1000);
@@ -402,7 +408,7 @@ export function RunLedger({
   activity,
   mode,
 }: Readonly<{ analysis: Analysis; activity: ActivityLog; mode: Mode }>) {
-  const steps = ALL_STAGES.map((name) => stepOf(analysis, name));
+  const steps = stagesFor(analysis).map((name) => stepOf(analysis, name));
   const maxMs = Math.max(1, ...steps.map((s) => s.duration_ms ?? 0));
   return (
     <ol aria-label="Analysis steps">
@@ -542,7 +548,7 @@ export function RunProgress({
   replay,
 }: Readonly<{ analysis: Analysis; activity: ActivityLog; replay: boolean }>) {
   const [mountedAt] = useState(() => Date.now());
-  const steps = ALL_STAGES.map((name) => stepOf(analysis, name));
+  const steps = stagesFor(analysis).map((name) => stepOf(analysis, name));
   const finished = steps.filter((s) => s.state !== "pending" && s.state !== "running").length;
   const queued = analysis.status === "queued";
 

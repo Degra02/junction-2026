@@ -135,7 +135,9 @@ impl Pipeline {
             let mut runnable = Vec::with_capacity(group.len());
             let mut changed = false;
             for &stage in *group {
-                if a.step(stage).state != StepState::Pending {
+                if a.steps.iter().find(|s| s.name == stage).map(|s| s.state)
+                    != Some(StepState::Pending)
+                {
                     continue;
                 }
                 changed = true;
@@ -265,7 +267,9 @@ impl Pipeline {
         loop {
             tick.tick().await;
             for (stage, note) in self.worker.progress(a.id).await {
-                let step = a.step(stage);
+                let Some(step) = a.steps.iter().find(|s| s.name == stage) else {
+                    continue;
+                };
                 if step.state == StepState::Running && shown.get(&stage) != Some(&note) {
                     let step = Step {
                         detail: Some(note.clone()),
@@ -377,7 +381,12 @@ const fn is_model_stage(stage: StageName) -> bool {
 /// produced nothing.
 fn final_status(a: &Analysis) -> (AnalysisStatus, Option<String>) {
     let why = |stage: StageName, what: &str| {
-        let cause = a.step(stage).error.as_deref().unwrap_or("no output");
+        let cause = a
+            .steps
+            .iter()
+            .find(|s| s.name == stage)
+            .and_then(|s| s.error.as_deref())
+            .unwrap_or("no output");
         Some(format!("{what} ({stage}): {cause}"))
     };
     if a.document.is_none() {
