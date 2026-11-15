@@ -96,7 +96,7 @@ Before sending changes: `mise run check` (everything CI runs). All commands: `mi
 Going deeper: [`SPEC.md`](SPEC.md) · [`docs/ai-core.md`](docs/ai-core.md) · [`evals/README.md`](evals/README.md) · [`DECISIONS.md`](DECISIONS.md) · [`AGENTS.md`](AGENTS.md).
 
 ## Team
-Degra02 (integration, server, deploy) · Lyreplus (signals, scoring, explanations) · ck-lithium (extraction, search, website) · mosearc (evaluation, spec, pitch)
+Degra02 (integration, server, deploy) · Lyreplus (signals, scoring, explanations, video) · ck-lithium (extraction, search, website) · mosearc (evaluation, spec, pitch, graphs)
 
 ## Star History
 
